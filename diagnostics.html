@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenSlot 诊断</title>
+    <link rel="stylesheet" href="./styles.css?v=20260904-admin-calendar-collapse" />
+  </head>
+  <body>
+    <main class="diagnostics-page">
+      <header class="admin-topbar">
+        <div>
+          <p class="eyebrow">System Check</p>
+          <h1>连接诊断</h1>
+        </div>
+        <span class="topbar-actions">
+          <a class="ghost-link" href="./index.html">顾客页</a>
+          <a class="ghost-link" href="./admin.html">管理后台</a>
+        </span>
+      </header>
+
+      <section class="diagnostics-grid">
+        <aside class="admin-panel diagnostics-summary">
+          <h2>当前环境</h2>
+          <dl>
+            <div>
+              <dt>数据源</dt>
+              <dd id="sourceLabel">检测中</dd>
+            </div>
+            <div>
+              <dt>项目 URL</dt>
+              <dd id="projectUrlLabel">-</dd>
+            </div>
+            <div>
+              <dt>Auth 用户</dt>
+              <dd id="authUserLabel">检测中</dd>
+            </div>
+          </dl>
+          <button id="runDiagnosticsButton" class="primary-action compact-action" type="button">重新检测</button>
+        </aside>
+
+        <section class="control-card diagnostics-card">
+          <div class="control-title">
+            <strong>检查结果</strong>
+            <small id="diagnosticsTimestamp">尚未运行</small>
+          </div>
+          <div id="diagnosticsList" class="diagnostics-list"></div>
+        </section>
+
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./config.js?v=20260829-split-pages"></script>
+    <script src="./i18n.js?v=20260904-admin-calendar-collapse"></script>
+    <script src="./diagnostics.js?v=20260831-email"></script>
+  </body>
+</html>
