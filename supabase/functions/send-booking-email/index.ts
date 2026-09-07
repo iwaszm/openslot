@@ -21,6 +21,12 @@ type BookingRow = {
     email: string;
     gender: string;
   } | null;
+  salons: {
+    name: string;
+    address: string;
+    phone: string;
+    opening_hours: Record<string, string>;
+  } | null;
 };
 
 const corsHeaders = {
@@ -44,13 +50,12 @@ Deno.serve(async (req) => {
     });
 
     const booking = await loadBooking(supabase, booking_id);
-    if (!booking.customers || !booking.services) return json({ error: "Booking details are incomplete" }, 404);
+    if (!booking.customers || !booking.services || !booking.salons) return json({ error: "Booking details are incomplete" }, 404);
 
     const result = await sendOnce({
       supabase,
       resendApiKey: env.resendApiKey,
       from: env.mailFrom,
-      publicSiteUrl: env.publicSiteUrl,
       supabaseUrl: env.supabaseUrl,
       booking,
       event: event_type,
@@ -69,10 +74,10 @@ function readEnv() {
     serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
     resendApiKey: Deno.env.get("RESEND_API_KEY") || "",
     mailFrom: Deno.env.get("MAIL_FROM") || "",
-    publicSiteUrl: Deno.env.get("PUBLIC_SITE_URL") || "",
+    publicBaseUrl: Deno.env.get("PUBLIC_BASE_URL") || Deno.env.get("PUBLIC_SITE_URL") || "",
   };
   const missing = Object.entries(env)
-    .filter(([key, value]) => key !== "publicSiteUrl" && !value)
+    .filter(([key, value]) => key !== "publicBaseUrl" && !value)
     .map(([key]) => key);
   if (missing.length > 0) throw new Error(`Missing function secrets: ${missing.join(", ")}`);
   return env;
@@ -81,7 +86,7 @@ function readEnv() {
 async function loadBooking(supabase: ReturnType<typeof createClient>, bookingId: string): Promise<BookingRow> {
   const { data, error } = await supabase
     .from("appointments")
-    .select("id, appointment_date, start_time, end_time, status, cancellation_token, cancelled_by, services(name, duration_minutes, price), customers(name, phone, email, gender)")
+    .select("id, appointment_date, start_time, end_time, status, cancellation_token, cancelled_by, services(name, duration_minutes, price), customers(name, phone, email, gender), salons(name, address, phone, opening_hours)")
     .eq("id", bookingId)
     .single();
   if (error) throw error;
@@ -92,7 +97,6 @@ async function sendOnce(options: {
   supabase: ReturnType<typeof createClient>;
   resendApiKey: string;
   from: string;
-  publicSiteUrl: string;
   supabaseUrl: string;
   booking: BookingRow;
   event: MailEvent;
@@ -168,6 +172,7 @@ function buildSubject(booking: BookingRow, event: MailEvent) {
 function buildHtml(booking: BookingRow, event: MailEvent, supabaseUrl: string) {
   const customer = booking.customers!;
   const service = booking.services!;
+  const salon = booking.salons!;
   const title = event === "created" ? "Ihr Termin ist bestätigt" : "Ihr Termin wurde storniert";
   const intro = event === "created"
     ? "Vielen Dank fuer Ihre Buchung. Wir haben Ihren Termin erhalten und freuen uns auf Ihren Besuch."
@@ -195,14 +200,10 @@ function buildHtml(booking: BookingRow, event: MailEvent, supabaseUrl: string) {
       ` : ""}
 
       <h3 style="margin-top:24px">Saloninformationen</h3>
-      <p><strong>Berlin Hair Salon</strong></p>
-      <p>Niebuhrstrasse 66, 10629 Berlin</p>
-      <p>Telefon: <a href="tel:+4917641164231">0176 41164231</a></p>
-      <p>Oeffnungszeiten:<br>
-        Montag bis Freitag: 10:00-18:00<br>
-        Samstag: 10:00-17:00<br>
-        Sonntag: geschlossen
-      </p>
+      <p><strong>${escapeHtml(salon.name)}</strong></p>
+      ${salon.address ? `<p>${escapeHtml(salon.address)}</p>` : ""}
+      ${salon.phone ? `<p>Telefon: <a href="tel:${escapeHtml(normalizePhoneHref(salon.phone))}">${escapeHtml(salon.phone)}</a></p>` : ""}
+      <p>Oeffnungszeiten:<br>${formatOpeningHoursHtml(salon.opening_hours)}</p>
     </div>
   `;
 }
@@ -210,6 +211,7 @@ function buildHtml(booking: BookingRow, event: MailEvent, supabaseUrl: string) {
 function buildText(booking: BookingRow, event: MailEvent, supabaseUrl: string) {
   const customer = booking.customers!;
   const service = booking.services!;
+  const salon = booking.salons!;
   const title = event === "created" ? "Ihr Termin ist bestaetigt" : "Ihr Termin wurde storniert";
   const cancelUrl = event === "created" ? buildCancelUrl(supabaseUrl, booking.cancellation_token) : "";
   return [
@@ -224,10 +226,10 @@ function buildText(booking: BookingRow, event: MailEvent, supabaseUrl: string) {
     cancelUrl ? `Termin stornieren: ${cancelUrl}` : "",
     "",
     "Saloninformationen",
-    "Berlin Hair Salon",
-    "Niebuhrstrasse 66, 10629 Berlin",
-    "Telefon: 0176 41164231",
-    "Oeffnungszeiten: Montag bis Freitag 10:00-18:00, Samstag 10:00-17:00, Sonntag geschlossen",
+    salon.name,
+    salon.address,
+    salon.phone ? `Telefon: ${salon.phone}` : "",
+    `Oeffnungszeiten: ${formatOpeningHoursText(salon.opening_hours)}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -251,6 +253,34 @@ function formatGermanDate(value: string) {
 
 function formatTimeRange(booking: BookingRow) {
   return `${formatBerlinTime(booking.start_time)}-${formatBerlinTime(booking.end_time)}`;
+}
+
+function formatOpeningHoursHtml(openingHours: Record<string, string>) {
+  return Object.entries(normalizeOpeningHours(openingHours))
+    .map(([day, hours]) => `${escapeHtml(day)}: ${escapeHtml(hours)}`)
+    .join("<br>");
+}
+
+function formatOpeningHoursText(openingHours: Record<string, string>) {
+  return Object.entries(normalizeOpeningHours(openingHours))
+    .map(([day, hours]) => `${day}: ${hours}`)
+    .join(", ");
+}
+
+function normalizeOpeningHours(openingHours: Record<string, string>) {
+  return {
+    "Montag": openingHours?.monday || "10:00-18:00",
+    "Dienstag": openingHours?.tuesday || "10:00-18:00",
+    "Mittwoch": openingHours?.wednesday || "10:00-18:00",
+    "Donnerstag": openingHours?.thursday || "10:00-18:00",
+    "Freitag": openingHours?.friday || "10:00-18:00",
+    "Samstag": openingHours?.saturday || "10:00-17:00",
+    "Sonntag": openingHours?.sunday || "geschlossen",
+  };
+}
+
+function normalizePhoneHref(phone: string) {
+  return phone.replace(/[^\d+]/g, "");
 }
 
 function formatBerlinTime(value: string) {

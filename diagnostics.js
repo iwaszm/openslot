@@ -81,6 +81,7 @@ const CHECKS = [
     label: "create_public_booking RPC",
     run: async (ctx) => {
       const { error } = await ctx.client.rpc("create_public_booking", {
+        p_salon_slug: "lisa",
         p_service_id: "__diagnostic_missing_service__",
         p_appointment_date: toDateInputValue(new Date()),
         p_start_time: "10:00:00",

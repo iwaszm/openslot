@@ -29,7 +29,7 @@
 3. 在 Supabase Edge Function Secrets 里保存：
    - `RESEND_API_KEY`
    - `MAIL_FROM`
-   - `PUBLIC_SITE_URL`
+   - `PUBLIC_BASE_URL`
 4. 新建 Edge Function：`send-booking-email`。
 5. 新建公开 Edge Function：`cancel-booking`。
 6. 修改预约链路：
@@ -50,6 +50,7 @@
 - 顾客点击邮件取消链接后由 `cancel-booking` 取消预约
 - 店主取消预约后调用 `send-booking-email`
 - 只发送顾客邮件；店主不收邮件，直接看管理后台
+- 多店模式下，邮件店名、地址、电话和营业时间来自 `salons` 表，不再写死在模板里。
 
 部署命令：
 

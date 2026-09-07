@@ -37,6 +37,7 @@ const state = {
   daySettings: createDefaultDaySettings(toDateInputValue(new Date())),
   repository: null,
   services: DEFAULT_SERVICES,
+  salon: null,
   dateOptions: [],
   selectedServiceId: DEFAULT_SERVICES[0].id,
   selectedGender: DEFAULT_SERVICES[0].gender,
@@ -66,6 +67,9 @@ const els = {
   customerEmail: document.querySelector('[name="email"]'),
   openingHours: document.querySelector("#openingHours"),
   bookingResult: document.querySelector("#bookingResult"),
+  salonName: document.querySelector("#salonName"),
+  salonAddress: document.querySelector("#salonAddress"),
+  salonPhone: document.querySelector("#salonPhone"),
 };
 
 init();
@@ -192,13 +196,29 @@ async function refreshDayData(options = {}) {
 }
 
 function render() {
+  renderSalonInfo();
   renderOpeningHours();
   renderDateStrip();
   renderSelectedSummaries();
   renderSlots();
 }
 
+function renderSalonInfo() {
+  if (!state.salon) return;
+  if (els.salonName) els.salonName.textContent = state.salon.name || t("salon.name");
+  if (els.salonAddress) els.salonAddress.textContent = state.salon.address || "";
+  if (els.salonPhone) {
+    const phone = state.salon.phone || "";
+    els.salonPhone.textContent = phone;
+    els.salonPhone.href = `tel:${normalizePhoneHref(phone)}`;
+  }
+}
+
 function renderOpeningHours() {
+  if (state.salon?.opening_hours) {
+    renderSalonOpeningHours(state.salon.opening_hours);
+    return;
+  }
   const today = getWeeklyRule(new Date());
   els.openingHours.innerHTML = `
     <details class="hours-details">
@@ -218,8 +238,49 @@ function renderOpeningHours() {
   `;
 }
 
+function renderSalonOpeningHours(openingHours) {
+  const rows = normalizeOpeningHours(openingHours);
+  const todayKey = getOpeningHoursTodayKey();
+  els.openingHours.innerHTML = `
+    <details class="hours-details">
+      <summary>
+        <span>${escapeHtml(rows[todayKey].label)}</span>
+        <strong>${escapeHtml(rows[todayKey].hours)}</strong>
+      </summary>
+      <dl class="weekly-hours">
+        ${Object.values(rows).map((day) => `
+          <div class="${day.hours === "geschlossen" || day.hours === "closed" ? "closed-day" : ""}">
+            <dt>${escapeHtml(day.label)}</dt>
+            <dd>${escapeHtml(day.hours)}</dd>
+          </div>
+        `).join("")}
+      </dl>
+    </details>
+  `;
+}
+
+function normalizeOpeningHours(openingHours) {
+  return {
+    monday: { label: t("salon.day.monday"), hours: openingHours.monday || "10:00-18:00" },
+    tuesday: { label: t("salon.day.tuesday"), hours: openingHours.tuesday || "10:00-18:00" },
+    wednesday: { label: t("salon.day.wednesday"), hours: openingHours.wednesday || "10:00-18:00" },
+    thursday: { label: t("salon.day.thursday"), hours: openingHours.thursday || "10:00-18:00" },
+    friday: { label: t("salon.day.friday"), hours: openingHours.friday || "10:00-18:00" },
+    saturday: { label: t("salon.day.saturday"), hours: openingHours.saturday || "10:00-17:00" },
+    sunday: { label: t("salon.day.sunday"), hours: openingHours.sunday || t("salon.closed") },
+  };
+}
+
+function getOpeningHoursTodayKey() {
+  return ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][new Date().getDay()];
+}
+
 function formatWeeklyHours(day) {
   return day.openMinutes === null ? t("salon.closed") : `${formatMinutes(day.openMinutes)}-${formatMinutes(day.closeMinutes)}`;
+}
+
+function normalizePhoneHref(phone) {
+  return String(phone).replace(/[^\d+]/g, "");
 }
 
 function renderServices() {
@@ -430,9 +491,9 @@ async function handleSubmit(event) {
     state.selectedServiceId = activeServices()[0]?.id || "";
     state.selectedGender = "male";
     els.genderInput.value = state.selectedGender;
-    renderBookingResult({ ...appointment, id: bookingId, serviceName: getServiceName(service) });
     const mailMessage = await state.repository.sendBookingEmail(bookingId, "created");
-    els.formMessage.textContent = mailMessage || t("customer.bookingSubmitted");
+    renderBookingResult();
+    els.formMessage.textContent = mailMessage || "";
     await refreshDayData();
     renderServices();
   } catch (error) {
@@ -441,31 +502,31 @@ async function handleSubmit(event) {
   }
 }
 
-function renderBookingResult(appointment) {
+function renderBookingResult() {
   els.bookingResult.hidden = false;
-  els.bookingResult.innerHTML = `
-    <strong>${t("customer.success")}</strong>
-    <span>Booking code: ${escapeHtml(appointment.id)}</span>
-    <span>${escapeHtml(appointment.serviceName)} · ${appointment.date} ${formatMinutes(appointment.startMinutes)}-${formatMinutes(appointment.endMinutes)}</span>
-    <span>${t("customer.cancelByEmail")}</span>
-  `;
+  els.bookingResult.innerHTML = `<strong>Termin bestätigt</strong>`;
 }
 
 function createSupabaseRepository(client) {
+  const salonPromise = loadCurrentSalon(client);
   return {
     async listServices() {
+      const salon = await salonPromise;
       const { data, error } = await client
         .from("services")
         .select("id, name, duration_minutes, price, is_active")
+        .eq("salon_id", salon.id)
         .eq("is_active", true)
         .order("id", { ascending: true });
       if (error) throw error;
       return (data || []).map(fromSupabaseService);
     },
     async listAppointments(date) {
+      const salon = await salonPromise;
       const { data, error } = await client
         .from("appointments")
         .select("id, service_id, appointment_date, start_time, end_time, status")
+        .eq("salon_id", salon.id)
         .eq("appointment_date", date)
         .neq("status", "cancelled")
         .order("start_time", { ascending: true });
@@ -473,7 +534,9 @@ function createSupabaseRepository(client) {
       return (data || []).map(fromSupabaseAppointment);
     },
     async createAppointment(appointment) {
+      const salon = await salonPromise;
       const { data, error } = await client.rpc("create_public_booking", {
+        p_salon_slug: salon.slug,
         p_service_id: appointment.serviceId,
         p_appointment_date: appointment.date,
         p_start_time: `${formatMinutes(appointment.startMinutes)}:00`,
@@ -486,32 +549,56 @@ function createSupabaseRepository(client) {
       return data;
     },
     async sendBookingEmail(bookingId, eventType) {
-      const { error } = await client.functions.invoke("send-booking-email", {
+      const { data, error } = await client.functions.invoke("send-booking-email", {
         body: { booking_id: bookingId, event_type: eventType },
       });
-      return error
-        ? t("customer.emailSendFailed", { message: error.message })
-        : t("customer.emailSent");
+      if (error) return t("customer.emailSendFailed", { message: error.message });
+      const failed = data?.results?.find((result) => result.status === "failed");
+      return failed ? t("customer.emailSendFailed", { message: failed.error || "unknown error" }) : "";
     },
     async getDaySettings(date) {
+      const salon = await salonPromise;
       const { data, error } = await client
         .from("shop_day_settings")
         .select("setting_date, open_time, close_time, is_blocked_day")
+        .eq("salon_id", salon.id)
         .eq("setting_date", date)
         .maybeSingle();
       if (error) throw error;
       return data ? normalizeDaySettings(fromSupabaseDaySettings(data)) : createDefaultDaySettings(date);
     },
     async listBlockedSlots(date) {
+      const salon = await salonPromise;
       const { data, error } = await client
         .from("blocked_slots")
         .select("id, block_date, start_time, end_time, reason")
+        .eq("salon_id", salon.id)
         .eq("block_date", date)
         .order("start_time", { ascending: true });
       if (error) throw error;
       return (data || []).map(fromSupabaseBlockedSlot);
     },
   };
+}
+
+async function loadCurrentSalon(client) {
+  const slug = getCurrentSalonSlug();
+  const { data, error } = await client
+    .from("salons")
+    .select("id, slug, name, address, phone, timezone, opening_hours")
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error(`找不到店铺：${slug}`);
+  state.salon = data;
+  return data;
+}
+
+function getCurrentSalonSlug() {
+  const segment = window.location.pathname.split("/").filter(Boolean)[0];
+  if (!segment || segment.endsWith(".html")) return "lisa";
+  return decodeURIComponent(segment).trim() || "lisa";
 }
 
 function createLocalRepository() {

@@ -1,0 +1,86 @@
+const fs = require("node:fs");
+const path = require("node:path");
+
+const root = path.resolve(__dirname, "..");
+const dist = path.join(root, "dist");
+
+const requiredEnv = ["OPENSLOT_SUPABASE_URL", "OPENSLOT_SUPABASE_ANON_KEY"];
+const missing = requiredEnv.filter((key) => !process.env[key]);
+
+if (missing.length > 0) {
+  console.error(`Missing required environment variables: ${missing.join(", ")}`);
+  process.exit(1);
+}
+
+fs.rmSync(dist, { recursive: true, force: true });
+fs.mkdirSync(dist, { recursive: true });
+
+for (const file of [
+  "styles.css",
+  "customer.js",
+  "admin.js",
+  "i18n.js",
+  "diagnostics.html",
+  "diagnostics.js",
+  "averie-woodard-4nulm-JUYFo-unsplash.jpg",
+]) {
+  copyFile(file);
+}
+
+for (const dir of ["lisa", "liyong"]) {
+  copyDir(dir);
+}
+
+writeFile(
+  "config.js",
+  `window.OPENSLOT_SUPABASE = ${JSON.stringify(
+    {
+      url: process.env.OPENSLOT_SUPABASE_URL,
+      anonKey: process.env.OPENSLOT_SUPABASE_ANON_KEY,
+    },
+    null,
+    2,
+  )};\n`,
+);
+
+writeFile(
+  "index.html",
+  `<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0; url=/lisa/">
+    <title>OpenSlot Berlin</title>
+  </head>
+  <body>
+    <p><a href="/lisa/">Open Lisa Hair Salon</a></p>
+  </body>
+</html>
+`,
+);
+
+writeFile(
+  "_redirects",
+  `/ /lisa/ 302
+/lisa /lisa/index.html 200
+/lisa/admin /lisa/admin/index.html 200
+/liyong /liyong/index.html 200
+/liyong/admin /liyong/admin/index.html 200
+`,
+);
+
+function copyFile(relativePath) {
+  fs.copyFileSync(path.join(root, relativePath), path.join(dist, relativePath));
+}
+
+function copyDir(relativePath) {
+  fs.cpSync(path.join(root, relativePath), path.join(dist, relativePath), {
+    recursive: true,
+  });
+}
+
+function writeFile(relativePath, content) {
+  const target = path.join(dist, relativePath);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, content, "utf8");
+}

@@ -9,11 +9,13 @@ type BookingRow = {
   cancellation_token: string;
   services: { name: string } | null;
   customers: { name: string; email: string } | null;
+  salons: { name: string; phone: string } | null;
 };
 
 const headers = {
   "Content-Type": "text/html; charset=utf-8",
   "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
 };
 
 Deno.serve(async (req) => {
@@ -74,7 +76,7 @@ function readEnv() {
 async function loadBooking(supabase: ReturnType<typeof createClient>, token: string): Promise<BookingRow | null> {
   const { data, error } = await supabase
     .from("appointments")
-    .select("id, appointment_date, start_time, end_time, status, cancellation_token, services(name), customers(name, email)")
+    .select("id, appointment_date, start_time, end_time, status, cancellation_token, services(name), customers(name, email), salons(name, phone)")
     .eq("cancellation_token", token)
     .maybeSingle();
   if (error) throw error;
@@ -93,6 +95,7 @@ async function triggerCancellationEmail(env: { supabaseUrl: string; serviceRoleK
 }
 
 function buildDetails(booking: BookingRow) {
+  const phone = booking.salons?.phone || "";
   return `
     <p>Ihre Stornierung wurde gespeichert.</p>
     <dl>
@@ -103,7 +106,7 @@ function buildDetails(booking: BookingRow) {
       <dt>Uhrzeit</dt>
       <dd>${escapeHtml(formatTimeRange(booking))}</dd>
     </dl>
-    <p>Bei Fragen erreichen Sie uns telefonisch unter <a href="tel:+4917641164231">0176 41164231</a>.</p>
+    ${phone ? `<p>Bei Fragen erreichen Sie ${escapeHtml(booking.salons?.name || "den Salon")} telefonisch unter <a href="tel:${escapeHtml(normalizePhoneHref(phone))}">${escapeHtml(phone)}</a>.</p>` : ""}
   `;
 }
 
@@ -162,6 +165,10 @@ function formatGermanDate(value: string) {
 
 function isCancellationToken(value: string) {
   return /^[0-9a-f]{48}$/i.test(value);
+}
+
+function normalizePhoneHref(phone: string) {
+  return phone.replace(/[^\d+]/g, "");
 }
 
 function escapeHtml(value: unknown) {

@@ -48,6 +48,7 @@ const state = {
   repository: null,
   servicesCollapsed: false,
   services: DEFAULT_SERVICES,
+  salon: null,
 };
 
 const t = (key, values) => window.OpenSlotI18n?.t(key, values) || key;
@@ -632,6 +633,7 @@ async function handleUnblockSlot(blockId) {
 }
 
 function createSupabaseRepository(client) {
+  const salonPromise = loadCurrentSalon(client);
   return {
     authSupported: true,
     async getCurrentUser() {
@@ -651,13 +653,20 @@ function createSupabaseRepository(client) {
       if (error) throw error;
     },
     async listServices() {
-      const { data, error } = await client.from("services").select("id, name, duration_minutes, price, is_active").order("id", { ascending: true });
+      const salon = await salonPromise;
+      const { data, error } = await client
+        .from("services")
+        .select("id, name, duration_minutes, price, is_active")
+        .eq("salon_id", salon.id)
+        .order("id", { ascending: true });
       if (error) throw error;
       return (data || []).map(fromSupabaseService);
     },
     async saveServices(services) {
+      const salon = await salonPromise;
       const payload = services.map((service) => ({
         id: service.id,
+        salon_id: salon.id,
         name: service.name,
         duration_minutes: service.duration,
         price: service.price,
@@ -667,18 +676,22 @@ function createSupabaseRepository(client) {
       if (error) throw error;
     },
     async listAppointments(date) {
+      const salon = await salonPromise;
       const { data, error } = await client
         .from("appointments")
         .select("id, service_id, appointment_date, start_time, end_time, status, customers(name, phone, email, gender)")
+        .eq("salon_id", salon.id)
         .eq("appointment_date", date)
         .order("start_time", { ascending: true });
       if (error) throw error;
       return (data || []).map(fromSupabaseAppointment);
     },
     async listAppointmentsRange(startDate, endDate) {
+      const salon = await salonPromise;
       const { data, error } = await client
         .from("appointments")
         .select("id, service_id, appointment_date, start_time, end_time, status, customers(name, phone, email, gender)")
+        .eq("salon_id", salon.id)
         .gte("appointment_date", startDate)
         .lte("appointment_date", endDate)
         .order("appointment_date", { ascending: true })
@@ -687,7 +700,12 @@ function createSupabaseRepository(client) {
       return (data || []).map(fromSupabaseAppointment);
     },
     async cancelAppointment(id) {
-      const { error } = await client.from("appointments").update({ status: "cancelled", cancelled_by: "owner", cancelled_at: new Date().toISOString() }).eq("id", id);
+      const salon = await salonPromise;
+      const { error } = await client
+        .from("appointments")
+        .update({ status: "cancelled", cancelled_by: "owner", cancelled_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("salon_id", salon.id);
       if (error) throw error;
     },
     async sendBookingEmail(bookingId, eventType) {
@@ -697,21 +715,31 @@ function createSupabaseRepository(client) {
       return error ? `预约已取消，但邮件发送失败：${error.message}` : "预约已取消，通知邮件已发送。";
     },
     async getDaySettings(date) {
-      const { data, error } = await client.from("shop_day_settings").select("setting_date, open_time, close_time, is_blocked_day").eq("setting_date", date).maybeSingle();
+      const salon = await salonPromise;
+      const { data, error } = await client
+        .from("shop_day_settings")
+        .select("setting_date, open_time, close_time, is_blocked_day")
+        .eq("salon_id", salon.id)
+        .eq("setting_date", date)
+        .maybeSingle();
       if (error) throw error;
       return data ? fromSupabaseDaySettings(data) : createDefaultDaySettings(date);
     },
     async listBlockedSlots(date) {
+      const salon = await salonPromise;
       const { data, error } = await client
         .from("blocked_slots")
         .select("id, block_date, start_time, end_time, reason")
+        .eq("salon_id", salon.id)
         .eq("block_date", date)
         .order("start_time", { ascending: true });
       if (error) throw error;
       return (data || []).map(fromSupabaseBlockedSlot);
     },
     async createBlockedSlot(block) {
+      const salon = await salonPromise;
       const { error } = await client.from("blocked_slots").insert({
+        salon_id: salon.id,
         block_date: block.date,
         start_time: `${formatMinutes(block.startMinutes)}:00`,
         end_time: `${formatMinutes(block.endMinutes)}:00`,
@@ -720,19 +748,44 @@ function createSupabaseRepository(client) {
       if (error) throw error;
     },
     async deleteBlockedSlot(blockId) {
-      const { error } = await client.from("blocked_slots").delete().eq("id", blockId);
+      const salon = await salonPromise;
+      const { error } = await client.from("blocked_slots").delete().eq("id", blockId).eq("salon_id", salon.id);
       if (error) throw error;
     },
     async saveDaySettings(settings) {
-      const { error } = await client.from("shop_day_settings").upsert({
-        setting_date: settings.date,
-        open_time: `${formatMinutes(settings.openMinutes)}:00`,
-        close_time: `${formatMinutes(settings.closeMinutes)}:00`,
-        is_blocked_day: settings.isBlockedDay,
-      });
+      const salon = await salonPromise;
+      const { error } = await client
+        .from("shop_day_settings")
+        .upsert({
+          salon_id: salon.id,
+          setting_date: settings.date,
+          open_time: `${formatMinutes(settings.openMinutes)}:00`,
+          close_time: `${formatMinutes(settings.closeMinutes)}:00`,
+          is_blocked_day: settings.isBlockedDay,
+        }, { onConflict: "salon_id,setting_date" });
       if (error) throw error;
     },
   };
+}
+
+async function loadCurrentSalon(client) {
+  const slug = getCurrentSalonSlug();
+  const { data, error } = await client
+    .from("salons")
+    .select("id, slug, name, address, phone, timezone, opening_hours")
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error(`找不到店铺：${slug}`);
+  state.salon = data;
+  return data;
+}
+
+function getCurrentSalonSlug() {
+  const segment = window.location.pathname.split("/").filter(Boolean)[0];
+  if (!segment || segment.endsWith(".html")) return "lisa";
+  return decodeURIComponent(segment).trim() || "lisa";
 }
 
 function createLocalRepository() {

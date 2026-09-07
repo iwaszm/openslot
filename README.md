@@ -11,12 +11,14 @@ python -m http.server 5173
 然后打开：
 
 ```text
-http://127.0.0.1:5173/
+http://127.0.0.1:5173/lisa/
 ```
 
 页面入口：
-- 顾客页：`http://127.0.0.1:5173/`
-- 管理员页：`http://127.0.0.1:5173/admin.html`
+- Lisa 顾客页：`http://127.0.0.1:5173/lisa/`
+- Lisa 管理员页：`http://127.0.0.1:5173/lisa/admin/`
+- Li Yong 顾客页：`http://127.0.0.1:5173/liyong/`
+- Li Yong 管理员页：`http://127.0.0.1:5173/liyong/admin/`
 - 连接诊断页：`http://127.0.0.1:5173/diagnostics.html`
 
 架构说明和示意图见 [docs/architecture.md](docs/architecture.md)。
@@ -31,8 +33,9 @@ C:\Users\iwasz\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\p
 
 1. 在 Supabase 新建项目。
 2. 打开 Supabase SQL Editor，执行 [supabase/setup.sql](supabase/setup.sql)。
-3. 复制 `config.example.js` 为 `config.js`。
-4. 在 `config.js` 填入项目 URL 和 anon public key：
+3. 多店模式下，继续执行 [supabase/multi-tenant-rpc.sql](supabase/multi-tenant-rpc.sql)，让预约、排班和暂停时间按 `salon_id` 隔离。
+4. 复制 `config.example.js` 为 `config.js`。
+5. 在 `config.js` 填入项目 URL 和 anon public key：
 
 ```js
 window.OPENSLOT_SUPABASE = {
@@ -41,16 +44,59 @@ window.OPENSLOT_SUPABASE = {
 };
 ```
 
-5. 打开 `http://127.0.0.1:5173/diagnostics.html`，确认配置、表读取和 RPC 检查通过。
-6. 重新打开 `http://127.0.0.1:5173/`，右上角显示 `Supabase 外部连接` 即表示前端已切到外部数据库。
+6. 打开 `http://127.0.0.1:5173/diagnostics.html`，确认配置、表读取和 RPC 检查通过。
+7. 重新打开 `http://127.0.0.1:5173/`，右上角显示 `Supabase 外部连接` 即表示前端已切到外部数据库。
 
 `config.js` 当前只是本地演示配置文件，不要把真实 key 提交到公开仓库。anon key 可以出现在前端，但必须配合 RLS policy 使用。
 
 Supabase 模式下，顾客创建预约统一走 `create_public_booking(...)` RPC。前端不直接插入 `customers` 和 `appointments`。
 
+多店模式下，前端会从 URL 第一段识别店铺：根路径默认 `lisa`，`/lisa` 使用 `lisa`，`/liyong` 使用 `liyong`。后台同理：`/lisa/admin` 管理 Lisa，`/liyong/admin` 管理 Li Yong。
+
+如果要让 Li Yong 先使用一份和 Lisa 相同的服务列表，可在 Supabase SQL Editor 执行 [supabase/seed-liyong-services.sql](supabase/seed-liyong-services.sql)。该脚本只插入缺失服务，不覆盖已存在的 Li Yong 服务。
+
+## Cloudflare Pages 部署
+
+Cloudflare Pages 从 GitHub 部署时不要提交真实的 `config.js`。生产配置由 build script 根据 Cloudflare Pages 环境变量生成。
+
+Cloudflare Pages 项目设置：
+
+```text
+Framework preset: None
+Build command: npm run build
+Build output directory: dist
+Root directory: /
+```
+
+在 Cloudflare Pages 的 `Settings -> Environment variables` 添加：
+
+```text
+OPENSLOT_SUPABASE_URL=https://your-project.supabase.co
+OPENSLOT_SUPABASE_ANON_KEY=your-anon-public-key
+```
+
+本地验证构建时可用 PowerShell 临时设置变量：
+
+```powershell
+$env:OPENSLOT_SUPABASE_URL="https://your-project.supabase.co"
+$env:OPENSLOT_SUPABASE_ANON_KEY="your-anon-public-key"
+npm run build
+```
+
+构建产物在 `dist/`，该目录不会提交到 GitHub。正式 URL：
+
+```text
+https://openslotberlin.de/lisa/
+https://openslotberlin.de/lisa/admin/
+https://openslotberlin.de/liyong/
+https://openslotberlin.de/liyong/admin/
+```
+
+根路径 `https://openslotberlin.de/` 会跳转到 `/lisa/`。根目录旧版 `index.html` / `admin.html` 已保存在 `template/`，只作为页面模板参考，不参与 Cloudflare Pages 发布。
+
 ## 店主登录
 
-创建 Supabase Auth 用户后，后台区域可以用该 Auth 用户邮箱和密码登录。新环境只需要执行 [supabase/setup.sql](supabase/setup.sql)，不需要再单独执行旧的分步 SQL。
+创建 Supabase Auth 用户后，后台区域可以用该 Auth 用户邮箱和密码登录。新环境先执行 [supabase/setup.sql](supabase/setup.sql)，多店模式再执行 [supabase/multi-tenant-rpc.sql](supabase/multi-tenant-rpc.sql)，不需要再单独执行旧的分步 SQL。
 
 登录前：
 - 顾客可以提交预约
@@ -130,7 +176,7 @@ Supabase 模式下，顾客创建预约统一走 `create_public_booking(...)` RP
 ```text
 RESEND_API_KEY=你的 Resend API key
 MAIL_FROM=Berlin Barber <booking@mail.example.com>
-PUBLIC_SITE_URL=http://127.0.0.1:5173
+PUBLIC_BASE_URL=https://openslotberlin.de
 ```
 
 然后部署 Edge Function：

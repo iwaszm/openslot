@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Berlin Hair Salon Termin</title>
+    <link rel="stylesheet" href="../styles.css?v=20260905-booking-mobile-polish-2" />
+  </head>
+  <body>
+    <main class="customer-page">
+      <div class="customer-layout">
+        <section id="book" class="booking-section" aria-labelledby="booking-title">
+          <h1 id="booking-title" class="sr-only" data-i18n="booking.title">Termin buchen</h1>
+          <form id="bookingForm" class="booking-form customer-booking" novalidate>
+            <fieldset>
+              <legend class="section-title" data-i18n="booking.serviceLegend">Services</legend>
+              <div class="service-grid" id="serviceOptions"></div>
+            </fieldset>
+
+            <fieldset>
+              <div class="fieldset-heading">
+                <legend class="sr-only" data-i18n="booking.dateLegend">Datum</legend>
+                <span id="selectedDateLabel" class="selection-summary"></span>
+              </div>
+              <div class="date-strip-shell">
+                <button id="datePrevButton" class="date-nav-button" type="button" aria-label="Previous dates">‹</button>
+                <div id="dateStrip" class="date-strip" aria-label="Buchbare Daten"></div>
+                <button id="dateNextButton" class="date-nav-button" type="button" aria-label="Next dates">›</button>
+              </div>
+              <input id="dateInput" class="native-date-input" name="date" type="date" required />
+            </fieldset>
+
+            <fieldset>
+              <div class="slot-heading">
+                <legend class="sr-only" data-i18n="booking.slotLegend">Uhrzeit</legend>
+                <span id="selectedSlotLabel" class="selection-summary"></span>
+              </div>
+              <div id="slotGrid" class="slot-grid" aria-label="Buchbare Uhrzeiten"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend data-i18n="booking.customerLegend">Kundendaten</legend>
+              <div id="bookingSummary" class="booking-summary-line" aria-live="polite"></div>
+              <input id="genderInput" type="hidden" name="gender" value="male" />
+              <div class="field-grid">
+                <label>
+                  <span data-i18n="booking.name">Name</span>
+                  <input id="customerName" name="name" type="text" autocomplete="name" required minlength="2" maxlength="120" data-i18n-placeholder="booking.namePlaceholder" placeholder="z.B. Lisa" />
+                </label>
+                <label>
+                  <span data-i18n="booking.phone">Telefon</span>
+                  <input name="phone" type="tel" autocomplete="tel" required data-i18n-placeholder="booking.phonePlaceholder" placeholder="+49 176 41164231" />
+                </label>
+                <label class="wide-field">
+                  <span data-i18n="booking.email">E-Mail</span>
+                  <input name="email" type="email" autocomplete="email" required data-i18n-placeholder="booking.emailPlaceholder" placeholder="name@beispiel.de" />
+                </label>
+              </div>
+            </fieldset>
+
+            <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
+            <section id="bookingResult" class="booking-result" hidden></section>
+            <button class="primary-action" type="submit" data-i18n="booking.submit">Termin bestätigen</button>
+          </form>
+        </section>
+
+        <aside class="salon-card" aria-label="门店信息">
+          <div class="salon-cover"></div>
+          <div class="salon-body">
+            <h2 id="salonName" data-i18n="salon.name">Berlin Hair Salon</h2>
+            <ul class="contact-list">
+              <li>
+                <svg class="contact-icon" aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M12 21s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"></path>
+                  <circle cx="12" cy="9" r="2.4"></circle>
+                </svg>
+                <span id="salonAddress" data-i18n="salon.address">Niebuhrstraße 66, 10629 Berlin</span>
+              </li>
+              <li>
+                <svg class="contact-icon" aria-hidden="true" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <path d="M12 7v5l3 2"></path>
+                </svg>
+                <div id="openingHours" class="opening-hours"></div>
+              </li>
+              <li>
+                <svg class="contact-icon" aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.6 19.6 0 0 1-8.5-3A19.2 19.2 0 0 1 5.4 13a19.6 19.6 0 0 1-3-8.5A2 2 0 0 1 4.3 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8.3 9.8a16 16 0 0 0 5.9 5.9l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7A2 2 0 0 1 22 16.9Z"></path>
+                </svg>
+                <a id="salonPhone" href="tel:+4917641164231" data-i18n="salon.phone">0176 41164231</a>
+              </li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../config.js?v=20260829-split-pages"></script>
+    <script src="../i18n.js?v=20260905-booking-mobile-polish-2"></script>
+    <script src="../customer.js?v=20260907-route-salon-info"></script>
+  </body>
+</html>
