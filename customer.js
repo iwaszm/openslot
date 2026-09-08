@@ -529,7 +529,10 @@ async function handleSubmit(event) {
 
 function renderBookingResult() {
   els.bookingResult.hidden = false;
-  els.bookingResult.innerHTML = `<strong>Termin bestätigt</strong>`;
+  els.bookingResult.innerHTML = `
+    <strong>Termin bestätigt</strong>
+    <span>Bitte prüfen Sie Ihre E-Mail.</span>
+  `;
 }
 
 function createSupabaseRepository(client) {

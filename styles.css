@@ -2170,10 +2170,16 @@ body {
 }
 
 .turnstile-field {
+  align-items: center;
   display: flex;
-  justify-content: center;
-  margin: 12px calc(var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px)) 0;
-  min-height: 65px;
+  justify-content: flex-start;
+  margin: 14px 0 0 calc(var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px));
+  min-height: 72px;
+  width: calc(100% - ((var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px)) * 2));
+}
+
+.turnstile-field .cf-turnstile {
+  max-width: 100%;
 }
 
 .customer-booking .primary-action:disabled,
@@ -2587,8 +2593,21 @@ body {
 }
 
 .customer-booking .booking-result {
+  align-content: center;
   border-radius: var(--radius-sm);
+  display: grid;
+  gap: 6px;
+  min-height: 78px;
   box-shadow: 0 16px 36px rgba(96, 125, 100, 0.12);
+}
+
+.customer-booking .booking-result:empty {
+  visibility: hidden;
+}
+
+.customer-booking .booking-result strong,
+.customer-booking .booking-result span {
+  display: block;
 }
 
 .hours-details {
