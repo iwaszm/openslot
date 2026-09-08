@@ -1964,7 +1964,7 @@ body {
 .salon-cover {
   background:
     linear-gradient(180deg, rgba(83, 60, 55, 0.04), rgba(83, 60, 55, 0.08)),
-    var(--salon-cover-image, url("./averie-woodard-4nulm-JUYFo-unsplash.jpg"));
+    var(--salon-cover-image, none);
   background-position: center 42%;
   background-size: cover;
 }

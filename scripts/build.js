@@ -22,7 +22,6 @@ for (const file of [
   "i18n.js",
   "diagnostics.html",
   "diagnostics.js",
-  "averie-woodard-4nulm-JUYFo-unsplash.jpg",
 ]) {
   copyFile(file);
 }
