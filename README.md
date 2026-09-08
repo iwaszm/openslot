@@ -4,6 +4,7 @@ OpenSlot is a lightweight appointment booking website for salon-style service bu
 
 ## Features
 
+- German brand homepage with an isolated interactive booking demo
 - Public appointment booking by service, date, and available time slot
 - Salon profile display with address, phone number, and opening hours
 - Owner login through Supabase Auth
@@ -16,6 +17,8 @@ OpenSlot is a lightweight appointment booking website for salon-style service bu
 ## Architecture
 
 The frontend is a static HTML/CSS/JavaScript site deployed with Cloudflare Pages. Runtime configuration is generated during the Cloudflare build from environment variables, so the local `config.js` file is not committed.
+
+The root URL serves the brand homepage (`index.html`, `home.css`, `home.js`). Its images, font, and icons are self-hosted in `assets/home/`. The homepage demo runs entirely in memory and does not connect to Supabase or send emails. Existing `/{salon-slug}/` and `/{salon-slug}/admin/` routes remain separate.
 
 Supabase provides:
 

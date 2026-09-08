@@ -17,6 +17,9 @@ fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 
 for (const file of [
+  "index.html",
+  "home.css",
+  "home.js",
   "styles.css",
   "customer.js",
   "admin.js",
@@ -25,7 +28,7 @@ for (const file of [
   copyFile(file);
 }
 
-for (const dir of ["lisa", "liyong"]) {
+for (const dir of ["assets", "lisa", "liyong"]) {
   copyDir(dir);
 }
 replaceTurnstileSiteKeys(dist);
@@ -44,25 +47,8 @@ writeFile(
 );
 
 writeFile(
-  "index.html",
-  `<!doctype html>
-<html lang="de">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="refresh" content="0; url=/lisa/">
-    <title>OpenSlot Berlin</title>
-  </head>
-  <body>
-    <p><a href="/lisa/">Open Lisa Hair Salon</a></p>
-  </body>
-</html>
-`,
-);
-
-writeFile(
   "_redirects",
-  `/ /lisa/ 302
-/lisa /lisa/index.html 200
+  `/lisa /lisa/index.html 200
 /lisa/admin /lisa/admin/index.html 200
 /liyong /liyong/index.html 200
 /liyong/admin /liyong/admin/index.html 200

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#e4ff43">
+    <meta name="description" content="OpenSlotBerlin: leichte Online-Terminverwaltung für kleine Berliner Betriebe. Mit Online-Buchung, E-Mail-Bestätigung, Cloudflare Turnstile und Datenbank in Europa.">
+    <title>OpenSlotBerlin | Dein Kiez. Deine Termine.</title>
+    <link rel="stylesheet" href="./home.css">
+    <link rel="preload" href="./assets/home/space-grotesk-bold.ttf" as="font" type="font/ttf" crossorigin>
+    <script src="./home.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Zum Inhalt</a>
+    <header class="site-header">
+      <a class="wordmark" href="#" aria-label="OpenSlotBerlin Startseite"><span class="brand-mark" aria-hidden="true"></span>OpenSlot<span class="wordmark-city">Berlin</span></a>
+      <nav aria-label="Hauptnavigation">
+        <a href="#ablauf">So funktioniert's</a>
+        <a href="#vertrauen">Sicherheit</a>
+        <a class="nav-cta" href="#demo">Demo ansehen <img class="icon" src="./assets/home/arrow-up-right.svg" alt=""></a>
+      </nav>
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <img class="hero-photo" src="./assets/home/berlin-storefront.webp" alt="Illustrative Berliner Ladenfront mit blauem Studio und rotem Atelier" width="1536" height="1024" fetchpriority="high">
+        <div class="hero-content">
+          <h1 id="hero-title">OpenSlot<span>Berlin<span class="title-dot">.</span></span></h1>
+          <p class="hero-tagline">Dein Kiez. Deine Termine.</p>
+          <p class="hero-description">Die leichte Online-Terminverwaltung für kleine Berliner Betriebe. Weniger organisieren. Mehr Zeit für dein Handwerk.</p>
+          <a class="button button-lime" href="#demo">Buchung ausprobieren <img class="icon" src="./assets/home/arrow-up-right.svg" alt=""></a>
+        </div>
+        <div class="hero-bottom"><span>Für die kleinen Läden, die Berlin groß machen.</span><a href="#ablauf" aria-label="Mehr über OpenSlotBerlin erfahren">Entdecken <img class="icon icon-light" src="./assets/home/arrow-down.svg" alt=""></a></div>
+        <span class="photo-credit">KI-generierte Kiezillustration</span>
+      </section>
+
+      <div class="benefit-strip" aria-label="Vorteile"><span>Leicht im Alltag</span><span class="strip-divider" aria-hidden="true"></span><span>Cloudflare Turnstile</span><span class="strip-divider" aria-hidden="true"></span><span>Datenbank in Europa</span><span class="strip-divider" aria-hidden="true"></span><span>Für Berlin gemacht</span></div>
+
+      <section class="workflow section-wrap" id="ablauf" aria-labelledby="workflow-title">
+        <div class="section-intro"><h2 id="workflow-title">Dein Können im Fokus.<br><span>Der Kalender im Griff.</span></h2><p>Ob Salon, Studio oder Beratung: Deine Kundschaft findet einen freien Termin. Du behältst den Überblick.</p></div>
+        <div class="steps">
+          <article><span class="step-label">Buchung</span><h3>Ein Link. Ein Termin.</h3><p>Leistung wählen, freie Zeit finden, buchen. Direkt im Browser, ohne ein Kundenkonto anzulegen.</p></article>
+          <article><span class="step-label">Bestätigung</span><h3>Alles in der Mail.</h3><p>Die Bestätigung landet im Postfach. Mit den Termindetails und einem Link zum Stornieren.</p></article>
+          <article><span class="step-label">Verwaltung</span><h3>Dein Tag steht.</h3><p>Termine einsehen, Zeiten freigeben und Pausen blockieren. An einem Ort für deinen Betrieb.</p></article>
+        </div>
+      </section>
+
+      <section class="demo-section" id="demo" aria-labelledby="demo-title">
+        <div class="section-wrap demo-layout">
+          <div class="demo-copy"><h2 id="demo-title">So einfach<br>kann's gehen<span>.</span></h2><p>Ein freier Slot wird zum nächsten Termin. Probier die Buchung aus.</p><div class="demo-note"><span class="status-dot"></span>Interaktive Demo · keine echte Buchung</div><p class="demo-small">Deine eigene Buchungsseite trägt den Namen und die Informationen deines Betriebs.</p></div>
+          <div class="booking-demo" aria-label="Beispiel einer Terminbuchung">
+            <div class="demo-heading"><div><span class="demo-business">Studio am Kiez</span><span class="demo-location">Berlin · Beispielbetrieb</span></div><span class="demo-badge">DEMO</span></div>
+            <div id="demoForm">
+              <fieldset><legend>Dein Termin</legend><div class="service-options"><button type="button" class="service-option selected" data-service="Haarschnitt" data-duration="30" aria-pressed="true"><span>Haarschnitt</span><small>30 Min.</small></button><button type="button" class="service-option" data-service="Styling" data-duration="60" aria-pressed="false"><span>Styling</span><small>60 Min.</small></button></div></fieldset>
+              <fieldset><legend id="demoMonth">Datum</legend><div class="demo-dates" id="demoDates"></div></fieldset>
+              <fieldset><legend>Freie Uhrzeiten</legend><div class="demo-slots" id="demoSlots"></div></fieldset>
+              <p class="demo-summary" id="demoSummary" aria-live="polite"></p>
+              <button type="button" id="demoConfirm" class="button button-dark">Termin bestätigen <img class="icon icon-light" src="./assets/home/arrow-up-right.svg" alt=""></button>
+            </div>
+            <div id="demoSuccess" class="demo-success" hidden tabindex="-1"><span class="success-symbol" aria-hidden="true"><img class="icon" src="./assets/home/check.svg" alt=""></span><h3>Termin bestätigt.</h3><p id="demoConfirmedDetails"></p><p>Im echten Betrieb erhält deine Kundschaft jetzt die Bestätigung per E-Mail.</p><p class="demo-small">Dies war eine Demo. Es wurde nichts gespeichert oder versendet.</p><button class="reset-button" id="demoReset" type="button">Noch einmal ausprobieren</button></div>
+            <noscript><p>Für die interaktive Demo bitte JavaScript aktivieren.</p></noscript>
+            <div class="demo-footer">Terminverwaltung mit OpenSlotBerlin</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="management-section section-wrap" id="verwaltung-demo" aria-labelledby="management-title">
+        <div class="section-intro"><h2 id="management-title">Alles gebucht.<br><span>Alles im Blick.</span></h2><p>Deine Termine, übersichtlich an einem Ort. Vom ersten Kunden bis zum Feierabend.</p></div>
+        <div class="management-demo">
+          <div class="management-heading"><div><h3>Studio am Kiez</h3><p>Terminverwaltung · ausschließlich Beispieldaten</p></div><span class="demo-badge">DEMO</span></div>
+          <div class="management-toolbar">
+            <label>Datum<select id="managementDate"></select></label>
+            <label>Status<select id="managementStatus"><option value="active">Bestätigt</option><option value="all">Alle Termine</option><option value="cancelled">Storniert</option></select></label>
+            <button type="button" class="reset-button" id="managementReset">Demo zurücksetzen</button>
+          </div>
+          <p class="management-count" id="managementCount" aria-live="polite"></p>
+          <div class="appointment-labels" aria-hidden="true"><span>Uhrzeit</span><span>Kundschaft / Leistung</span><span>Status</span><span>Aktion</span></div>
+          <div id="managementList"></div>
+          <p id="managementMessage" class="management-message" role="status"></p>
+        </div>
+      </section>
+      <dialog id="appointmentDialog" class="appointment-dialog" aria-labelledby="appointment-title">
+        <h3 id="appointment-title">Termindetails</h3><p id="appointmentDetails"></p>
+        <p id="appointmentPrompt">Diesen Demo-Termin stornieren?</p>
+        <div class="dialog-actions"><button type="button" class="button button-dark" id="appointmentCancel">Stornierung bestätigen</button><button type="button" class="reset-button" id="appointmentClose">Schließen</button></div>
+      </dialog>
+
+      <section class="trust section-wrap" id="vertrauen" aria-labelledby="trust-title">
+        <div class="section-intro"><h2 id="trust-title">Klein im Aufwand.<br><span>Bewusst bei den Daten.</span></h2></div>
+        <div class="trust-rows">
+          <article><h3>Leichtgewichtig.</h3><div><p>Keine App-Installation. Kein Softwarepaket für Aufgaben, die du gar nicht brauchst. Einfach die Buchung im Browser öffnen.</p><span class="technical-label">Browser statt App</span></div></article>
+          <article><h3>Geschützt.</h3><div><p>Cloudflare Turnstile hilft, automatisierte Buchungen abzuwehren. Die Prüfung erfolgt auch auf dem Server, bevor ein Termin angelegt wird.</p><span class="technical-label">Cloudflare Turnstile</span></div></article>
+          <article><h3>In Europa.</h3><div><p>Die Buchungsdaten werden in einer europäischen Datenbank gespeichert. Jeder Betrieb hat seinen eigenen Bereich für seine Termine.</p><span class="technical-label">Europäischer Datenbankstandort</span></div></article>
+        </div>
+      </section>
+
+      <section class="faq-section"><div class="section-wrap faq-layout"><h2>Gut zu wissen.</h2><div class="faq-items">
+        <details><summary>Für wen ist OpenSlotBerlin gedacht?</summary><p>Für kleine Berliner Betriebe, die mit Terminen arbeiten: etwa Friseursalons, Beauty-Studios oder Beratungsangebote. Leistungen, Dauer und verfügbare Zeiten werden für den jeweiligen Betrieb eingerichtet.</p></details>
+        <details><summary>Braucht meine Kundschaft ein Konto?</summary><p>Nein. Die Buchung funktioniert direkt über die Buchungsseite deines Betriebs. Die Kundschaft wählt eine Leistung und eine freie Zeit und gibt ihre Kontaktdaten an.</p></details>
+        <details><summary>Wie funktioniert eine Stornierung?</summary><p>In der Bestätigungsmail befindet sich ein persönlicher Stornierungslink. Zusätzlich kannst du Termine in der Verwaltung deines Betriebs stornieren.</p></details>
+        <details><summary>Was bedeutet „Datenbank in Europa“?</summary><p>Der Standort der Buchungsdatenbank liegt in Europa. Das beschreibt den Datenbankstandort, nicht automatisch die gesamte Verarbeitung durch alle beteiligten Dienste, etwa E-Mail-Versand und Sicherheitsprüfung.</p></details>
+      </div></div></section>
+
+      <section class="closing section-wrap"><h2>Mehr Kiez.<br>Weniger Kalenderchaos.</h2><a class="button button-dark" href="mailto:info@openslotberlin.de">Jetzt Kontakt aufnehmen <img class="icon icon-light" src="./assets/home/arrow-up-right.svg" alt=""></a></section>
+    </main>
+    <footer class="site-footer"><a class="wordmark" href="#">OpenSlot<span class="wordmark-city">Berlin</span></a><p>Online-Termine für Berliner Betriebe.</p><a href="mailto:info@openslotberlin.de">info@openslotberlin.de</a></footer>
+  </body>
+</html>
