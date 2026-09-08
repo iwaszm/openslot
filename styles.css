@@ -2173,8 +2173,8 @@ body {
   align-items: center;
   display: flex;
   justify-content: flex-start;
-  margin: 14px 0 0 calc(var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px));
-  min-height: 72px;
+  margin: 8px 0 0 calc(var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px));
+  min-height: 62px;
   width: calc(100% - ((var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px)) * 2));
 }
 
@@ -2596,8 +2596,9 @@ body {
   align-content: center;
   border-radius: var(--radius-sm);
   display: grid;
-  gap: 6px;
-  min-height: 78px;
+  gap: 4px;
+  min-height: 62px;
+  padding: 12px 14px;
   box-shadow: 0 16px 36px rgba(96, 125, 100, 0.12);
 }
 
