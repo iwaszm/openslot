@@ -13,7 +13,6 @@
           <h1 data-i18n="admin.title">管理后台</h1>
         </div>
         <span class="topbar-actions">
-          <a class="ghost-link" href="./diagnostics.html" data-i18n="nav.diagnostics">连接诊断</a>
           <a class="ghost-link" href="./index.html" data-i18n="nav.backCustomer">返回顾客页</a>
           <form id="ownerLoginForm" class="owner-login topbar-login">
             <input id="ownerEmail" type="email" autocomplete="email" data-i18n-placeholder="admin.emailPlaceholder" placeholder="owner@example.com" required />
@@ -40,6 +39,7 @@
               <button id="adminDateNextButton" class="date-nav-button" type="button" aria-label="Next dates">›</button>
             </div>
             <input id="adminDateInput" class="native-date-input" type="date" required />
+            <p id="adminMessage" class="form-message compact-message admin-status-message" role="status" aria-live="polite"></p>
           </section>
 
           <section class="control-card appointment-admin-card">
@@ -56,15 +56,6 @@
               <button id="logCollapseButton" class="ghost-button collapse-button" type="button" aria-controls="upcomingLogList" aria-expanded="true">⌃</button>
             </div>
             <div id="upcomingLogList" class="appointment-log-list"></div>
-          </section>
-
-          <section id="ownerSideControls" class="control-card service-admin-card">
-            <div class="control-title stacked-title">
-              <strong data-i18n="admin.services">Services und Preise</strong>
-              <button id="servicesCollapseButton" class="ghost-button collapse-button" type="button" aria-controls="serviceManager" aria-expanded="true">⌃</button>
-            </div>
-            <div id="serviceManager" class="service-manager"></div>
-            <p id="serviceMessage" class="form-message compact-message admin-status-message" role="status" aria-live="polite"></p>
           </section>
         </section>
       </section>

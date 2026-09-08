@@ -20,8 +20,6 @@ for (const file of [
   "customer.js",
   "admin.js",
   "i18n.js",
-  "diagnostics.html",
-  "diagnostics.js",
 ]) {
   copyFile(file);
 }

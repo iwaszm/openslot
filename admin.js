@@ -46,7 +46,6 @@ const state = {
   isOwner: false,
   logCollapsed: false,
   repository: null,
-  servicesCollapsed: false,
   services: DEFAULT_SERVICES,
   salon: null,
 };
@@ -55,9 +54,6 @@ const t = (key, values) => window.OpenSlotI18n?.t(key, values) || key;
 const getServiceName = (service) => service.name;
 const confirmMessages = {
   cancelAppointment: "Diesen Termin wirklich stornieren?",
-  addService: "Neuen Service hinzufügen?",
-  deleteService: "Diesen Service entfernen?",
-  saveServices: "Alle Service-Änderungen speichern?",
   blockDay: "Diesen ganzen Tag wirklich blockieren?",
   unblockDay: "Diesen ganzen Tag wieder freigeben?",
 };
@@ -70,7 +66,6 @@ const els = {
   ownerSession: document.querySelector("#ownerSession"),
   ownerEmailLabel: document.querySelector("#ownerEmailLabel"),
   ownerLogoutButton: document.querySelector("#ownerLogoutButton"),
-  ownerSideControls: document.querySelector("#ownerSideControls"),
   ownerControls: document.querySelector("#ownerControls"),
   adminDateInput: document.querySelector("#adminDateInput"),
   adminDateStrip: document.querySelector("#adminDateStrip"),
@@ -80,9 +75,7 @@ const els = {
   appointmentCardTitle: document.querySelector("#appointmentCardTitle"),
   upcomingLogTitle: document.querySelector("#upcomingLogTitle"),
   logCollapseButton: document.querySelector("#logCollapseButton"),
-  servicesCollapseButton: document.querySelector("#servicesCollapseButton"),
-  serviceManager: document.querySelector("#serviceManager"),
-  serviceMessage: document.querySelector("#serviceMessage"),
+  adminMessage: document.querySelector("#adminMessage"),
   bookingCount: document.querySelector("#bookingCount"),
   appointmentList: document.querySelector("#appointmentList"),
   upcomingLogCount: document.querySelector("#upcomingLogCount"),
@@ -90,7 +83,7 @@ const els = {
 };
 
 function setAdminMessage(message) {
-  const target = els.serviceMessage || els.ownerAuthMessage;
+  const target = els.adminMessage || els.ownerAuthMessage;
   if (target) target.textContent = message;
 }
 
@@ -118,9 +111,7 @@ function bindEvents() {
   els.adminDateNextButton?.addEventListener("click", () => scrollDateStrip(1));
   els.dayBlockButton?.addEventListener("click", handleToggleDayBlock);
   els.logCollapseButton?.addEventListener("click", () => toggleSection("log"));
-  els.servicesCollapseButton?.addEventListener("click", () => toggleSection("services"));
   window.addEventListener("openslot:language-change", () => {
-    renderServiceManager();
     render();
   });
 }
@@ -155,17 +146,11 @@ async function initializeAuth() {
 }
 
 async function refreshServices() {
-  if (!els.serviceManager) return;
-  if (!state.isOwner && state.repository.authSupported) {
-    renderServiceManager();
-    return;
-  }
   try {
     state.services = sortServices(await state.repository.listServices());
   } catch (error) {
-    if (els.serviceMessage) els.serviceMessage.textContent = `读取服务失败：${error.message}`;
+    setAdminMessage(`读取服务失败：${error.message}`);
   }
-  renderServiceManager();
 }
 
 async function refreshDateOptions() {
@@ -212,7 +197,7 @@ async function refreshDayData() {
     state.daySettings = daySettings;
     state.blockedSlots = blockedSlots;
   } catch (error) {
-    if (els.serviceMessage) els.serviceMessage.textContent = `读取后台数据失败：${error.message}`;
+    setAdminMessage(`读取后台数据失败：${error.message}`);
   }
   render();
 }
@@ -240,8 +225,6 @@ function render() {
 }
 
 function renderAuthState(user = null) {
-  const keepDiagnosticsServicesVisible = Boolean(els.ownerSideControls?.dataset.diagnosticsServices);
-  if (els.ownerSideControls) els.ownerSideControls.hidden = !keepDiagnosticsServicesVisible && !state.isOwner;
   if (els.ownerControls) els.ownerControls.hidden = !state.isOwner;
   if (els.ownerLoginForm) els.ownerLoginForm.hidden = Boolean(user);
   if (els.ownerSession) els.ownerSession.hidden = !user;
@@ -250,56 +233,8 @@ function renderAuthState(user = null) {
 }
 
 function renderOwnerControls() {
-  const keepDiagnosticsServicesVisible = Boolean(els.ownerSideControls?.dataset.diagnosticsServices);
-  if (els.ownerSideControls) els.ownerSideControls.hidden = !keepDiagnosticsServicesVisible && !state.isOwner;
   if (els.ownerControls) els.ownerControls.hidden = !state.isOwner;
   if (!state.isOwner) return;
-}
-
-function renderServiceManager() {
-  if (!els.serviceManager) return;
-  if (!state.isOwner && state.repository?.authSupported) {
-    els.serviceManager.innerHTML = `<div class="empty-state">${t("admin.servicesLoginRequired")}</div>`;
-    return;
-  }
-  const activeServices = state.services.filter((service) => service.isActive);
-  els.serviceManager.innerHTML = `
-    <form class="service-manager-form">
-      <div class="admin-service-list">
-        ${activeServices.map((service) => `
-          <article class="admin-service-card service-${escapeAttribute(service.category || "care")}" data-service-id="${service.id}">
-            <div class="admin-service-title">
-              <label>
-                <span class="sr-only">${t("common.name")}</span>
-                <input name="name" type="text" value="${escapeAttribute(getEditableServiceName(service))}" maxlength="80" required />
-              </label>
-              <button class="icon-button service-delete-button" type="button" data-delete-service="${service.id}" aria-label="${t("admin.deleteService")}">−</button>
-            </div>
-            <div class="admin-service-meta">
-              <label>
-                <span>${t("common.price")}</span>
-                <input name="price" type="number" min="0" max="999" step="1" value="${Number(service.price).toFixed(0)}" required />
-              </label>
-              <label>
-                <span>${t("common.minutes")}</span>
-                <input name="duration" type="number" min="30" max="240" step="30" value="${service.duration}" required />
-              </label>
-            </div>
-          </article>
-        `).join("")}
-      </div>
-      <div class="service-bulk-actions">
-        <button class="ghost-button" type="button" data-add-service>${t("admin.addService")}</button>
-        <button class="primary-action compact-action" type="submit">${t("admin.saveServices")}</button>
-      </div>
-    </form>
-  `;
-  els.serviceManager.querySelector(".service-manager-form")?.addEventListener("submit", handleSaveServices);
-  els.serviceManager.querySelector("[data-add-service]")?.addEventListener("click", handleAddService);
-  els.serviceManager.querySelectorAll("[data-delete-service]").forEach((button) => {
-    button.addEventListener("click", () => handleDeleteService(button.dataset.deleteService));
-  });
-  renderCollapseState();
 }
 
 function renderDateStrip() {
@@ -412,20 +347,11 @@ function renderCollapseState() {
     els.logCollapseButton.textContent = state.logCollapsed ? "⌄" : "⌃";
     els.logCollapseButton.setAttribute("aria-expanded", String(!state.logCollapsed));
   }
-  if (els.serviceManager && els.servicesCollapseButton) {
-    els.serviceManager.hidden = state.servicesCollapsed;
-    if (els.serviceMessage) els.serviceMessage.hidden = state.servicesCollapsed;
-    els.servicesCollapseButton.textContent = state.servicesCollapsed ? "⌄" : "⌃";
-    els.servicesCollapseButton.setAttribute("aria-expanded", String(!state.servicesCollapsed));
-  }
 }
 
 function toggleSection(section) {
   if (section === "log") {
     state.logCollapsed = !state.logCollapsed;
-  }
-  if (section === "services") {
-    state.servicesCollapsed = !state.servicesCollapsed;
   }
   renderCollapseState();
 }
@@ -519,58 +445,6 @@ async function handleOwnerLogin(event) {
 
 async function handleOwnerLogout() {
   await state.repository.signOut();
-}
-
-function handleAddService() {
-  if (!window.confirm(confirmMessages.addService)) return;
-  const index = state.services.filter((service) => service.id.startsWith("custom_")).length + 1;
-  state.services.push({
-    id: `custom_${Date.now()}`,
-    name: `${t("admin.newService")} ${index}`,
-    duration: 30,
-    price: 0,
-    category: "care",
-    gender: "unisex",
-    isActive: true,
-  });
-  renderServiceManager();
-}
-
-function handleDeleteService(serviceId) {
-  if (!window.confirm(confirmMessages.deleteService)) return;
-  state.services = state.services.map((service) => service.id === serviceId ? { ...service, isActive: false } : service);
-  renderServiceManager();
-}
-
-async function handleSaveServices(event) {
-  event.preventDefault();
-  if (!window.confirm(confirmMessages.saveServices)) return;
-  const form = event.currentTarget;
-  const editedServices = state.services.map((service) => {
-    const card = form.querySelector(`[data-service-id="${CSS.escape(service.id)}"]`);
-    if (!card || !service.isActive) return service;
-    return {
-      ...service,
-      name: card.querySelector('[name="name"]').value.trim(),
-      duration: Number(card.querySelector('[name="duration"]').value),
-      price: Number(card.querySelector('[name="price"]').value),
-      isActive: true,
-    };
-  });
-  for (const service of editedServices) {
-    const error = validateService(service);
-    if (error) {
-      setAdminMessage(error);
-      return;
-    }
-  }
-  try {
-    await state.repository.saveServices(editedServices);
-    setAdminMessage(t("admin.servicesSaved"));
-    await refreshServices();
-  } catch (saveError) {
-    setAdminMessage(`保存服务失败：${saveError.message}`);
-  }
 }
 
 async function handleToggleDayBlock() {
@@ -673,19 +547,6 @@ function createSupabaseRepository(client) {
         .order("id", { ascending: true });
       if (error) throw error;
       return (data || []).map(fromSupabaseService);
-    },
-    async saveServices(services) {
-      const salon = await salonPromise;
-      const payload = services.map((service) => ({
-        id: service.id,
-        salon_id: salon.id,
-        name: service.name,
-        duration_minutes: service.duration,
-        price: service.price,
-        is_active: service.isActive,
-      }));
-      const { error } = await client.from("services").upsert(payload, { onConflict: "id" });
-      if (error) throw error;
     },
     async listAppointments(date) {
       const salon = await salonPromise;
@@ -808,9 +669,6 @@ function createLocalRepository() {
     async signIn() {},
     async signOut() {},
     async listServices() { return loadLocalServices(); },
-    async saveServices(services) {
-      localStorage.setItem(SERVICES_KEY, JSON.stringify(services));
-    },
     async listAppointments(date) { return loadLocalAppointments().filter((appointment) => appointment.date === date); },
     async listAppointmentsRange(startDate, endDate) {
       return loadLocalAppointments().filter((appointment) => appointment.date >= startDate && appointment.date <= endDate);
@@ -837,13 +695,6 @@ function createLocalRepository() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(values));
     },
   };
-}
-
-function validateService(service) {
-  if (service.name.length < 1 || service.name.length > 80) return "服务名称需要 1-80 个字符。";
-  if (!Number.isInteger(service.duration) || service.duration < 30 || service.duration > 240 || service.duration % SLOT_STEP !== 0) return "服务时长必须是 30-240 分钟，并按 30 分钟递增。";
-  if (!Number.isFinite(service.price) || service.price < 0 || service.price > 999) return "服务价格必须在 0-999 欧元之间。";
-  return "";
 }
 
 function buildAdminSlots() {
