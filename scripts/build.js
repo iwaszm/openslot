@@ -28,7 +28,7 @@ for (const file of [
   copyFile(file);
 }
 
-for (const dir of ["assets", "lisa", "liyong"]) {
+for (const dir of ["assets", "datenschutz", "lisa", "liyong"]) {
   copyDir(dir);
 }
 replaceTurnstileSiteKeys(dist);
