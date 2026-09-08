@@ -1964,7 +1964,7 @@ body {
 .salon-cover {
   background:
     linear-gradient(180deg, rgba(83, 60, 55, 0.04), rgba(83, 60, 55, 0.08)),
-    url("./averie-woodard-4nulm-JUYFo-unsplash.jpg");
+    var(--salon-cover-image, url("./averie-woodard-4nulm-JUYFo-unsplash.jpg"));
   background-position: center 42%;
   background-size: cover;
 }
@@ -2167,6 +2167,15 @@ body {
   border-radius: var(--radius-sm);
   letter-spacing: 0;
   width: calc(100% - ((var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px)) * 2));
+}
+
+.customer-booking .primary-action:disabled,
+.customer-booking .primary-action:disabled:hover {
+  border-color: #e2d7d3;
+  background: #d6bfba;
+  color: rgba(255, 255, 255, 0.78);
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .customer-booking .slot-row {
@@ -2702,10 +2711,16 @@ body {
     margin-right: var(--booking-side-inset);
   }
 
+  .customer-booking .service-grid,
+  .customer-booking .service-strip-shell {
+    contain: none;
+    overflow: visible;
+  }
+
   .customer-booking fieldset:first-of-type .service-nav-button {
     min-height: 36px;
     position: absolute;
-    top: -8px;
+    top: -40px;
     z-index: 2;
   }
 
@@ -2761,6 +2776,34 @@ body {
 
   .customer-booking .slot-row {
     padding-left: 0;
+  }
+
+  .admin-date-shell {
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr);
+    position: relative;
+  }
+
+  .admin-date-shell .date-nav-button {
+    align-self: start;
+    min-height: 36px;
+    position: absolute;
+    top: -8px;
+    z-index: 2;
+  }
+
+  .admin-date-shell #adminDatePrevButton {
+    right: 44px;
+  }
+
+  .admin-date-shell #adminDateNextButton {
+    right: 0;
+  }
+
+  .admin-date-strip,
+  .admin-date-strip .date-row {
+    min-width: 0;
+    width: 100%;
   }
 }
 

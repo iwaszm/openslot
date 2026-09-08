@@ -304,6 +304,8 @@ function renderServiceManager() {
 
 function renderDateStrip() {
   if (!els.adminDateStrip || state.dateOptions.length === 0) return;
+  const previousDateRow = els.adminDateStrip.querySelector(".date-row");
+  const previousScrollLeft = previousDateRow ? previousDateRow.scrollLeft : 0;
   const selectedDate = new Date(`${els.adminDateInput.value}T00:00:00`);
   els.adminDateStrip.innerHTML = `
     <div class="date-month-heading">${escapeHtml(formatDateMonthHeading(selectedDate))}</div>
@@ -332,6 +334,16 @@ function renderDateStrip() {
   }).join("")}
     </div>
   `;
+  const dateRow = els.adminDateStrip.querySelector(".date-row");
+  if (dateRow && previousScrollLeft > 0) {
+    const maxScrollLeft = Math.max(0, dateRow.scrollWidth - dateRow.clientWidth);
+    const restoredScrollLeft = Math.min(previousScrollLeft, maxScrollLeft);
+    dateRow.style.scrollBehavior = "auto";
+    dateRow.scrollLeft = restoredScrollLeft;
+    requestAnimationFrame(() => {
+      dateRow.style.scrollBehavior = "";
+    });
+  }
   els.adminDateStrip.querySelectorAll(".date-button:not(:disabled)").forEach((button) => {
     button.addEventListener("click", async () => {
       if (button.dataset.date === els.adminDateInput.value) return;

@@ -61,6 +61,7 @@ const els = {
   dateInput: document.querySelector("#dateInput"),
   genderInput: document.querySelector("#genderInput"),
   formMessage: document.querySelector("#formMessage"),
+  submitButton: document.querySelector('.customer-booking .primary-action[type="submit"]'),
   storageStatus: document.querySelector("#storageStatus"),
   customerName: document.querySelector("#customerName"),
   customerPhone: document.querySelector('[name="phone"]'),
@@ -421,6 +422,12 @@ function renderSelectedSummaries() {
   if (els.selectedDateLabel) els.selectedDateLabel.textContent = "";
   if (els.selectedSlotLabel) els.selectedSlotLabel.textContent = "";
   if (els.bookingSummary) els.bookingSummary.innerHTML = renderBookingSummary();
+  updateSubmitState();
+}
+
+function updateSubmitState() {
+  if (!els.submitButton) return;
+  els.submitButton.disabled = !(getSelectedService() && els.dateInput.value && state.selectedSlot);
 }
 
 function renderBookingSummary() {
