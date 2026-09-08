@@ -83,16 +83,18 @@ Then configure Supabase Edge Function secrets:
 RESEND_API_KEY=your-resend-api-key
 MAIL_FROM=Booking <booking@your-domain.example>
 PUBLIC_BASE_URL=https://your-production-domain.example
+TURNSTILE_SECRET_KEY=your-cloudflare-turnstile-secret-key
 ```
 
 Deploy the Edge Functions:
 
 ```powershell
 npx supabase functions deploy send-booking-email --project-ref YOUR_SUPABASE_PROJECT_REF
+npx supabase functions deploy create-booking --project-ref YOUR_SUPABASE_PROJECT_REF
 npx supabase functions deploy cancel-booking --project-ref YOUR_SUPABASE_PROJECT_REF
 ```
 
-The `cancel-booking` function must allow public GET requests. The local `supabase/config.toml` sets `verify_jwt = false` for this function.
+The `create-booking` and `cancel-booking` functions must allow public requests. The local `supabase/config.toml` sets `verify_jwt = false` for these functions. Public booking requests are protected by Cloudflare Turnstile before the function calls the booking RPC.
 
 ## Cloudflare Pages
 
@@ -110,6 +112,7 @@ Add these Cloudflare Pages environment variables:
 ```text
 OPENSLOT_SUPABASE_URL=https://your-project.supabase.co
 OPENSLOT_SUPABASE_ANON_KEY=your-anon-public-key
+OPENSLOT_TURNSTILE_SITE_KEY=your-cloudflare-turnstile-site-key
 ```
 
 The build script creates `dist/config.js` from these variables and copies the static site into `dist/`. The generated `dist/` directory and local `config.js` are intentionally ignored by Git.

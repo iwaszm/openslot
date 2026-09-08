@@ -62,6 +62,7 @@ const els = {
   genderInput: document.querySelector("#genderInput"),
   formMessage: document.querySelector("#formMessage"),
   submitButton: document.querySelector('.customer-booking .primary-action[type="submit"]'),
+  turnstileWidget: document.querySelector("#turnstileWidget"),
   storageStatus: document.querySelector("#storageStatus"),
   customerName: document.querySelector("#customerName"),
   customerPhone: document.querySelector('[name="phone"]'),
@@ -71,6 +72,10 @@ const els = {
   salonName: document.querySelector("#salonName"),
   salonAddress: document.querySelector("#salonAddress"),
   salonPhone: document.querySelector("#salonPhone"),
+};
+
+window.onOpenSlotTurnstileChange = () => {
+  updateSubmitState();
 };
 
 init();
@@ -427,7 +432,9 @@ function renderSelectedSummaries() {
 
 function updateSubmitState() {
   if (!els.submitButton) return;
-  els.submitButton.disabled = !(getSelectedService() && els.dateInput.value && state.selectedSlot);
+  const needsTurnstile = Boolean(els.turnstileWidget && state.repository?.requiresTurnstile);
+  const hasTurnstile = !needsTurnstile || Boolean(getTurnstileToken({ silent: true }));
+  els.submitButton.disabled = !(getSelectedService() && els.dateInput.value && state.selectedSlot && hasTurnstile);
 }
 
 function renderBookingSummary() {
@@ -489,6 +496,15 @@ async function handleSubmit(event) {
     return;
   }
 
+  if (state.repository.requiresTurnstile) {
+    appointment.turnstileToken = getTurnstileToken();
+    if (!appointment.turnstileToken) {
+      els.formMessage.textContent = "Bitte bestaetige, dass du kein Bot bist.";
+      updateSubmitState();
+      return;
+    }
+  }
+
   try {
     const bookingId = await state.repository.createAppointment(appointment);
     const selectedDate = els.dateInput.value;
@@ -498,12 +514,14 @@ async function handleSubmit(event) {
     state.selectedServiceId = activeServices()[0]?.id || "";
     state.selectedGender = "male";
     els.genderInput.value = state.selectedGender;
+    resetTurnstile();
     const mailMessage = await state.repository.sendBookingEmail(bookingId, "created");
     renderBookingResult();
     els.formMessage.textContent = mailMessage || "";
     await refreshDayData();
     renderServices();
   } catch (error) {
+    resetTurnstile();
     els.formMessage.textContent = getBookingErrorMessage(error);
     await refreshDayData();
   }
@@ -517,6 +535,7 @@ function renderBookingResult() {
 function createSupabaseRepository(client) {
   const salonPromise = loadCurrentSalon(client);
   return {
+    requiresTurnstile: true,
     async listServices() {
       const salon = await salonPromise;
       const { data, error } = await client
@@ -542,18 +561,22 @@ function createSupabaseRepository(client) {
     },
     async createAppointment(appointment) {
       const salon = await salonPromise;
-      const { data, error } = await client.rpc("create_public_booking", {
-        p_salon_slug: salon.slug,
-        p_service_id: appointment.serviceId,
-        p_appointment_date: appointment.date,
-        p_start_time: `${formatMinutes(appointment.startMinutes)}:00`,
-        p_gender: appointment.gender,
-        p_name: appointment.name,
-        p_phone: appointment.phone,
-        p_email: appointment.email,
+      const { data, error } = await client.functions.invoke("create-booking", {
+        body: {
+          salon_slug: salon.slug,
+          service_id: appointment.serviceId,
+          appointment_date: appointment.date,
+          start_time: `${formatMinutes(appointment.startMinutes)}:00`,
+          gender: appointment.gender,
+          name: appointment.name,
+          phone: appointment.phone,
+          email: appointment.email,
+          turnstile_token: appointment.turnstileToken,
+        },
       });
       if (error) throw error;
-      return data;
+      if (data?.error) throw new Error(data.error);
+      return data?.booking_id;
     },
     async sendBookingEmail(bookingId, eventType) {
       const { data, error } = await client.functions.invoke("send-booking-email", {
@@ -610,6 +633,7 @@ function getCurrentSalonSlug() {
 
 function createLocalRepository() {
   return {
+    requiresTurnstile: false,
     async listServices() {
       return loadLocalServices().filter((service) => service.isActive);
     },
@@ -636,6 +660,23 @@ function createLocalRepository() {
       return loadLocalBlocks().filter((block) => block.date === date);
     },
   };
+}
+
+function getTurnstileToken(options = {}) {
+  const { silent = false } = options;
+  if (!els.turnstileWidget) return "";
+  const formToken = els.bookingForm?.querySelector('input[name="cf-turnstile-response"]')?.value || "";
+  const token = formToken || window.turnstile?.getResponse?.(els.turnstileWidget) || window.turnstile?.getResponse?.() || "";
+  if (!token && !silent) {
+    els.formMessage.textContent = "Bitte schliesse die Sicherheitspruefung ab.";
+  }
+  return token;
+}
+
+function resetTurnstile() {
+  if (!els.turnstileWidget) return;
+  window.turnstile?.reset?.(els.turnstileWidget);
+  updateSubmitState();
 }
 
 function buildSlots(date, duration) {

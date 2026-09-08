@@ -60,6 +60,18 @@
 
             <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
             <section id="bookingResult" class="booking-result" hidden></section>
+            <div class="turnstile-field">
+              <div
+                id="turnstileWidget"
+                class="cf-turnstile"
+                data-sitekey="0x4AAAAAAEsrM-tkdjA40QZH"
+                data-theme="light"
+                data-language="de"
+                data-callback="onOpenSlotTurnstileChange"
+                data-expired-callback="onOpenSlotTurnstileChange"
+                data-error-callback="onOpenSlotTurnstileChange"
+              ></div>
+            </div>
             <button class="primary-action" type="submit" data-i18n="booking.submit" disabled>Termin bestätigen</button>
           </form>
         </section>
@@ -98,6 +110,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="../config.js?v=20260829-split-pages"></script>
     <script src="../i18n.js?v=20260908-lisa-service-nav-2"></script>
-    <script src="../customer.js?v=20260908-lisa-service-nav-2"></script>
+    <script src="../customer.js?v=20260908-turnstile-1"></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   </body>
 </html>

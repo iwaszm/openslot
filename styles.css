@@ -2169,6 +2169,13 @@ body {
   width: calc(100% - ((var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px)) * 2));
 }
 
+.turnstile-field {
+  display: flex;
+  justify-content: center;
+  margin: 12px calc(var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px)) 0;
+  min-height: 65px;
+}
+
 .customer-booking .primary-action:disabled,
 .customer-booking .primary-action:disabled:hover {
   border-color: #e2d7d3;
