@@ -12,10 +12,10 @@ type BookingRow = {
   salons: { name: string; phone: string } | null;
 };
 
-const headers = {
-  "Content-Type": "text/html; charset=utf-8",
-  "Cache-Control": "no-store",
-  "X-Content-Type-Options": "nosniff",
+const htmlHeaders = {
+  "content-type": "text/html; charset=utf-8",
+  "cache-control": "no-store",
+  "x-content-type-options": "nosniff",
 };
 
 Deno.serve(async (req) => {
@@ -137,7 +137,7 @@ function renderPage(title: string, body: string, status = 200) {
       </section>
     </main>
   </body>
-</html>`, { status, headers });
+</html>`, { status, headers: htmlHeaders });
 }
 
 function formatTimeRange(booking: BookingRow) {
