@@ -7,15 +7,17 @@ insert into public.services (
   name,
   duration_minutes,
   price,
-  is_active
+  is_active,
+  category
 )
 select
-  'liyong_' || lsv.id,
+  'liyong_' || regexp_replace(lsv.id, '^lisa_', ''),
   ly.id,
   lsv.name,
   lsv.duration_minutes,
   lsv.price,
-  lsv.is_active
+  lsv.is_active,
+  lsv.category
 from public.services lsv
 join public.salons lisa on lisa.id = lsv.salon_id and lisa.slug = 'lisa'
 join public.salons ly on ly.slug = 'liyong'
@@ -23,5 +25,5 @@ where not exists (
   select 1
   from public.services existing
   where existing.salon_id = ly.id
-    and existing.id = 'liyong_' || lsv.id
+    and existing.id = 'liyong_' || regexp_replace(lsv.id, '^lisa_', '')
 );

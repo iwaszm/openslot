@@ -6,6 +6,7 @@ create table if not exists public.services (
   name text not null,
   duration_minutes integer not null check (duration_minutes > 0),
   price numeric(10, 2) not null default 0,
+  category text not null default 'care' check (category in ('cut', 'color', 'shape', 'care')),
   is_active boolean not null default true
 );
 
@@ -43,23 +44,24 @@ alter table public.appointments
   )
   where (status <> 'cancelled');
 
-insert into public.services (id, name, duration_minutes, price)
+insert into public.services (id, name, duration_minutes, price, category)
 values
-  ('damen_haarschnitt', 'Damen', 45, 25),
-  ('herren_haarschnitt', 'Herren', 30, 20),
-  ('waschen_foehnen_styling', 'Waschen, Fohnen, Styling', 30, 15),
-  ('haarefarben', 'Haarefarben', 90, 30),
-  ('dauerwelle', 'Dauerwelle', 120, 35),
-  ('pflegen', 'Pflegen', 30, 25),
-  ('straehnen', 'Strahnen', 90, 40),
-  ('blondierung', 'Blondierung', 120, 45),
-  ('lonen_dauerwelle', 'Lonen Dauerwelle', 150, 120),
-  ('digitale_dauerwelle', 'Digitale Dauerwelle', 150, 100)
+  ('damen_haarschnitt', 'Damen', 45, 25, 'cut'),
+  ('herren_haarschnitt', 'Herren', 30, 20, 'cut'),
+  ('waschen_foehnen_styling', 'Waschen, Fohnen, Styling', 30, 15, 'care'),
+  ('haarefarben', 'Haarefarben', 90, 30, 'color'),
+  ('dauerwelle', 'Dauerwelle', 120, 35, 'shape'),
+  ('pflegen', 'Pflegen', 30, 25, 'care'),
+  ('straehnen', 'Strahnen', 90, 40, 'color'),
+  ('blondierung', 'Blondierung', 120, 45, 'color'),
+  ('lonen_dauerwelle', 'Lonen Dauerwelle', 150, 120, 'shape'),
+  ('digitale_dauerwelle', 'Digitale Dauerwelle', 150, 100, 'shape')
 on conflict (id) do update
 set
   name = excluded.name,
   duration_minutes = excluded.duration_minutes,
-  price = excluded.price;
+  price = excluded.price,
+  category = excluded.category;
 
 update public.services
 set is_active = false
@@ -95,6 +97,7 @@ with check (
   and duration_minutes between 30 and 240
   and duration_minutes % 30 = 0
   and price between 0 and 999
+  and category in ('cut', 'color', 'shape', 'care')
 );
 
 create policy "owner update services"
@@ -106,6 +109,7 @@ with check (
   and duration_minutes between 30 and 240
   and duration_minutes % 30 = 0
   and price between 0 and 999
+  and category in ('cut', 'color', 'shape', 'care')
 );
 
 create policy "public read appointments"

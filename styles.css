@@ -2195,13 +2195,9 @@ body {
   padding-left: var(--slot-row-inset, 35px);
 }
 
-.customer-booking .service-group,
-.customer-booking .service-group h3 {
-  display: none;
-}
-
 .service-carousel {
-  --service-card-width: clamp(150px, calc((100% - 30px) / 4), 190px);
+  --service-group-width: calc((100% - 30px) / 4);
+  align-items: stretch;
   display: flex;
   gap: 10px;
   max-width: 100%;
@@ -2231,6 +2227,49 @@ body {
   width: 100%;
 }
 
+.customer-booking .service-group {
+  align-content: start;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  display: grid;
+  flex: 0 0 var(--service-group-width);
+  gap: 8px;
+  max-width: var(--service-group-width);
+  min-width: 0;
+  padding: 0;
+  scroll-snap-align: start;
+}
+
+.customer-booking .service-group h3 {
+  align-items: center;
+  color: #785c56;
+  display: flex;
+  font-size: 0.8rem;
+  font-weight: 700;
+  justify-content: space-between;
+  line-height: 1.1;
+  margin: 0;
+  min-height: 18px;
+  text-transform: none;
+}
+
+.customer-booking .service-group h3::after {
+  background: rgba(215, 170, 163, 0.42);
+  border-radius: 999px;
+  content: "";
+  flex: 1;
+  height: 1px;
+  margin-left: 8px;
+}
+
+.customer-booking .service-group-grid {
+  display: grid;
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .customer-booking input:focus-visible,
 .customer-booking button:focus-visible,
 .customer-booking .service-card:has(input:focus-visible) {
@@ -2252,21 +2291,22 @@ body {
 }
 
 .customer-booking .service-card {
-  flex: 0 0 var(--service-card-width);
-  max-width: var(--service-card-width);
+  flex: none;
+  max-width: none;
   min-width: 0;
-  min-height: 76px;
-  align-items: center;
-  border: 1px solid rgba(208, 188, 179, 0.78);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 24px rgba(83, 60, 55, 0.05);
+  min-height: 52px;
+  align-items: start;
+  border: 0;
+  border-bottom: 1px solid rgba(208, 188, 179, 0.6);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
   overflow: hidden;
-  padding: 12px 13px;
-  scroll-snap-align: start;
+  padding: 11px 7px;
+  scroll-snap-align: none;
   transition:
     background 160ms ease,
     border-color 160ms ease,
@@ -2279,13 +2319,14 @@ body {
   border-color: var(--accent);
   background: var(--accent);
   color: #ffffff;
-  box-shadow: 0 18px 36px rgba(159, 98, 90, 0.18);
+  box-shadow: none;
 }
 
 .customer-booking .service-card:hover {
   border-color: rgba(191, 62, 47, 0.34);
-  box-shadow: 0 14px 30px rgba(83, 60, 55, 0.08);
-  transform: translateY(-1px);
+  background: rgba(215, 170, 163, 0.16);
+  box-shadow: none;
+  transform: none;
 }
 
 .customer-booking .service-card:active {
@@ -2294,28 +2335,26 @@ body {
 
 .customer-booking .service-card strong {
   color: inherit;
-  display: -webkit-box;
-  font-size: clamp(0.82rem, 0.98vw, 0.9rem);
-  font-weight: 850;
-  line-height: 1.24;
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.4;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  hyphens: auto;
 }
 
 .customer-booking .service-card small {
   color: var(--ink);
-  font-size: clamp(0.66rem, 0.8vw, 0.72rem);
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 500;
   justify-self: start;
-  line-height: 1.25;
+  line-height: 1.4;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .customer-booking fieldset:nth-of-type(4) {
@@ -2694,10 +2733,6 @@ body {
     grid-template-columns: 30px minmax(0, 1fr) 30px;
   }
 
-  .service-carousel {
-    --service-card-width: calc((100% - 10px) / 2);
-  }
-
   .date-nav-button,
   .service-nav-button {
     width: 30px;
@@ -2707,9 +2742,9 @@ body {
     flex-basis: 42px;
   }
 
-  .customer-booking .service-card {
-    flex-basis: var(--service-card-width);
-    max-width: var(--service-card-width);
+  .customer-booking .service-group {
+    flex-basis: var(--service-group-width);
+    max-width: var(--service-group-width);
   }
 
   .customer-booking .service-card small {
@@ -2718,6 +2753,12 @@ body {
 
   .slot-row {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (orientation: portrait) {
+  .service-carousel {
+    --service-group-width: calc((100% - 10px) / 2);
   }
 }
 
@@ -2761,7 +2802,7 @@ body {
   }
 
   .service-carousel {
-    --service-card-width: calc((100% - 10px) / 2);
+    --service-group-width: calc((100% - 10px) / 2);
   }
 
   .customer-booking fieldset:first-of-type .service-carousel {

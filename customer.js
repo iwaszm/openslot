@@ -11,6 +11,13 @@ const DEFAULT_SERVICES = [
   { id: "digitale_dauerwelle", name: "Digitale Dauerwelle", duration: 150, price: 100, category: "shape", gender: "unisex", isActive: true },
 ];
 const SERVICE_ORDER = new Map(DEFAULT_SERVICES.map((service, index) => [service.id, index]));
+const SERVICE_CATEGORY_LABELS = {
+  cut: "Schnitt",
+  color: "Farbe",
+  shape: "Form",
+  care: "Pflege",
+};
+const SERVICE_CATEGORY_ORDER = ["cut", "color", "shape", "care"];
 
 const DEFAULT_OPEN_MINUTES = 10 * 60;
 const DEFAULT_CLOSE_MINUTES = 18 * 60;
@@ -297,14 +304,19 @@ function renderServices() {
     return;
   }
 
+  const serviceGroups = groupServicesByCategory(services);
   els.serviceOptions.innerHTML = `
     <div class="service-strip-shell">
       <button class="service-nav-button" type="button" data-service-scroll="-1" aria-label="Previous services">‹</button>
       <div class="service-carousel" aria-label="${t("booking.serviceLegend")}">
-        ${services.map((service, index) => {
+        ${serviceGroups.map((group) => `
+          <section class="service-group" aria-label="${escapeHtml(group.label)}">
+            <h3>${escapeHtml(group.label)}</h3>
+            <div class="service-group-grid">
+              ${group.services.map((service) => {
         const serviceGender = service.gender === "male" ? "male" : "female";
         const checked = service.id === state.selectedServiceId;
-        const fallbackChecked = !state.selectedServiceId && index === 0;
+        const fallbackChecked = !state.selectedServiceId && service.id === services[0]?.id;
         return `
           <label class="service-card">
             <input type="radio" name="service" value="${service.id}" data-gender="${serviceGender}" ${checked || fallbackChecked ? "checked" : ""} />
@@ -313,10 +325,41 @@ function renderServices() {
           </label>
         `;
         }).join("")}
+            </div>
+          </section>
+        `).join("")}
       </div>
       <button class="service-nav-button" type="button" data-service-scroll="1" aria-label="Next services">›</button>
     </div>
   `;
+}
+
+function groupServicesByCategory(services) {
+  const byCategory = new Map(SERVICE_CATEGORY_ORDER.map((category) => [
+    category,
+    {
+      category,
+      label: SERVICE_CATEGORY_LABELS[category],
+      services: [],
+    },
+  ]));
+  services.forEach((service) => {
+    const category = getServiceCategory(service);
+    if (!byCategory.has(category)) {
+      byCategory.set(category, {
+        category,
+        label: SERVICE_CATEGORY_LABELS[category] || "Services",
+        services: [],
+      });
+    }
+    byCategory.get(category).services.push(service);
+  });
+  return Array.from(byCategory.values()).filter((group) => group.services.length > 0);
+}
+
+function getServiceCategory(service) {
+  if (SERVICE_CATEGORY_LABELS[service.category]) return service.category;
+  return "care";
 }
 
 function selectServiceInput(input) {
@@ -543,7 +586,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("services")
-        .select("id, name, duration_minutes, price, is_active")
+        .select("id, name, duration_minutes, price, is_active, category")
         .eq("salon_id", salon.id)
         .eq("is_active", true)
         .order("id", { ascending: true });
@@ -734,7 +777,11 @@ function activeServices() {
   return state.services
     .filter((service) => service.isActive)
     .slice()
-    .sort((a, b) => (SERVICE_ORDER.get(a.id) ?? 999) - (SERVICE_ORDER.get(b.id) ?? 999));
+    .sort((a, b) => (getServiceSortIndex(a.id) - getServiceSortIndex(b.id)) || a.name.localeCompare(b.name));
+}
+
+function getServiceSortIndex(id) {
+  return SERVICE_ORDER.get(stripSalonPrefix(id)) ?? 999;
 }
 
 function hasOverlap(candidate, ranges) {
@@ -821,16 +868,20 @@ function resetPageHorizontalScroll() {
 }
 
 function fromSupabaseService(row) {
-  const fallback = DEFAULT_SERVICES.find((service) => service.id === row.id);
+  const fallback = DEFAULT_SERVICES.find((service) => service.id === stripSalonPrefix(row.id));
   return {
     id: row.id,
     name: row.name,
     duration: row.duration_minutes,
     price: Number(row.price),
-    category: fallback?.category || row.category || "care",
+    category: row.category || fallback?.category || "care",
     gender: fallback?.gender || row.gender || "unisex",
     isActive: row.is_active,
   };
+}
+
+function stripSalonPrefix(id) {
+  return String(id || "").replace(/^(lisa|liyong)_/, "");
 }
 
 function fromSupabaseAppointment(row) {
@@ -883,10 +934,11 @@ function loadLocalServices() {
   }
   return services.map((service) => {
     const fallback = DEFAULT_SERVICES.find((item) => item.id === service.id);
+    const prefixedFallback = DEFAULT_SERVICES.find((item) => item.id === stripSalonPrefix(service.id));
     return {
       ...service,
-      category: service.category || fallback?.category || "care",
-      gender: service.gender || fallback?.gender || "unisex",
+      category: service.category || fallback?.category || prefixedFallback?.category || "care",
+      gender: service.gender || fallback?.gender || prefixedFallback?.gender || "unisex",
     };
   });
 }

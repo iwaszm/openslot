@@ -9,6 +9,7 @@ create table if not exists public.services (
   name text not null,
   duration_minutes integer not null check (duration_minutes > 0),
   price numeric(10, 2) not null default 0,
+  category text not null default 'care' check (category in ('cut', 'color', 'shape', 'care')),
   is_active boolean not null default true
 );
 
@@ -76,7 +77,15 @@ alter table public.email_events
   check (event_type in ('booking_created_customer', 'booking_created_owner', 'booking_cancelled_customer', 'booking_cancelled_owner'));
 
 alter table public.services
-  add column if not exists is_active boolean not null default true;
+  add column if not exists is_active boolean not null default true,
+  add column if not exists category text not null default 'care';
+
+alter table public.services
+  drop constraint if exists services_category_check;
+
+alter table public.services
+  add constraint services_category_check
+  check (category in ('cut', 'color', 'shape', 'care'));
 
 alter table public.appointments
   add column if not exists cancelled_at timestamptz,
@@ -113,24 +122,25 @@ on public.blocked_slots (block_date, start_time);
 create index if not exists email_events_booking_idx
 on public.email_events (booking_id, event_type, status);
 
-insert into public.services (id, name, duration_minutes, price, is_active)
+insert into public.services (id, name, duration_minutes, price, is_active, category)
 values
-  ('damen_haarschnitt', 'Damen', 45, 25, true),
-  ('herren_haarschnitt', 'Herren', 30, 20, true),
-  ('waschen_foehnen_styling', 'Waschen, Fohnen, Styling', 30, 15, true),
-  ('haarefarben', 'Haarefarben', 90, 30, true),
-  ('dauerwelle', 'Dauerwelle', 120, 35, true),
-  ('pflegen', 'Pflegen', 30, 25, true),
-  ('straehnen', 'Strahnen', 90, 40, true),
-  ('blondierung', 'Blondierung', 120, 45, true),
-  ('lonen_dauerwelle', 'Lonen Dauerwelle', 150, 120, true),
-  ('digitale_dauerwelle', 'Digitale Dauerwelle', 150, 100, true)
+  ('damen_haarschnitt', 'Damen', 45, 25, true, 'cut'),
+  ('herren_haarschnitt', 'Herren', 30, 20, true, 'cut'),
+  ('waschen_foehnen_styling', 'Waschen, Fohnen, Styling', 30, 15, true, 'care'),
+  ('haarefarben', 'Haarefarben', 90, 30, true, 'color'),
+  ('dauerwelle', 'Dauerwelle', 120, 35, true, 'shape'),
+  ('pflegen', 'Pflegen', 30, 25, true, 'care'),
+  ('straehnen', 'Strahnen', 90, 40, true, 'color'),
+  ('blondierung', 'Blondierung', 120, 45, true, 'color'),
+  ('lonen_dauerwelle', 'Lonen Dauerwelle', 150, 120, true, 'shape'),
+  ('digitale_dauerwelle', 'Digitale Dauerwelle', 150, 100, true, 'shape')
 on conflict (id) do update
 set
   name = excluded.name,
   duration_minutes = excluded.duration_minutes,
   price = excluded.price,
-  is_active = excluded.is_active;
+  is_active = excluded.is_active,
+  category = excluded.category;
 
 update public.services
 set is_active = false

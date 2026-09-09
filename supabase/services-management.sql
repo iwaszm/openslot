@@ -1,5 +1,13 @@
 alter table public.services
-  add column if not exists is_active boolean not null default true;
+  add column if not exists is_active boolean not null default true,
+  add column if not exists category text not null default 'care';
+
+alter table public.services
+  drop constraint if exists services_category_check;
+
+alter table public.services
+  add constraint services_category_check
+  check (category in ('cut', 'color', 'shape', 'care'));
 
 update public.services
 set is_active = true
@@ -23,6 +31,7 @@ with check (
   and duration_minutes between 30 and 240
   and duration_minutes % 30 = 0
   and price between 0 and 999
+  and category in ('cut', 'color', 'shape', 'care')
 );
 
 create policy "owner update services"
@@ -34,6 +43,7 @@ with check (
   and duration_minutes between 30 and 240
   and duration_minutes % 30 = 0
   and price between 0 and 999
+  and category in ('cut', 'color', 'shape', 'care')
 );
 
 create or replace function public.create_public_booking(

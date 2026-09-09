@@ -542,7 +542,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("services")
-        .select("id, name, duration_minutes, price, is_active")
+        .select("id, name, duration_minutes, price, is_active, category")
         .eq("salon_id", salon.id)
         .order("id", { ascending: true });
       if (error) throw error;
@@ -739,7 +739,11 @@ function findService(id) {
 }
 
 function sortServices(services) {
-  return services.slice().sort((a, b) => (SERVICE_ORDER.get(a.id) ?? 999) - (SERVICE_ORDER.get(b.id) ?? 999));
+  return services.slice().sort((a, b) => (getServiceSortIndex(a.id) - getServiceSortIndex(b.id)) || a.name.localeCompare(b.name));
+}
+
+function getServiceSortIndex(id) {
+  return SERVICE_ORDER.get(stripSalonPrefix(id)) ?? 999;
 }
 
 function hasOverlap(candidate, ranges) {
@@ -817,17 +821,22 @@ function scrollDateStrip(direction) {
 }
 
 function fromSupabaseService(row) {
-  const fallback = DEFAULT_SERVICES.find((service) => service.id === row.id);
-  const legacy = LEGACY_SERVICE_META.get(row.id);
+  const baseId = stripSalonPrefix(row.id);
+  const fallback = DEFAULT_SERVICES.find((service) => service.id === baseId);
+  const legacy = LEGACY_SERVICE_META.get(baseId);
   return {
     id: row.id,
     name: row.name,
     duration: row.duration_minutes,
     price: Number(row.price),
-    category: fallback?.category || legacy?.category || row.category || "care",
+    category: row.category || fallback?.category || legacy?.category || "care",
     gender: fallback?.gender || legacy?.gender || row.gender || "unisex",
     isActive: row.is_active,
   };
+}
+
+function stripSalonPrefix(id) {
+  return String(id || "").replace(/^(lisa|liyong)_/, "");
 }
 
 function fromSupabaseAppointment(row) {
