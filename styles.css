@@ -2628,7 +2628,7 @@ body {
 }
 
 .customer-booking .form-message:empty {
-  min-height: 0;
+  display: none;
 }
 
 .customer-booking .booking-result {
@@ -2642,7 +2642,7 @@ body {
 }
 
 .customer-booking .booking-result:empty {
-  visibility: hidden;
+  display: none;
 }
 
 .customer-booking .booking-result strong,
