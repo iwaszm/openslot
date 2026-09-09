@@ -1077,6 +1077,41 @@ label:has(input),
   min-width: 0;
 }
 
+.customer-support-footer {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  display: flex;
+  font-size: 0.78rem;
+  gap: 18px;
+  justify-content: space-between;
+  margin-top: 40px;
+  padding-top: 18px;
+}
+
+.customer-support-footer > span {
+  font-weight: 780;
+}
+
+.customer-support-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  justify-content: flex-end;
+}
+
+.customer-support-footer a {
+  color: var(--ink);
+  text-decoration-color: #c9aaa4;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.customer-support-footer a:hover {
+  color: var(--accent-strong);
+  text-decoration-color: currentColor;
+}
+
 .booking-section,
 .info-band article,
 .booking-panel,
@@ -1632,6 +1667,16 @@ select:focus-visible,
 }
 
 @media (max-width: 740px) {
+  .customer-support-footer {
+    align-items: flex-start;
+    margin-top: 28px;
+    padding-top: 16px;
+  }
+
+  .customer-support-footer nav {
+    justify-content: flex-start;
+  }
+
   .customer-page,
   .admin-page,
   .lookup-page,
@@ -3328,8 +3373,25 @@ body {
 }
 
 .appointment-log-item.appointment-cancelled {
-  background: #fbf7f5;
-  color: var(--muted);
+  border-color: #d8d3d1;
+  background: #efedec;
+  color: #8b8582;
+}
+
+.appointment-log-item.appointment-cancelled .appointment-log-main,
+.appointment-log-item.appointment-cancelled .appointment-log-customer {
+  text-decoration: line-through;
+  text-decoration-color: #aaa4a1;
+}
+
+.appointment-log-item.appointment-cancelled .appointment-log-main *,
+.appointment-log-item.appointment-cancelled .appointment-log-customer * {
+  color: #8b8582;
+}
+
+.appointment-log-item.appointment-cancelled .service-tag {
+  background: #dedad8;
+  color: #77716e;
 }
 
 .appointment-log-main,
@@ -3372,6 +3434,21 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .admin-slot-card {
+    gap: 6px;
+    min-height: 88px;
+    padding: 9px 10px;
+  }
+
+  .admin-slot-card.free,
+  .admin-slot-card.blocked {
+    min-height: 76px;
+  }
+
+  .admin-slot-card.occupied {
+    min-height: 58px;
+  }
+
   .admin-service-meta {
     grid-template-columns: 1fr;
   }
@@ -3391,7 +3468,18 @@ body {
 
   .appointment-log-item {
     align-items: start;
+    gap: 5px;
     grid-template-columns: 1fr;
+    padding: 9px 10px;
+  }
+
+  .appointment-log-main,
+  .appointment-log-customer {
+    gap: 5px 7px;
+  }
+
+  .appointment-log-item .mini-action {
+    justify-self: end;
   }
 }
 

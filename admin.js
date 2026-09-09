@@ -365,7 +365,6 @@ function renderLogAppointment(appointment) {
         <span class="appointment-log-date">${escapeHtml(formatLogDate(appointment.date))}</span>
         <strong>${escapeHtml(formatMinutes(appointment.startMinutes))}-${escapeHtml(formatMinutes(appointment.endMinutes))}</strong>
         <span class="service-tag">${escapeHtml(getServiceAbbrev(service))}</span>
-        ${isCancelled ? `<span class="status-badge cancelled-badge">${t("lookup.cancelled")}</span>` : ""}
       </div>
       <div class="appointment-log-customer">
         <strong>${escapeHtml(appointment.name || t("admin.unnamedCustomer"))}</strong>
