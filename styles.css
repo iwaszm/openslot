@@ -2164,6 +2164,7 @@ body {
 
 .customer-booking .primary-action {
   margin-left: calc(var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px));
+  margin-top: -12px;
   border-radius: var(--radius-sm);
   letter-spacing: 0;
   width: calc(100% - ((var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px)) * 2));
@@ -2173,7 +2174,7 @@ body {
   align-items: center;
   display: flex;
   justify-content: flex-start;
-  margin: 8px 0 0 calc(var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px));
+  margin: -8px 0 0 calc(var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px));
   min-height: 62px;
   width: calc(100% - ((var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px)) * 2));
 }
@@ -2359,6 +2360,7 @@ body {
 
 .customer-booking fieldset:nth-of-type(4) {
   margin-left: var(--booking-side-inset, 42px);
+  padding-bottom: 0;
   padding-left: var(--booking-form-inset, 42px);
   padding-right: var(--booking-form-inset, 42px);
   width: calc(100% - (var(--booking-side-inset, 42px) * 2));
