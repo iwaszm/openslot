@@ -57,6 +57,7 @@ const confirmMessages = {
   cancelAppointment: "Diesen Termin wirklich stornieren?",
   blockDay: "Diesen ganzen Tag wirklich blockieren?",
   unblockDay: "Diesen ganzen Tag wieder freigeben?",
+  unblockSlot: "Diesen Block wirklich freigeben?",
 };
 
 const els = {
@@ -318,7 +319,7 @@ function renderSlotManager() {
   if (els.appointmentCardTitle) {
     const totalSlotCount = countDaySlots(state.daySettings);
     const bookedSlotCount = countBookedSlots(activeAppointments);
-    els.appointmentCardTitle.textContent = `${t("admin.today")} (${bookedSlotCount}/${totalSlotCount}) ${formatSelectedDateTitle(selectedDate)}`;
+    els.appointmentCardTitle.textContent = `${t("admin.today")} ${formatSelectedDateTitle(selectedDate, `${bookedSlotCount}/${totalSlotCount}`)}`;
   }
   if (els.bookingCount) els.bookingCount.textContent = activeAppointments.length;
   renderDayBlockButton();
@@ -574,6 +575,7 @@ async function handleBlockSlot(startMinutesValue, serviceId = null) {
 }
 
 async function handleUnblockSlot(blockId) {
+  if (!window.confirm(confirmMessages.unblockSlot)) return;
   try {
     await state.repository.deleteBlockedSlot(blockId);
     setAdminMessage(t("admin.slotUnblocked"));
@@ -830,6 +832,7 @@ function countBookedSlots(appointments) {
 function getOccupiedEdgeClasses(item, startMinutes) {
   const occupiedStarts = getOccupiedRanges(item).map((range) => range.startMinutes).sort((a, b) => a - b);
   return [
+    occupiedStarts.length === 1 ? "booking-single" : "",
     startMinutes === occupiedStarts[0] ? "booking-first" : "",
     startMinutes === occupiedStarts[occupiedStarts.length - 1] ? "booking-last" : "",
   ].filter(Boolean).join(" ");
@@ -935,12 +938,12 @@ function formatLogDate(dateValue) {
   return `${dateValue} ${weekday}`;
 }
 
-function formatSelectedDateTitle(dateValue) {
+function formatSelectedDateTitle(dateValue, slotCount = "") {
   const date = new Date(`${dateValue}T00:00:00`);
   const lang = window.OpenSlotI18n?.language || "de";
   const locale = lang === "zh" ? "zh-CN" : lang === "de" ? "de-DE" : "en-US";
   const weekday = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date).replace(".", "");
-  return `am ${dateValue} ${weekday}`;
+  return `am ${dateValue} ${weekday}${slotCount ? ` (${slotCount})` : ""}`;
 }
 
 function scrollDateStrip(direction) {
