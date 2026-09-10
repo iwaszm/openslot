@@ -3410,6 +3410,12 @@ body {
   color: #8b8582;
 }
 
+.admin-turnstile {
+  grid-column: 1 / -1;
+  justify-self: end;
+  max-width: 100%;
+}
+
 .admin-slot-card [data-unblock-slot] {
   justify-self: start;
 }

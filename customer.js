@@ -596,15 +596,17 @@ function createSupabaseRepository(client) {
     },
     async listAppointments(date) {
       const salon = await salonPromise;
-      const { data, error } = await client
-        .from("appointments")
-        .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, status")
-        .eq("salon_id", salon.id)
-        .eq("appointment_date", date)
-        .neq("status", "cancelled")
-        .order("start_time", { ascending: true });
+      const { data, error } = await client.rpc("get_public_occupied_slots", {
+        p_salon_slug: salon.slug,
+        p_appointment_date: date,
+      });
       if (error) throw error;
-      return (data || []).map(fromSupabaseAppointment);
+      return (data || []).map((row, index) => ({
+        id: `occupied-${index}`,
+        date,
+        occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
+        status: "confirmed",
+      }));
     },
     async createAppointment(appointment) {
       const salon = await salonPromise;

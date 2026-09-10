@@ -64,6 +64,7 @@ const els = {
   ownerLoginForm: document.querySelector("#ownerLoginForm"),
   ownerEmail: document.querySelector("#ownerEmail"),
   ownerPassword: document.querySelector("#ownerPassword"),
+  ownerTurnstile: document.querySelector("#ownerTurnstile"),
   ownerAuthMessage: document.querySelector("#ownerAuthMessage"),
   ownerSession: document.querySelector("#ownerSession"),
   ownerEmailLabel: document.querySelector("#ownerEmailLabel"),
@@ -498,12 +499,27 @@ function canPlaceServiceAt(service, startMinutes) {
 async function handleOwnerLogin(event) {
   event.preventDefault();
   try {
+    const captchaToken = getOwnerTurnstileToken();
+    if (els.ownerTurnstile && !captchaToken) {
+      throw new Error("Bitte schliesse die Sicherheitspruefung ab.");
+    }
     if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = "正在登录...";
-    await state.repository.signIn(els.ownerEmail.value.trim(), els.ownerPassword.value);
+    await state.repository.signIn(els.ownerEmail.value.trim(), els.ownerPassword.value, captchaToken);
     els.ownerPassword.value = "";
   } catch (error) {
     if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = `登录失败：${error.message}`;
+    resetOwnerTurnstile();
   }
+}
+
+function getOwnerTurnstileToken() {
+  if (!els.ownerTurnstile) return "";
+  const formToken = els.ownerLoginForm?.querySelector('input[name="cf-turnstile-response"]')?.value || "";
+  return formToken || window.turnstile?.getResponse?.(els.ownerTurnstile) || window.turnstile?.getResponse?.() || "";
+}
+
+function resetOwnerTurnstile() {
+  if (els.ownerTurnstile) window.turnstile?.reset?.(els.ownerTurnstile);
 }
 
 async function handleOwnerLogout() {
@@ -598,8 +614,12 @@ function createSupabaseRepository(client) {
     onAuthChange(callback) {
       client.auth.onAuthStateChange((_event, session) => callback(session?.user || null));
     },
-    async signIn(email, password) {
-      const { error } = await client.auth.signInWithPassword({ email, password });
+    async signIn(email, password, captchaToken) {
+      const { error } = await client.auth.signInWithPassword({
+        email,
+        password,
+        options: { captchaToken },
+      });
       if (error) throw error;
     },
     async signOut() {
