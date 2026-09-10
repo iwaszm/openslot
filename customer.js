@@ -1,14 +1,14 @@
 const DEFAULT_SERVICES = [
-  { id: "damen_haarschnitt", name: "Damen", duration: 45, price: 25, category: "cut", gender: "female", isActive: true },
-  { id: "herren_haarschnitt", name: "Herren", duration: 30, price: 20, category: "cut", gender: "male", isActive: true },
-  { id: "waschen_foehnen_styling", name: "Waschen, Fohnen, Styling", duration: 30, price: 15, category: "care", gender: "unisex", isActive: true },
-  { id: "haarefarben", name: "Haarefarben", duration: 90, price: 30, category: "color", gender: "unisex", isActive: true },
-  { id: "dauerwelle", name: "Dauerwelle", duration: 120, price: 35, category: "shape", gender: "unisex", isActive: true },
-  { id: "pflegen", name: "Pflegen", duration: 30, price: 25, category: "care", gender: "unisex", isActive: true },
-  { id: "straehnen", name: "Strahnen", duration: 90, price: 40, category: "color", gender: "unisex", isActive: true },
-  { id: "blondierung", name: "Blondierung", duration: 120, price: 45, category: "color", gender: "unisex", isActive: true },
-  { id: "lonen_dauerwelle", name: "Lonen Dauerwelle", duration: 150, price: 120, category: "shape", gender: "unisex", isActive: true },
-  { id: "digitale_dauerwelle", name: "Digitale Dauerwelle", duration: 150, price: 100, category: "shape", gender: "unisex", isActive: true },
+  { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
+  { id: "herren_haarschnitt", name: "Herren Haarschnitt", shortName: "SchnittH", duration: 30, bookedSlots: [1], price: 22, priceFrom: false, category: "cut", gender: "male", isActive: true },
+  { id: "waschen_foehnen_styling", name: "Waschen, Föhnen, Styling", shortName: "WFS", duration: 30, bookedSlots: [1], price: 15, priceFrom: false, category: "care", gender: "unisex", isActive: true },
+  { id: "haarefarben", name: "Haarefarben", shortName: "Farb", duration: 120, bookedSlots: [1, 4], price: 30, priceFrom: true, category: "color", gender: "unisex", isActive: true },
+  { id: "dauerwelle", name: "Dauerwelle", shortName: "Dauer", duration: 120, bookedSlots: [1, 4], price: 50, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
+  { id: "pflegen", name: "Pflegen", shortName: "Pflegen", duration: 30, bookedSlots: [1], price: 25, priceFrom: false, category: "care", gender: "unisex", isActive: true },
+  { id: "straehnen", name: "Strähnen", shortName: "Stra", duration: 120, bookedSlots: [1, 4], price: 40, priceFrom: true, category: "color", gender: "unisex", isActive: true },
+  { id: "blondierung", name: "Blondieren", shortName: "Blond", duration: 120, bookedSlots: [1, 4], price: 45, priceFrom: true, category: "color", gender: "unisex", isActive: true },
+  { id: "lonen_dauerwelle", name: "Lonen Dauerwelle", shortName: "LDauer", duration: 240, bookedSlots: [1, 2, 4, 5, 7, 8], price: 120, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
+  { id: "digitale_dauerwelle", name: "Digitale Dauerwelle", shortName: "DDauer", duration: 240, bookedSlots: [1, 2, 4, 5, 7, 8], price: 120, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
 ];
 const SERVICE_ORDER = new Map(DEFAULT_SERVICES.map((service, index) => [service.id, index]));
 const SERVICE_CATEGORY_LABELS = {
@@ -321,7 +321,7 @@ function renderServices() {
           <label class="service-card">
             <input type="radio" name="service" value="${service.id}" data-gender="${serviceGender}" ${checked || fallbackChecked ? "checked" : ""} />
             <strong>${escapeHtml(getServiceName(service))}</strong>
-            <small>${t("customer.serviceMeta", { duration: service.duration, price: Number(service.price).toFixed(0) })}</small>
+            <small>${t("customer.serviceMeta", { duration: service.duration, price: formatServicePrice(service) })}</small>
           </label>
         `;
         }).join("")}
@@ -435,7 +435,7 @@ function renderSlots() {
     return;
   }
 
-  const allSlots = buildSlots(els.dateInput.value, service.duration);
+  const allSlots = buildSlots(els.dateInput.value, service);
   const availableSlots = allSlots.filter((slot) => slot.available);
   if (availableSlots.length === 0) {
     els.slotGrid.innerHTML = `<div class="empty-state compact-empty">${getNoSlotMessage(allSlots)}</div>`;
@@ -484,7 +484,7 @@ function renderBookingSummary() {
   const service = getSelectedService();
   if (!service) return "";
   const serviceName = getServiceName(service);
-  const serviceMeta = t("customer.serviceMeta", { duration: service.duration, price: Number(service.price).toFixed(0) });
+  const serviceMeta = t("customer.serviceMeta", { duration: service.duration, price: formatServicePrice(service) });
   const dateLabel = formatSelectedDateLabel(els.dateInput.value);
   const timeLabel = state.selectedSlot ? formatSelectedTimeRange(service) : t("booking.summaryNoTime");
   return `
@@ -509,7 +509,7 @@ async function handleSubmit(event) {
 
   if (!state.selectedSlot) {
     const service = getSelectedService();
-    const slots = service ? buildSlots(els.dateInput.value, service.duration) : [];
+    const slots = service ? buildSlots(els.dateInput.value, service) : [];
     els.formMessage.textContent = getNoSlotMessage(slots);
     return;
   }
@@ -526,6 +526,7 @@ async function handleSubmit(event) {
     email: String(formData.get("email")).trim(),
     startMinutes,
     endMinutes: startMinutes + service.duration,
+    occupiedMinutes: getServiceOccupiedMinutes(service, startMinutes),
     status: "confirmed",
   };
 
@@ -586,7 +587,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("services")
-        .select("id, name, duration_minutes, price, is_active, category")
+        .select("id, name, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, slot_color")
         .eq("salon_id", salon.id)
         .eq("is_active", true)
         .order("id", { ascending: true });
@@ -597,7 +598,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("appointments")
-        .select("id, service_id, appointment_date, start_time, end_time, status")
+        .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, status")
         .eq("salon_id", salon.id)
         .eq("appointment_date", date)
         .neq("status", "cancelled")
@@ -725,11 +726,16 @@ function resetTurnstile() {
   updateSubmitState();
 }
 
-function buildSlots(date, duration) {
+function buildSlots(date, service) {
   if (state.daySettings.isBlockedDay) return [];
   const slots = [];
-  for (let start = state.daySettings.openMinutes; start + duration <= state.daySettings.closeMinutes; start += SLOT_STEP) {
-    const candidate = { date, startMinutes: start, endMinutes: start + duration };
+  for (let start = state.daySettings.openMinutes; start + service.duration <= state.daySettings.closeMinutes; start += SLOT_STEP) {
+    const candidate = {
+      date,
+      startMinutes: start,
+      endMinutes: start + service.duration,
+      occupiedMinutes: getServiceOccupiedMinutes(service, start),
+    };
     const isPast = isPastSlot(date, start);
     const appointmentOverlap = hasOverlap(candidate, state.appointments);
     const ownerBlocked = hasOverlap(candidate, state.blockedSlots);
@@ -785,7 +791,36 @@ function getServiceSortIndex(id) {
 }
 
 function hasOverlap(candidate, ranges) {
-  return ranges.some((range) => range.status !== "cancelled" && candidate.startMinutes < range.endMinutes && candidate.endMinutes > range.startMinutes);
+  const candidateRanges = getOccupiedRanges(candidate);
+  return ranges.some((range) => (
+    range.status !== "cancelled"
+    && candidateRanges.some((candidateRange) => getOccupiedRanges(range).some((occupiedRange) => (
+      candidateRange.startMinutes < occupiedRange.endMinutes
+      && candidateRange.endMinutes > occupiedRange.startMinutes
+    )))
+  ));
+}
+
+function getOccupiedRanges(item) {
+  if (Array.isArray(item.occupiedMinutes) && item.occupiedMinutes.length > 0) {
+    return item.occupiedMinutes.map((startMinutes) => ({ startMinutes, endMinutes: startMinutes + SLOT_STEP }));
+  }
+  return [{ startMinutes: item.startMinutes, endMinutes: item.endMinutes }];
+}
+
+function getServiceOccupiedMinutes(service, startMinutes) {
+  const bookedSlots = Array.isArray(service.bookedSlots) && service.bookedSlots.length > 0
+    ? service.bookedSlots
+    : Array.from({ length: Math.ceil(service.duration / SLOT_STEP) }, (_, index) => index + 1);
+  return bookedSlots.map((slotNumber) => startMinutes + ((slotNumber - 1) * SLOT_STEP));
+}
+
+function formatServicePrice(service) {
+  const amount = Number(service.price).toFixed(0);
+  const language = window.OpenSlotI18n?.language || "de";
+  if (language === "zh") return service.priceFrom ? `€${amount} 起` : `€${amount}`;
+  if (language === "en") return service.priceFrom ? `from €${amount}` : `€${amount}`;
+  return service.priceFrom ? `ab ${amount} €` : `${amount} €`;
 }
 
 function createDefaultDaySettings(date) {
@@ -872,8 +907,12 @@ function fromSupabaseService(row) {
   return {
     id: row.id,
     name: row.name,
+    shortName: row.short_name || row.name,
     duration: row.duration_minutes,
+    bookedSlots: row.booked_slots || [],
     price: Number(row.price),
+    priceFrom: Boolean(row.price_from),
+    slotColor: row.slot_color || "",
     category: row.category || fallback?.category || "care",
     gender: fallback?.gender || row.gender || "unisex",
     isActive: row.is_active,
@@ -891,6 +930,7 @@ function fromSupabaseAppointment(row) {
     serviceId: row.service_id,
     startMinutes: dateToMinutes(row.start_time),
     endMinutes: dateToMinutes(row.end_time),
+    occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
     status: row.status,
   };
 }
@@ -941,6 +981,11 @@ function loadLocalServices() {
       gender: service.gender || fallback?.gender || prefixedFallback?.gender || "unisex",
     };
   });
+}
+
+function timeValueToMinutes(value) {
+  const text = String(value || "");
+  return text.includes("T") ? dateToMinutes(text) : parseTime(text.slice(0, 5));
 }
 
 function toDateInputValue(date) {

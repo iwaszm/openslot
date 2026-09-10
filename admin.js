@@ -1,14 +1,14 @@
 const DEFAULT_SERVICES = [
-  { id: "damen_haarschnitt", name: "Damen", duration: 45, price: 25, category: "cut", gender: "female", isActive: true },
-  { id: "herren_haarschnitt", name: "Herren", duration: 30, price: 20, category: "cut", gender: "male", isActive: true },
-  { id: "waschen_foehnen_styling", name: "Waschen, Fohnen, Styling", duration: 30, price: 15, category: "care", gender: "unisex", isActive: true },
-  { id: "haarefarben", name: "Haarefarben", duration: 90, price: 30, category: "color", gender: "unisex", isActive: true },
-  { id: "dauerwelle", name: "Dauerwelle", duration: 120, price: 35, category: "shape", gender: "unisex", isActive: true },
-  { id: "pflegen", name: "Pflegen", duration: 30, price: 25, category: "care", gender: "unisex", isActive: true },
-  { id: "straehnen", name: "Strahnen", duration: 90, price: 40, category: "color", gender: "unisex", isActive: true },
-  { id: "blondierung", name: "Blondierung", duration: 120, price: 45, category: "color", gender: "unisex", isActive: true },
-  { id: "lonen_dauerwelle", name: "Lonen Dauerwelle", duration: 150, price: 120, category: "shape", gender: "unisex", isActive: true },
-  { id: "digitale_dauerwelle", name: "Digitale Dauerwelle", duration: 150, price: 100, category: "shape", gender: "unisex", isActive: true },
+  { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
+  { id: "herren_haarschnitt", name: "Herren Haarschnitt", shortName: "SchnittH", duration: 30, bookedSlots: [1], price: 22, priceFrom: false, category: "cut", gender: "male", isActive: true },
+  { id: "waschen_foehnen_styling", name: "Waschen, Föhnen, Styling", shortName: "WFS", duration: 30, bookedSlots: [1], price: 15, priceFrom: false, category: "care", gender: "unisex", isActive: true },
+  { id: "haarefarben", name: "Haarefarben", shortName: "Farb", duration: 120, bookedSlots: [1, 4], price: 30, priceFrom: true, category: "color", gender: "unisex", isActive: true },
+  { id: "dauerwelle", name: "Dauerwelle", shortName: "Dauer", duration: 120, bookedSlots: [1, 4], price: 50, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
+  { id: "pflegen", name: "Pflegen", shortName: "Pflegen", duration: 30, bookedSlots: [1], price: 25, priceFrom: false, category: "care", gender: "unisex", isActive: true },
+  { id: "straehnen", name: "Strähnen", shortName: "Stra", duration: 120, bookedSlots: [1, 4], price: 40, priceFrom: true, category: "color", gender: "unisex", isActive: true },
+  { id: "blondierung", name: "Blondieren", shortName: "Blond", duration: 120, bookedSlots: [1, 4], price: 45, priceFrom: true, category: "color", gender: "unisex", isActive: true },
+  { id: "lonen_dauerwelle", name: "Lonen Dauerwelle", shortName: "LDauer", duration: 240, bookedSlots: [1, 2, 4, 5, 7, 8], price: 120, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
+  { id: "digitale_dauerwelle", name: "Digitale Dauerwelle", shortName: "DDauer", duration: 240, bookedSlots: [1, 2, 4, 5, 7, 8], price: 120, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
 ];
 const SERVICE_ORDER = new Map(DEFAULT_SERVICES.map((service, index) => [service.id, index]));
 
@@ -559,7 +559,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("services")
-        .select("id, name, duration_minutes, price, is_active, category")
+        .select("id, name, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, slot_color")
         .eq("salon_id", salon.id)
         .order("id", { ascending: true });
       if (error) throw error;
@@ -569,7 +569,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("appointments")
-        .select("id, service_id, appointment_date, start_time, end_time, status, customers(name, phone, email, gender)")
+        .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, status, customers(name, phone, email, gender)")
         .eq("salon_id", salon.id)
         .eq("appointment_date", date)
         .order("start_time", { ascending: true });
@@ -580,7 +580,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("appointments")
-        .select("id, service_id, appointment_date, start_time, end_time, status, customers(name, phone, email, gender)")
+        .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, status, customers(name, phone, email, gender)")
         .eq("salon_id", salon.id)
         .gte("appointment_date", startDate)
         .lte("appointment_date", endDate)
@@ -736,7 +736,7 @@ function buildAdminSlots() {
   const slots = [];
   for (let start = state.daySettings.openMinutes; start + SLOT_STEP <= state.daySettings.closeMinutes; start += SLOT_STEP) {
     const candidate = { startMinutes: start, endMinutes: start + SLOT_STEP };
-    const appointment = activeAppointments.find((item) => item.startMinutes === start);
+    const appointment = activeAppointments.find((item) => item.startMinutes === start && hasOverlap(candidate, [item]));
     const occupiedBy = appointment ? null : findOverlap(candidate, activeAppointments);
     slots.push({
       ...candidate,
@@ -749,7 +749,7 @@ function buildAdminSlots() {
 }
 
 function findOverlap(candidate, ranges) {
-  return ranges.find((range) => candidate.startMinutes < range.endMinutes && candidate.endMinutes > range.startMinutes);
+  return ranges.find((range) => hasOverlap(candidate, [range]));
 }
 
 function getDateStatus(option) {
@@ -764,7 +764,7 @@ function getEditableServiceName(service) {
 }
 
 function getServiceAbbrev(service) {
-  return Array.from(getEditableServiceName(service)).slice(0, 3).join("");
+  return service.shortName || Array.from(getEditableServiceName(service)).slice(0, 3).join("");
 }
 
 function findService(id) {
@@ -780,7 +780,21 @@ function getServiceSortIndex(id) {
 }
 
 function hasOverlap(candidate, ranges) {
-  return ranges.some((range) => range.status !== "cancelled" && candidate.startMinutes < range.endMinutes && candidate.endMinutes > range.startMinutes);
+  const candidateRanges = getOccupiedRanges(candidate);
+  return ranges.some((range) => (
+    range.status !== "cancelled"
+    && candidateRanges.some((candidateRange) => getOccupiedRanges(range).some((occupiedRange) => (
+      candidateRange.startMinutes < occupiedRange.endMinutes
+      && candidateRange.endMinutes > occupiedRange.startMinutes
+    )))
+  ));
+}
+
+function getOccupiedRanges(item) {
+  if (Array.isArray(item.occupiedMinutes) && item.occupiedMinutes.length > 0) {
+    return item.occupiedMinutes.map((startMinutes) => ({ startMinutes, endMinutes: startMinutes + SLOT_STEP }));
+  }
+  return [{ startMinutes: item.startMinutes, endMinutes: item.endMinutes }];
 }
 
 function createDefaultDaySettings(date) {
@@ -860,8 +874,12 @@ function fromSupabaseService(row) {
   return {
     id: row.id,
     name: row.name,
+    shortName: row.short_name || row.name,
     duration: row.duration_minutes,
+    bookedSlots: row.booked_slots || [],
     price: Number(row.price),
+    priceFrom: Boolean(row.price_from),
+    slotColor: row.slot_color || "",
     category: row.category || fallback?.category || legacy?.category || "care",
     gender: fallback?.gender || legacy?.gender || row.gender || "unisex",
     isActive: row.is_active,
@@ -884,8 +902,14 @@ function fromSupabaseAppointment(row) {
     email: customer.email || "",
     startMinutes: dateToMinutes(row.start_time),
     endMinutes: dateToMinutes(row.end_time),
+    occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
     status: row.status,
   };
+}
+
+function timeValueToMinutes(value) {
+  const text = String(value || "");
+  return text.includes("T") ? dateToMinutes(text) : parseTime(text.slice(0, 5));
 }
 
 function fromSupabaseDaySettings(row) {
