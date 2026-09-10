@@ -84,8 +84,7 @@ const els = {
 };
 
 function setAdminMessage(message) {
-  const target = els.adminMessage || els.ownerAuthMessage;
-  if (target) target.textContent = message;
+  if (els.adminMessage) els.adminMessage.textContent = message;
 }
 
 init();
@@ -112,6 +111,9 @@ function bindEvents() {
   els.adminDateNextButton?.addEventListener("click", () => scrollDateStrip(1));
   els.dayBlockButton?.addEventListener("click", handleToggleDayBlock);
   els.logCollapseButton?.addEventListener("click", () => toggleSection("log"));
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".service-block-menu")) closeServiceBlockMenus();
+  });
   window.addEventListener("openslot:language-change", () => {
     render();
   });
@@ -184,18 +186,20 @@ async function refreshDateOptions() {
       ]);
       return {
         date,
-        appointmentCount: appointments.filter((appointment) => appointment.status !== "cancelled").length,
+        bookedSlotCount: countBookedSlots(appointments),
+        totalSlotCount: countDaySlots(daySettings),
         blockedCount: blockedSlots.length,
-        isBusinessDay: isBusinessDay(daySettings),
+        isBusinessDay: isScheduledBusinessDay(date),
       };
     }));
     state.dateOptions = summaries;
   } catch (error) {
     state.dateOptions = dates.map((date) => ({
       date,
-      appointmentCount: 0,
+      bookedSlotCount: 0,
+      totalSlotCount: countDaySlots(createDefaultDaySettings(date)),
       blockedCount: 0,
-      isBusinessDay: isBusinessDay(createDefaultDaySettings(date)),
+      isBusinessDay: isScheduledBusinessDay(date),
     }));
   }
   renderDateStrip();
@@ -312,7 +316,9 @@ function renderSlotManager() {
   const activeAppointments = appointments.filter((appointment) => appointment.status !== "cancelled");
   const selectedDate = els.adminDateInput?.value || toDateInputValue(new Date());
   if (els.appointmentCardTitle) {
-    els.appointmentCardTitle.textContent = `${t("admin.today")} ${formatSelectedDateTitle(selectedDate)} (${activeAppointments.length})`;
+    const totalSlotCount = countDaySlots(state.daySettings);
+    const bookedSlotCount = countBookedSlots(activeAppointments);
+    els.appointmentCardTitle.textContent = `${t("admin.today")} (${bookedSlotCount}/${totalSlotCount}) ${formatSelectedDateTitle(selectedDate)}`;
   }
   if (els.bookingCount) els.bookingCount.textContent = activeAppointments.length;
   renderDayBlockButton();
@@ -334,6 +340,17 @@ function renderSlotManager() {
   });
   els.appointmentList.querySelectorAll("[data-unblock-slot]").forEach((button) => {
     button.addEventListener("click", () => handleUnblockSlot(button.dataset.unblockSlot));
+  });
+  els.appointmentList.querySelectorAll(".service-block-menu").forEach((menu) => {
+    menu.addEventListener("toggle", () => {
+      if (menu.open) closeServiceBlockMenus(menu);
+    });
+  });
+}
+
+function closeServiceBlockMenus(except = null) {
+  document.querySelectorAll(".service-block-menu[open]").forEach((menu) => {
+    if (menu !== except) menu.removeAttribute("open");
   });
 }
 
@@ -402,8 +419,9 @@ function renderAdminSlot(slot) {
   if (slot.appointment) {
     const service = findService(slot.appointment.serviceId);
     const isCancelled = slot.appointment.status === "cancelled";
+    const edgeClasses = getOccupiedEdgeClasses(slot.appointment, slot.startMinutes);
     return `
-      <article class="admin-slot-card booked service-colored ${isCancelled ? "appointment-cancelled" : ""}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
+      <article class="admin-slot-card booked service-colored booking-segment ${edgeClasses} ${isCancelled ? "appointment-cancelled" : ""}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="service-tag">${escapeHtml(getServiceAbbrev(service))}</span>
@@ -416,8 +434,9 @@ function renderAdminSlot(slot) {
   }
   if (slot.occupiedBy) {
     const service = findService(slot.occupiedBy.serviceId);
+    const edgeClasses = getOccupiedEdgeClasses(slot.occupiedBy, slot.startMinutes);
     return `
-      <article class="admin-slot-card occupied service-colored slot-continuation" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
+      <article class="admin-slot-card occupied service-colored booking-segment ${edgeClasses}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="service-tag">${escapeHtml(getServiceAbbrev(service))}</span>
@@ -429,8 +448,9 @@ function renderAdminSlot(slot) {
     const blockService = slot.block.serviceId ? findService(slot.block.serviceId) : null;
     const blockClass = blockService ? "service-block service-colored" : "blocked";
     const blockStyle = blockService ? ` style="--slot-color:${escapeAttribute(blockService.slotColor || "#F48FB1")}"` : "";
+    const edgeClasses = blockService ? ` booking-segment ${getOccupiedEdgeClasses(slot.block, slot.startMinutes)}` : "";
     return `
-      <article class="admin-slot-card ${blockClass}${slot.block.serviceStartMinutes !== slot.startMinutes ? " slot-continuation" : ""}"${blockStyle}>
+      <article class="admin-slot-card ${blockClass}${edgeClasses}"${blockStyle}>
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="${blockService ? "service-tag" : "blocked-tag"}">${blockService ? escapeHtml(getServiceAbbrev(blockService)) : t("admin.blockedSlot")}</span>
@@ -782,9 +802,37 @@ function findOverlap(candidate, ranges) {
 
 function getDateStatus(option) {
   if (!option.isBusinessDay) return "date-closed";
-  if (option.appointmentCount > 0) return "date-booked";
-  if (option.blockedCount > 0) return "date-blocked";
-  return "date-free";
+  const ratio = option.totalSlotCount > 0 ? option.bookedSlotCount / option.totalSlotCount : 0;
+  if (ratio >= 1) return "date-load-full";
+  if (ratio > 0.75) return "date-load-dark-red";
+  if (ratio > 0.5) return "date-load-red";
+  if (ratio > 0.25) return "date-load-yellow";
+  return "date-load-green";
+}
+
+function countDaySlots(daySettings) {
+  if (!daySettings || !isScheduledBusinessDay(daySettings.date)) return 0;
+  return Math.max(0, Math.floor((daySettings.closeMinutes - daySettings.openMinutes) / SLOT_STEP));
+}
+
+function isScheduledBusinessDay(date) {
+  return getWeeklyRule(new Date(`${date}T00:00:00`)).openMinutes !== null;
+}
+
+function countBookedSlots(appointments) {
+  const occupied = new Set();
+  appointments
+    .filter((appointment) => appointment.status !== "cancelled")
+    .forEach((appointment) => getOccupiedRanges(appointment).forEach((range) => occupied.add(range.startMinutes)));
+  return occupied.size;
+}
+
+function getOccupiedEdgeClasses(item, startMinutes) {
+  const occupiedStarts = getOccupiedRanges(item).map((range) => range.startMinutes).sort((a, b) => a - b);
+  return [
+    startMinutes === occupiedStarts[0] ? "booking-first" : "",
+    startMinutes === occupiedStarts[occupiedStarts.length - 1] ? "booking-last" : "",
+  ].filter(Boolean).join(" ");
 }
 
 function getEditableServiceName(service) {

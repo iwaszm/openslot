@@ -2997,21 +2997,31 @@ body {
   visibility: hidden;
 }
 
-.admin-date-button.date-free i {
-  background: #b8c8b2;
+.admin-date-button.date-load-green i {
+  background: #64a45d;
   visibility: visible;
 }
 
-.admin-date-button.date-booked i {
-  background: var(--accent);
+.admin-date-button.date-load-yellow i {
+  background: #d8aa32;
   visibility: visible;
 }
 
-.admin-date-button.date-blocked i {
-  background: #d6b17b;
+.admin-date-button.date-load-red i {
+  background: #d86558;
+  visibility: visible;
 }
 
-.admin-date-button.date-blocked i,
+.admin-date-button.date-load-dark-red i {
+  background: #8f2926;
+  visibility: visible;
+}
+
+.admin-date-button.date-load-full i {
+  background: #171515;
+  visibility: visible;
+}
+
 .admin-date-button.date-closed i,
 .admin-date-button.closed i,
 .admin-date-button:disabled i {
@@ -3093,9 +3103,17 @@ body {
   color: color-mix(in srgb, var(--slot-color) 20%, #302725);
 }
 
-.admin-slot-card.slot-continuation {
-  border-top-style: dashed;
-  border-top-width: 2px;
+.admin-slot-card.booking-segment {
+  border-style: dashed;
+  border-width: 2px;
+}
+
+.admin-slot-card.booking-segment.booking-first {
+  border-top-style: solid;
+}
+
+.admin-slot-card.booking-segment.booking-last {
+  border-bottom-style: solid;
 }
 
 .admin-slot-head {
