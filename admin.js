@@ -44,6 +44,7 @@ const state = {
   dateOptions: [],
   daySettings: createDefaultDaySettings(toDateInputValue(new Date())),
   isOwner: false,
+  accessRole: null,
   logCollapsed: false,
   repository: null,
   services: DEFAULT_SERVICES,
@@ -133,16 +134,33 @@ async function initializeAuth() {
     return;
   }
   const user = await state.repository.getCurrentUser();
-  state.isOwner = Boolean(user);
-  renderAuthState(user);
+  await applyAuthState(user);
   state.repository.onAuthChange(async (nextUser) => {
-    state.isOwner = Boolean(nextUser);
-    renderAuthState(nextUser);
+    await applyAuthState(nextUser);
     await refreshServices();
     await refreshDateOptions();
     await refreshDayData();
     await refreshUpcomingLog();
   });
+}
+
+async function applyAuthState(user) {
+  state.isOwner = false;
+  state.accessRole = null;
+
+  if (!user) {
+    renderAuthState(null);
+    return;
+  }
+
+  try {
+    const access = await state.repository.getSalonAccess(user.id);
+    state.isOwner = access.allowed;
+    state.accessRole = access.role;
+    renderAuthState(user, access.allowed ? "" : "Keine Berechtigung fur diesen Salon.");
+  } catch (error) {
+    renderAuthState(user, `Berechtigung konnte nicht gepruft werden: ${error.message}`);
+  }
 }
 
 async function refreshServices() {
@@ -224,12 +242,12 @@ function render() {
   renderCollapseState();
 }
 
-function renderAuthState(user = null) {
+function renderAuthState(user = null, message = "") {
   if (els.ownerControls) els.ownerControls.hidden = !state.isOwner;
   if (els.ownerLoginForm) els.ownerLoginForm.hidden = Boolean(user);
   if (els.ownerSession) els.ownerSession.hidden = !user;
   if (els.ownerEmailLabel) els.ownerEmailLabel.textContent = user?.email || "";
-  if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = "";
+  if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = message;
 }
 
 function renderOwnerControls() {
@@ -579,6 +597,22 @@ function createSupabaseRepository(client) {
         .eq("id", id)
         .eq("salon_id", salon.id);
       if (error) throw error;
+    },
+    async getSalonAccess(userId) {
+      const salon = await salonPromise;
+      const { data, error } = await client
+        .from("salon_members")
+        .select("salon_id, role")
+        .eq("user_id", userId);
+      if (error) throw error;
+      const memberships = data || [];
+      const superAdmin = memberships.find((membership) => membership.role === "super_admin");
+      if (superAdmin) return { allowed: true, role: "super_admin" };
+      const salonMembership = memberships.find((membership) => membership.salon_id === salon.id);
+      return {
+        allowed: Boolean(salonMembership),
+        role: salonMembership?.role || null,
+      };
     },
     async sendBookingEmail(bookingId, eventType) {
       const { error } = await client.functions.invoke("send-booking-email", {
