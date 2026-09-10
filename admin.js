@@ -46,6 +46,7 @@ const state = {
   isOwner: false,
   accessRole: null,
   logCollapsed: false,
+  twoColumnSlots: false,
   repository: null,
   services: DEFAULT_SERVICES,
   salon: null,
@@ -75,6 +76,7 @@ const els = {
   adminDatePrevButton: document.querySelector("#adminDatePrevButton"),
   adminDateNextButton: document.querySelector("#adminDateNextButton"),
   dayBlockButton: document.querySelector("#dayBlockButton"),
+  slotLayoutButton: document.querySelector("#slotLayoutButton"),
   appointmentCardTitle: document.querySelector("#appointmentCardTitle"),
   upcomingLogTitle: document.querySelector("#upcomingLogTitle"),
   logCollapseButton: document.querySelector("#logCollapseButton"),
@@ -112,6 +114,7 @@ function bindEvents() {
   els.adminDatePrevButton?.addEventListener("click", () => scrollDateStrip(-1));
   els.adminDateNextButton?.addEventListener("click", () => scrollDateStrip(1));
   els.dayBlockButton?.addEventListener("click", handleToggleDayBlock);
+  els.slotLayoutButton?.addEventListener("click", toggleSlotLayout);
   els.logCollapseButton?.addEventListener("click", () => toggleSection("log"));
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".service-block-menu")) closeServiceBlockMenus();
@@ -324,6 +327,7 @@ function renderSlotManager() {
   }
   if (els.bookingCount) els.bookingCount.textContent = activeAppointments.length;
   renderDayBlockButton();
+  renderSlotLayoutButton();
   const slots = buildAdminSlots();
   if (slots.length === 0) {
     els.appointmentList.innerHTML = `<div class="empty-state">${state.daySettings.isBlockedDay ? t("admin.dayBlockedEmpty") : t("admin.emptyAppointments")}</div>`;
@@ -348,6 +352,19 @@ function renderSlotManager() {
       if (menu.open) closeServiceBlockMenus(menu);
     });
   });
+}
+
+function toggleSlotLayout() {
+  state.twoColumnSlots = !state.twoColumnSlots;
+  renderSlotLayoutButton();
+}
+
+function renderSlotLayoutButton() {
+  if (!els.slotLayoutButton || !els.appointmentList) return;
+  els.appointmentList.classList.toggle("two-column-slots", state.twoColumnSlots);
+  els.slotLayoutButton.setAttribute("aria-pressed", String(state.twoColumnSlots));
+  els.slotLayoutButton.title = state.twoColumnSlots ? "Ein Slot pro Zeile" : "Zwei Slots pro Zeile";
+  els.slotLayoutButton.setAttribute("aria-label", els.slotLayoutButton.title);
 }
 
 function closeServiceBlockMenus(except = null) {

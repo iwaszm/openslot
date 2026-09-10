@@ -3120,6 +3120,24 @@ body {
   border-style: solid;
 }
 
+@media (min-width: 741px) {
+  .admin-slot-card.booking-segment {
+    border-style: solid dashed;
+  }
+
+  .admin-slot-card.booking-segment.booking-first {
+    border-left-style: solid;
+  }
+
+  .admin-slot-card.booking-segment.booking-last {
+    border-right-style: solid;
+  }
+
+  .admin-slot-card.booking-segment.booking-single {
+    border-style: solid;
+  }
+}
+
 .admin-slot-head {
   align-items: start;
   display: grid;
@@ -3410,6 +3428,26 @@ body {
   color: #8b8582;
 }
 
+.appointment-title-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.slot-layout-button {
+  display: none;
+  font-size: 1.05rem;
+  min-height: 36px;
+  padding: 0;
+  width: 36px;
+}
+
+.slot-layout-button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
 .admin-turnstile {
   grid-column: 1 / -1;
   justify-self: end;
@@ -3573,6 +3611,32 @@ body {
 @media (max-width: 740px) {
   .admin-slot-grid {
     grid-template-columns: 1fr;
+  }
+
+  .slot-layout-button {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+  }
+
+  .two-column-slots .admin-slot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .two-column-slots .admin-slot-card.booking-segment {
+    border-style: solid dashed;
+  }
+
+  .two-column-slots .admin-slot-card.booking-segment.booking-first {
+    border-left-style: solid;
+  }
+
+  .two-column-slots .admin-slot-card.booking-segment.booking-last {
+    border-right-style: solid;
+  }
+
+  .two-column-slots .admin-slot-card.booking-segment.booking-single {
+    border-style: solid;
   }
 
   .admin-slot-card {
