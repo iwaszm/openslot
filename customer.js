@@ -648,7 +648,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("blocked_slots")
-        .select("id, block_date, start_time, end_time, reason")
+        .select("id, block_date, start_time, end_time, reason, occupied_slots")
         .eq("salon_id", salon.id)
         .eq("block_date", date)
         .order("start_time", { ascending: true });
@@ -950,6 +950,7 @@ function fromSupabaseBlockedSlot(row) {
     date: row.block_date,
     startMinutes: parseTime(row.start_time.slice(0, 5)),
     endMinutes: parseTime(row.end_time.slice(0, 5)),
+    occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
     reason: row.reason || "",
   };
 }

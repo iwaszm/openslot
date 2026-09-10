@@ -3055,7 +3055,8 @@ body {
 }
 
 .admin-slot-card {
-  min-height: 118px;
+  box-sizing: border-box;
+  height: 118px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.86);
@@ -3068,7 +3069,7 @@ body {
 .admin-slot-card.free {
   border-color: rgba(87, 135, 78, 0.26);
   background: #f0f8ef;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto 1fr auto;
 }
 
 .admin-slot-card.blocked {
@@ -3077,15 +3078,24 @@ body {
 }
 
 .admin-slot-card.booked {
-  border-color: rgba(191, 91, 82, 0.38);
-  background: #fff8f7;
+  border-color: color-mix(in srgb, var(--slot-color) 72%, #6d5d58);
+  background: color-mix(in srgb, var(--slot-color) 30%, white);
 }
 
 .admin-slot-card.occupied {
-  min-height: 78px;
-  background: #fcf7f5;
-  color: var(--muted);
-  grid-template-rows: auto;
+  grid-template-rows: auto 1fr auto;
+}
+
+.admin-slot-card.service-colored,
+.admin-slot-card.service-block {
+  border-color: color-mix(in srgb, var(--slot-color) 72%, #6d5d58);
+  background: color-mix(in srgb, var(--slot-color) 30%, white);
+  color: color-mix(in srgb, var(--slot-color) 20%, #302725);
+}
+
+.admin-slot-card.slot-continuation {
+  border-top-style: dashed;
+  border-top-width: 2px;
 }
 
 .admin-slot-head {
@@ -3157,8 +3167,8 @@ body {
 }
 
 .service-tag {
-  background: #fbe9e7;
-  color: #9f3f38;
+  background: color-mix(in srgb, var(--slot-color, #fbe9e7) 70%, white);
+  color: #332b29;
 }
 
 .free-tag {
@@ -3378,6 +3388,102 @@ body {
   color: #8b8582;
 }
 
+.slot-split-action {
+  align-self: end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  justify-self: stretch;
+  position: relative;
+}
+
+.slot-split-action .split-main {
+  border-radius: 8px 0 0 8px;
+  min-height: 34px;
+  width: 100%;
+}
+
+.service-block-menu {
+  position: static;
+}
+
+.service-block-menu summary {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  cursor: pointer;
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  list-style: none;
+}
+
+.service-block-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.service-block-menu summary svg {
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 16px;
+}
+
+.service-block-menu[open] summary {
+  background: white;
+}
+
+.admin-slot-card:has(.service-block-menu[open]) {
+  z-index: 30;
+}
+
+.service-block-options {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(70, 53, 47, 0.16);
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  min-width: 150px;
+  overflow-y: auto;
+  padding: 5px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px);
+  z-index: 20;
+}
+
+.service-block-options button {
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 760;
+  min-height: 30px;
+  padding: 5px 9px;
+  text-align: left;
+}
+
+.service-block-options button:hover,
+.service-block-options button:focus-visible {
+  background: var(--surface-soft);
+  outline: none;
+}
+
+.service-block-options button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .appointment-log-item.appointment-cancelled .appointment-log-main,
 .appointment-log-item.appointment-cancelled .appointment-log-customer {
   text-decoration: line-through;
@@ -3436,17 +3542,17 @@ body {
 
   .admin-slot-card {
     gap: 6px;
-    min-height: 88px;
+    height: 88px;
     padding: 9px 10px;
   }
 
   .admin-slot-card.free,
   .admin-slot-card.blocked {
-    min-height: 76px;
+    height: 88px;
   }
 
   .admin-slot-card.occupied {
-    min-height: 58px;
+    height: 88px;
   }
 
   .admin-service-meta {

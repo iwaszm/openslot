@@ -329,6 +329,9 @@ function renderSlotManager() {
   els.appointmentList.querySelectorAll("[data-block-slot]").forEach((button) => {
     button.addEventListener("click", () => handleBlockSlot(button.dataset.blockSlot));
   });
+  els.appointmentList.querySelectorAll("[data-block-service]").forEach((button) => {
+    button.addEventListener("click", () => handleBlockSlot(button.dataset.blockStart, button.dataset.blockService));
+  });
   els.appointmentList.querySelectorAll("[data-unblock-slot]").forEach((button) => {
     button.addEventListener("click", () => handleUnblockSlot(button.dataset.unblockSlot));
   });
@@ -400,53 +403,75 @@ function renderAdminSlot(slot) {
     const service = findService(slot.appointment.serviceId);
     const isCancelled = slot.appointment.status === "cancelled";
     return `
-      <article class="admin-slot-card booked service-${escapeAttribute(service.category || "care")} ${isCancelled ? "appointment-cancelled" : ""}">
+      <article class="admin-slot-card booked service-colored ${isCancelled ? "appointment-cancelled" : ""}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="service-tag">${escapeHtml(getServiceAbbrev(service))}</span>
         </div>
         <div class="admin-slot-body">
-          <div class="admin-customer-line">
-            <strong>${escapeHtml(slot.appointment.name || t("admin.unnamedCustomer"))}</strong>
-            <span>${escapeHtml(slot.appointment.phone)}</span>
-          </div>
-          <small class="admin-customer-email">${escapeHtml(slot.appointment.email || "")}</small>
+          <strong>${escapeHtml(slot.appointment.name || t("admin.unnamedCustomer"))}</strong>
         </div>
       </article>
     `;
   }
   if (slot.occupiedBy) {
+    const service = findService(slot.occupiedBy.serviceId);
     return `
-      <article class="admin-slot-card occupied">
+      <article class="admin-slot-card occupied service-colored slot-continuation" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
-          <span class="occupied-tag">${t("admin.occupiedSlot")}</span>
+          <span class="service-tag">${escapeHtml(getServiceAbbrev(service))}</span>
         </div>
       </article>
     `;
   }
   if (slot.block) {
+    const blockService = slot.block.serviceId ? findService(slot.block.serviceId) : null;
+    const blockClass = blockService ? "service-block service-colored" : "blocked";
+    const blockStyle = blockService ? ` style="--slot-color:${escapeAttribute(blockService.slotColor || "#F48FB1")}"` : "";
     return `
-      <article class="admin-slot-card blocked">
+      <article class="admin-slot-card ${blockClass}${slot.block.serviceStartMinutes !== slot.startMinutes ? " slot-continuation" : ""}"${blockStyle}>
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
-          <span class="blocked-tag">${t("admin.blockedSlot")}</span>
-        </div>
-        <div class="admin-slot-body">
-          <small>${escapeHtml(slot.block.reason || t("admin.manualBlock"))}</small>
+          <span class="${blockService ? "service-tag" : "blocked-tag"}">${blockService ? escapeHtml(getServiceAbbrev(blockService)) : t("admin.blockedSlot")}</span>
         </div>
         <button class="ghost-button mini-action" type="button" data-unblock-slot="${slot.block.id}">${t("admin.unblockSlot")}</button>
       </article>
     `;
   }
+  const serviceOptions = state.services
+    .filter((service) => service.isActive)
+    .map((service) => {
+      const disabled = !canPlaceServiceAt(service, slot.startMinutes);
+      return `<button type="button" role="menuitem" data-block-service="${escapeAttribute(service.id)}" data-block-start="${slot.startMinutes}" ${disabled ? "disabled" : ""}>${escapeHtml(getServiceAbbrev(service))}</button>`;
+    }).join("");
   return `
     <article class="admin-slot-card free">
       <div class="admin-slot-head">
         <div class="admin-slot-time">${baseTime}</div>
+        <span class="free-tag">${t("admin.freeSlot")}</span>
       </div>
-      <button class="ghost-button mini-action" type="button" data-block-slot="${slot.startMinutes}">${t("admin.blockSlot")}</button>
+      <div class="slot-split-action">
+        <button class="ghost-button split-main" type="button" data-block-slot="${slot.startMinutes}">${t("admin.blockSlot")}</button>
+        <details class="service-block-menu">
+          <summary aria-label="${escapeAttribute(t("admin.selectService"))}" title="${escapeAttribute(t("admin.selectService"))}">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+          </summary>
+          <div class="service-block-options" role="menu">${serviceOptions}</div>
+        </details>
+      </div>
     </article>
   `;
+}
+
+function canPlaceServiceAt(service, startMinutes) {
+  if (startMinutes + service.duration > state.daySettings.closeMinutes) return false;
+  const candidate = {
+    startMinutes,
+    endMinutes: startMinutes + service.duration,
+    occupiedMinutes: getServiceOccupiedMinutes(service, startMinutes),
+  };
+  return !hasOverlap(candidate, state.appointments) && !hasOverlap(candidate, state.blockedSlots);
 }
 
 async function handleOwnerLogin(event) {
@@ -506,13 +531,17 @@ function renderDayBlockButton() {
   els.dayBlockButton.classList.toggle("is-blocked", state.daySettings.isBlockedDay);
 }
 
-async function handleBlockSlot(startMinutesValue) {
+async function handleBlockSlot(startMinutesValue, serviceId = null) {
   const startMinutes = Number(startMinutesValue);
+  const service = serviceId ? findService(serviceId) : null;
   const block = {
     date: els.adminDateInput.value,
     startMinutes,
-    endMinutes: startMinutes + SLOT_STEP,
-    reason: t("admin.manualBlock"),
+    endMinutes: startMinutes + (service?.duration || SLOT_STEP),
+    occupiedMinutes: service ? getServiceOccupiedMinutes(service, startMinutes) : [startMinutes],
+    serviceId: service?.id || null,
+    serviceStartMinutes: startMinutes,
+    reason: "",
   };
   try {
     await state.repository.createBlockedSlot(block);
@@ -635,7 +664,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("blocked_slots")
-        .select("id, block_date, start_time, end_time, reason")
+        .select("id, block_date, start_time, end_time, reason, service_id, service_start_time, occupied_slots")
         .eq("salon_id", salon.id)
         .eq("block_date", date)
         .order("start_time", { ascending: true });
@@ -644,12 +673,11 @@ function createSupabaseRepository(client) {
     },
     async createBlockedSlot(block) {
       const salon = await salonPromise;
-      const { error } = await client.from("blocked_slots").insert({
-        salon_id: salon.id,
-        block_date: block.date,
-        start_time: `${formatMinutes(block.startMinutes)}:00`,
-        end_time: `${formatMinutes(block.endMinutes)}:00`,
-        reason: block.reason,
+      const { error } = await client.rpc("create_admin_block", {
+        p_salon_id: salon.id,
+        p_block_date: block.date,
+        p_start_time: `${formatMinutes(block.startMinutes)}:00`,
+        p_service_id: block.serviceId,
       });
       if (error) throw error;
     },
@@ -773,6 +801,13 @@ function findService(id) {
 
 function sortServices(services) {
   return services.slice().sort((a, b) => (getServiceSortIndex(a.id) - getServiceSortIndex(b.id)) || a.name.localeCompare(b.name));
+}
+
+function getServiceOccupiedMinutes(service, startMinutes) {
+  const bookedSlots = Array.isArray(service.bookedSlots) && service.bookedSlots.length > 0
+    ? service.bookedSlots
+    : Array.from({ length: Math.ceil(service.duration / SLOT_STEP) }, (_, index) => index + 1);
+  return bookedSlots.map((slotNumber) => startMinutes + ((slotNumber - 1) * SLOT_STEP));
 }
 
 function getServiceSortIndex(id) {
@@ -922,6 +957,9 @@ function fromSupabaseBlockedSlot(row) {
     date: row.block_date,
     startMinutes: parseTime(row.start_time.slice(0, 5)),
     endMinutes: parseTime(row.end_time.slice(0, 5)),
+    occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
+    serviceId: row.service_id || null,
+    serviceStartMinutes: row.service_start_time ? parseTime(row.service_start_time.slice(0, 5)) : parseTime(row.start_time.slice(0, 5)),
     reason: row.reason || "",
   };
 }
