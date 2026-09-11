@@ -334,8 +334,11 @@ function renderSlotManager() {
     return;
   }
   els.appointmentList.innerHTML = `
-    <div class="admin-slot-grid">
-      ${slots.map((slot) => renderAdminSlot(slot)).join("")}
+    <div class="admin-slot-board">
+      ${renderAdminTimeAxis()}
+      <div class="admin-slot-grid">
+        ${slots.map((slot) => renderAdminSlot(slot)).join("")}
+      </div>
     </div>
   `;
   els.appointmentList.querySelectorAll("[data-block-slot]").forEach((button) => {
@@ -352,6 +355,19 @@ function renderSlotManager() {
       if (menu.open) closeServiceBlockMenus(menu);
     });
   });
+}
+
+function renderAdminTimeAxis() {
+  const start = state.daySettings.openMinutes;
+  const end = state.daySettings.closeMinutes;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return "";
+  const firstHour = Math.ceil(start / 60);
+  const lastHour = Math.floor((end - 1) / 60);
+  const labels = [];
+  for (let hour = firstHour; hour <= lastHour; hour += 1) {
+    labels.push(`<span>${String(hour).padStart(2, "0")}</span>`);
+  }
+  return `<div class="admin-time-axis" aria-hidden="true">${labels.join("")}</div>`;
 }
 
 function toggleSlotLayout() {
@@ -490,7 +506,6 @@ function renderAdminSlot(slot) {
     <article class="admin-slot-card free">
       <div class="admin-slot-head">
         <div class="admin-slot-time">${baseTime}</div>
-        <span class="free-tag">${t("admin.freeSlot")}</span>
       </div>
       <div class="slot-split-action">
         <button class="ghost-button split-main" type="button" data-block-slot="${slot.startMinutes}">${t("admin.blockSlot")}</button>

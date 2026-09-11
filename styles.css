@@ -3086,8 +3086,8 @@ body {
 }
 
 .admin-slot-card.free {
-  border-color: rgba(87, 135, 78, 0.26);
-  background: #f0f8ef;
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.72);
   grid-template-rows: auto 1fr auto;
 }
 
@@ -3399,6 +3399,65 @@ body {
   gap: 14px;
 }
 
+/* Admin workspace reads as one continuous schedule, separated by rhythm and rules. */
+.admin-workspace {
+  gap: 0;
+}
+
+.admin-workspace > .admin-toolbar-card,
+.admin-workspace > .appointment-admin-card,
+.admin-workspace > .appointment-log-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 24px 0;
+}
+
+.admin-workspace > .admin-toolbar-card {
+  padding-top: 12px;
+}
+
+.admin-workspace > .admin-toolbar-card,
+.admin-workspace > .appointment-admin-card {
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-slot-board {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.admin-time-axis {
+  border-right: 1px solid rgba(112, 96, 89, 0.34);
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 760;
+  justify-content: space-between;
+  line-height: 1;
+  padding: 4px 9px 4px 0;
+  text-align: right;
+}
+
+.admin-time-axis span {
+  position: relative;
+}
+
+.admin-time-axis span::after {
+  background: rgba(112, 96, 89, 0.34);
+  content: "";
+  height: 1px;
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  width: 5px;
+}
+
 .appointment-log-card .control-title,
 .service-admin-card .control-title {
   align-items: center;
@@ -3618,6 +3677,31 @@ body {
 }
 
 @media (max-width: 740px) {
+  .admin-workspace > .admin-toolbar-card,
+  .admin-workspace > .appointment-admin-card,
+  .admin-workspace > .appointment-log-card {
+    padding: 18px 0;
+  }
+
+  .admin-workspace > .admin-toolbar-card {
+    padding-top: 8px;
+  }
+
+  .admin-slot-board {
+    gap: 7px;
+    grid-template-columns: 25px minmax(0, 1fr);
+  }
+
+  .admin-time-axis {
+    font-size: 0.58rem;
+    padding-right: 6px;
+  }
+
+  .admin-time-axis span::after {
+    right: -7px;
+    width: 4px;
+  }
+
   .admin-slot-grid {
     grid-template-columns: 1fr;
   }
