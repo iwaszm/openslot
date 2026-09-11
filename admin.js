@@ -192,7 +192,7 @@ async function refreshDateOptions() {
       ]);
       return {
         date,
-        bookedSlotCount: countBookedSlots(appointments),
+        occupiedSlotCount: countOccupiedSlots(appointments, blockedSlots),
         totalSlotCount: countDaySlots(daySettings),
         blockedCount: blockedSlots.length,
         isBlockedDay: daySettings.isBlockedDay,
@@ -203,7 +203,7 @@ async function refreshDateOptions() {
   } catch (error) {
     state.dateOptions = dates.map((date) => ({
       date,
-      bookedSlotCount: 0,
+      occupiedSlotCount: 0,
       totalSlotCount: countDaySlots(createDefaultDaySettings(date)),
       blockedCount: 0,
       isBlockedDay: false,
@@ -325,8 +325,8 @@ function renderSlotManager() {
   const selectedDate = els.adminDateInput?.value || toDateInputValue(new Date());
   if (els.appointmentCardTitle) {
     const totalSlotCount = countDaySlots(state.daySettings);
-    const bookedSlotCount = countBookedSlots(activeAppointments);
-    els.appointmentCardTitle.textContent = `${t("admin.today")} ${formatSelectedDateTitle(selectedDate, `${bookedSlotCount}/${totalSlotCount}`)}`;
+    const occupiedSlotCount = countOccupiedSlots(activeAppointments, state.blockedSlots);
+    els.appointmentCardTitle.textContent = `${t("admin.today")} ${formatSelectedDateTitle(selectedDate, `${occupiedSlotCount}/${totalSlotCount}`)}`;
   }
   if (els.bookingCount) els.bookingCount.textContent = activeAppointments.length;
   renderDayBlockButton();
@@ -383,7 +383,10 @@ function syncAdminTimeAxis() {
   axis.querySelectorAll("[data-axis-minute]").forEach((marker) => {
     const slot = grid.querySelector(`[data-slot-start="${marker.dataset.axisMinute}"]`);
     marker.hidden = !slot;
-    if (slot) marker.style.top = `${slot.offsetTop}px`;
+    if (slot) {
+      const gridTop = grid.getBoundingClientRect().top;
+      marker.style.top = `${slot.getBoundingClientRect().top - gridTop}px`;
+    }
   });
 }
 
@@ -469,13 +472,14 @@ function renderLogAppointment(appointment) {
 
 function renderAdminSlot(slot) {
   const baseTime = `${formatMinutes(slot.startMinutes)}-${formatMinutes(slot.endMinutes)}`;
+  const hourStartClass = slot.startMinutes % 60 === 0 && slot.startMinutes !== state.daySettings.openMinutes ? " hour-start" : "";
   if (slot.appointment) {
     const service = findService(slot.appointment.serviceId);
     const isCancelled = slot.appointment.status === "cancelled";
     const edgeClasses = getOccupiedEdgeClasses(slot.appointment, slot.startMinutes);
     const customerName = slot.appointment.name || t("admin.unnamedCustomer");
     return `
-      <article class="admin-slot-card booked service-colored booking-segment ${edgeClasses} ${isCancelled ? "appointment-cancelled" : ""}" data-slot-start="${slot.startMinutes}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
+      <article class="admin-slot-card booked service-colored booking-segment ${edgeClasses} ${isCancelled ? "appointment-cancelled" : ""}${hourStartClass}" data-slot-start="${slot.startMinutes}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="service-tag">${escapeHtml(getServiceAbbrev(service))}</span>
@@ -490,7 +494,7 @@ function renderAdminSlot(slot) {
     const service = findService(slot.occupiedBy.serviceId);
     const edgeClasses = getOccupiedEdgeClasses(slot.occupiedBy, slot.startMinutes);
     return `
-      <article class="admin-slot-card occupied service-colored booking-segment ${edgeClasses}" data-slot-start="${slot.startMinutes}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
+      <article class="admin-slot-card occupied service-colored booking-segment ${edgeClasses}${hourStartClass}" data-slot-start="${slot.startMinutes}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="service-tag">${escapeHtml(getServiceAbbrev(service))}</span>
@@ -505,7 +509,7 @@ function renderAdminSlot(slot) {
     const edgeClasses = blockService ? ` booking-segment ${getOccupiedEdgeClasses(slot.block, slot.startMinutes)}` : "";
     const showUnblockButton = !blockService || edgeClasses.includes("booking-first") || edgeClasses.includes("booking-single");
     return `
-      <article class="admin-slot-card ${blockClass}${edgeClasses}" data-slot-start="${slot.startMinutes}"${blockStyle}>
+      <article class="admin-slot-card ${blockClass}${edgeClasses}${hourStartClass}" data-slot-start="${slot.startMinutes}"${blockStyle}>
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="${blockService ? "service-tag" : "blocked-tag"}">${blockService ? escapeHtml(getServiceAbbrev(blockService)) : t("admin.blockedSlot")}</span>
@@ -521,7 +525,7 @@ function renderAdminSlot(slot) {
       return `<button type="button" role="menuitem" data-block-service="${escapeAttribute(service.id)}" data-block-start="${slot.startMinutes}" ${disabled ? "disabled" : ""}>${escapeHtml(getServiceAbbrev(service))}</button>`;
     }).join("");
   return `
-    <article class="admin-slot-card free" data-slot-start="${slot.startMinutes}">
+    <article class="admin-slot-card free${hourStartClass}" data-slot-start="${slot.startMinutes}">
       <div class="admin-slot-head">
         <div class="admin-slot-time">${baseTime}</div>
       </div>
@@ -894,7 +898,7 @@ function findOverlap(candidate, ranges) {
 
 function getDateStatus(option) {
   if (!option.isBusinessDay || option.isBlockedDay) return "date-closed";
-  const ratio = option.totalSlotCount > 0 ? option.bookedSlotCount / option.totalSlotCount : 0;
+  const ratio = option.totalSlotCount > 0 ? option.occupiedSlotCount / option.totalSlotCount : 0;
   if (ratio >= 1) return "date-load-full";
   if (ratio > 0.75) return "date-load-dark-red";
   if (ratio > 0.5) return "date-load-red";
@@ -911,11 +915,14 @@ function isScheduledBusinessDay(date) {
   return getWeeklyRule(new Date(`${date}T00:00:00`)).openMinutes !== null;
 }
 
-function countBookedSlots(appointments) {
+function countOccupiedSlots(appointments, blockedSlots = []) {
   const occupied = new Set();
   appointments
     .filter((appointment) => appointment.status !== "cancelled")
     .forEach((appointment) => getOccupiedRanges(appointment).forEach((range) => occupied.add(range.startMinutes)));
+  blockedSlots.forEach((block) => {
+    getOccupiedRanges(block).forEach((range) => occupied.add(range.startMinutes));
+  });
   return occupied.size;
 }
 

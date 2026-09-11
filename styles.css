@@ -3424,9 +3424,7 @@ body {
 }
 
 .admin-slot-board {
-  display: grid;
-  grid-template-columns: 27px minmax(0, 1fr);
-  gap: 8px;
+  display: block;
   min-width: 0;
 }
 
@@ -3440,6 +3438,7 @@ body {
   padding-right: 7px;
   position: relative;
   text-align: right;
+  display: none;
 }
 
 .admin-time-axis span {
@@ -3688,13 +3687,11 @@ body {
   }
 
   .admin-slot-board {
-    gap: 5px;
-    grid-template-columns: 22px minmax(0, 1fr);
+    display: block;
   }
 
   .admin-time-axis {
-    font-size: 0.58rem;
-    padding-right: 5px;
+    display: none;
   }
 
   .admin-time-axis span {
@@ -3871,6 +3868,36 @@ body {
     justify-content: center;
   }
 
+  .admin-slot-board {
+    --axis-track: 35px;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 27px minmax(0, 1fr);
+  }
+
+  .admin-time-axis {
+    display: block;
+  }
+
+  .admin-slot-card {
+    position: relative;
+  }
+
+  .admin-slot-card.hour-start::before {
+    background: var(--line);
+    content: "";
+    height: 1px;
+    left: calc(-1 * var(--axis-track));
+    pointer-events: none;
+    position: absolute;
+    top: -6px;
+    width: calc(200% + 10px + var(--axis-track));
+  }
+
+  .appointment-list:not(.two-column-slots) .admin-slot-card.hour-start::before {
+    width: calc(100% + var(--axis-track));
+  }
+
   .admin-slot-grid {
     grid-template-columns: 1fr;
   }
@@ -3893,6 +3920,19 @@ body {
 
   .two-column-slots .admin-slot-card.booking-segment.booking-single {
     border-style: solid;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 740px) {
+  .admin-slot-board {
+    --axis-track: 27px;
+    gap: 5px;
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .admin-time-axis {
+    font-size: 0.58rem;
+    padding-right: 5px;
   }
 }
 
