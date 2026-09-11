@@ -439,6 +439,7 @@ function renderAdminSlot(slot) {
     const service = findService(slot.appointment.serviceId);
     const isCancelled = slot.appointment.status === "cancelled";
     const edgeClasses = getOccupiedEdgeClasses(slot.appointment, slot.startMinutes);
+    const customerName = slot.appointment.name || t("admin.unnamedCustomer");
     return `
       <article class="admin-slot-card booked service-colored booking-segment ${edgeClasses} ${isCancelled ? "appointment-cancelled" : ""}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
         <div class="admin-slot-head">
@@ -446,7 +447,7 @@ function renderAdminSlot(slot) {
           <span class="service-tag">${escapeHtml(getServiceAbbrev(service))}</span>
         </div>
         <div class="admin-slot-body">
-          <strong>${escapeHtml(slot.appointment.name || t("admin.unnamedCustomer"))}</strong>
+          <strong class="${getCustomerNameSizeClass(customerName)}">${escapeHtml(customerName)}</strong>
         </div>
       </article>
     `;
@@ -983,11 +984,53 @@ function formatSelectedDateTitle(dateValue, slotCount = "") {
   return `am ${dateValue} ${weekday}${slotCount ? ` (${slotCount})` : ""}`;
 }
 
-function scrollDateStrip(direction) {
-  const dateRow = els.adminDateStrip?.querySelector(".date-row");
+async function scrollDateStrip(direction) {
+  let dateRow = els.adminDateStrip?.querySelector(".date-row");
   if (!dateRow) return;
-  const amount = Math.max(dateRow.clientWidth * 0.78, 240);
-  dateRow.scrollBy({ left: direction * amount, behavior: "smooth" });
+  const buttons = [...dateRow.querySelectorAll(".date-button")];
+  if (buttons.length === 0) return;
+  const isPortraitPager = window.matchMedia("(orientation: portrait) and (max-width: 1180px)").matches;
+  const pageSize = isPortraitPager ? Math.min(7, buttons.length) : getVisibleDateCount(dateRow, buttons);
+  const currentIndex = getDateRowStartIndex(dateRow, buttons);
+  const currentPageStart = Math.floor(currentIndex / pageSize) * pageSize;
+  const targetIndex = Math.max(0, Math.min(currentPageStart + (direction * pageSize), buttons.length - pageSize));
+
+  if (isPortraitPager) {
+    const firstSelectable = buttons.slice(targetIndex, targetIndex + pageSize).find((button) => !button.disabled);
+    if (firstSelectable && firstSelectable.dataset.date !== els.adminDateInput.value) {
+      els.adminDateInput.value = firstSelectable.dataset.date;
+      await refreshDayData();
+      dateRow = els.adminDateStrip?.querySelector(".date-row");
+    }
+  }
+
+  if (dateRow) scrollDateRowToIndex(dateRow, targetIndex);
+}
+
+function getVisibleDateCount(dateRow, buttons) {
+  if (buttons.length < 2) return 1;
+  const step = buttons[1].offsetLeft - buttons[0].offsetLeft;
+  return step > 0 ? Math.max(1, Math.floor((dateRow.clientWidth + 1) / step)) : 1;
+}
+
+function getDateRowStartIndex(dateRow, buttons) {
+  if (buttons.length < 2) return 0;
+  const step = buttons[1].offsetLeft - buttons[0].offsetLeft;
+  return step > 0 ? Math.max(0, Math.round(dateRow.scrollLeft / step)) : 0;
+}
+
+function scrollDateRowToIndex(dateRow, index) {
+  const buttons = [...dateRow.querySelectorAll(".date-button")];
+  const firstButton = buttons[0];
+  const targetButton = buttons[index];
+  if (!firstButton || !targetButton) return;
+  dateRow.scrollTo({ left: targetButton.offsetLeft - firstButton.offsetLeft, behavior: "smooth" });
+}
+
+function getCustomerNameSizeClass(name) {
+  if (name.length > 22) return "customer-name customer-name-compact";
+  if (name.length > 14) return "customer-name customer-name-long";
+  return "customer-name";
 }
 
 function fromSupabaseService(row) {

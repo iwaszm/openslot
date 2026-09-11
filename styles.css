@@ -2884,6 +2884,15 @@ body {
     width: 100%;
   }
 
+  .date-row {
+    gap: 0;
+    overflow-x: hidden;
+  }
+
+  .date-button {
+    flex: 0 0 calc(100% / 7);
+  }
+
   .customer-booking fieldset:nth-of-type(4) {
     margin-left: var(--booking-side-inset);
     width: calc(100% - (var(--booking-side-inset) * 2));
@@ -3643,6 +3652,59 @@ body {
     gap: 6px;
     height: 88px;
     padding: 9px 10px;
+  }
+
+  .admin-slot-head {
+    align-items: center;
+    gap: 4px;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .admin-slot-time {
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+
+  .admin-slot-card .service-tag,
+  .admin-slot-card .blocked-tag,
+  .admin-slot-card .occupied-tag {
+    font-size: 0.6rem;
+    justify-self: end;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 4px 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-slot-body {
+    gap: 3px;
+  }
+
+  .admin-slot-body .customer-name {
+    display: block;
+    font-size: 0.74rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-slot-body .customer-name-long {
+    font-size: 0.68rem;
+  }
+
+  .admin-slot-body .customer-name-compact {
+    font-size: 0.59rem;
+  }
+
+  .admin-slot-body small,
+  .admin-slot-card .mini-action {
+    font-size: 0.66rem;
+  }
+
+  .admin-slot-card .mini-action {
+    min-height: 28px;
+    padding: 0 8px;
   }
 
   .admin-slot-card.free,

@@ -884,11 +884,49 @@ function formatSelectedDateLabel(dateValue) {
   return `${dateValue} ${weekday}`;
 }
 
-function scrollDateStrip(direction) {
-  const dateRow = els.dateStrip?.querySelector(".date-row");
+async function scrollDateStrip(direction) {
+  let dateRow = els.dateStrip?.querySelector(".date-row");
   if (!dateRow) return;
-  const amount = Math.max(dateRow.clientWidth * 0.78, 240);
-  dateRow.scrollBy({ left: direction * amount, behavior: "smooth" });
+  const buttons = [...dateRow.querySelectorAll(".date-button")];
+  if (buttons.length === 0) return;
+  const isPortraitPager = window.matchMedia("(orientation: portrait) and (max-width: 1180px)").matches;
+  const pageSize = isPortraitPager ? Math.min(7, buttons.length) : getVisibleDateCount(dateRow, buttons);
+  const currentIndex = getDateRowStartIndex(dateRow, buttons);
+  const currentPageStart = Math.floor(currentIndex / pageSize) * pageSize;
+  const targetIndex = Math.max(0, Math.min(currentPageStart + (direction * pageSize), buttons.length - pageSize));
+
+  if (isPortraitPager) {
+    const firstSelectable = buttons.slice(targetIndex, targetIndex + pageSize).find((button) => !button.disabled);
+    if (firstSelectable && firstSelectable.dataset.date !== els.dateInput.value) {
+      els.dateInput.value = firstSelectable.dataset.date;
+      state.selectedSlot = "";
+      renderSelectedSummaries();
+      await refreshDayData();
+      dateRow = els.dateStrip?.querySelector(".date-row");
+    }
+  }
+
+  if (dateRow) scrollDateRowToIndex(dateRow, targetIndex);
+}
+
+function getVisibleDateCount(dateRow, buttons) {
+  if (buttons.length < 2) return 1;
+  const step = buttons[1].offsetLeft - buttons[0].offsetLeft;
+  return step > 0 ? Math.max(1, Math.floor((dateRow.clientWidth + 1) / step)) : 1;
+}
+
+function getDateRowStartIndex(dateRow, buttons) {
+  if (buttons.length < 2) return 0;
+  const step = buttons[1].offsetLeft - buttons[0].offsetLeft;
+  return step > 0 ? Math.max(0, Math.round(dateRow.scrollLeft / step)) : 0;
+}
+
+function scrollDateRowToIndex(dateRow, index) {
+  const buttons = [...dateRow.querySelectorAll(".date-button")];
+  const firstButton = buttons[0];
+  const targetButton = buttons[index];
+  if (!firstButton || !targetButton) return;
+  dateRow.scrollTo({ left: targetButton.offsetLeft - firstButton.offsetLeft, behavior: "smooth" });
 }
 
 function scrollServiceStrip(direction) {
