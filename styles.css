@@ -3070,7 +3070,7 @@ body {
 .admin-slot-grid {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(188px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .admin-slot-card {
@@ -3425,27 +3425,27 @@ body {
 
 .admin-slot-board {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 27px minmax(0, 1fr);
+  gap: 8px;
   min-width: 0;
 }
 
 .admin-time-axis {
   border-right: 1px solid rgba(112, 96, 89, 0.34);
   color: var(--muted);
-  display: flex;
-  flex-direction: column;
   font-size: 0.68rem;
   font-variant-numeric: tabular-nums;
   font-weight: 760;
-  justify-content: space-between;
   line-height: 1;
-  padding: 4px 9px 4px 0;
+  padding-right: 7px;
+  position: relative;
   text-align: right;
 }
 
 .admin-time-axis span {
-  position: relative;
+  left: 0;
+  position: absolute;
+  right: 7px;
 }
 
 .admin-time-axis span::after {
@@ -3453,8 +3453,8 @@ body {
   content: "";
   height: 1px;
   position: absolute;
-  right: -10px;
-  top: 50%;
+  right: -8px;
+  top: 0;
   width: 5px;
 }
 
@@ -3688,17 +3688,21 @@ body {
   }
 
   .admin-slot-board {
-    gap: 7px;
-    grid-template-columns: 25px minmax(0, 1fr);
+    gap: 5px;
+    grid-template-columns: 22px minmax(0, 1fr);
   }
 
   .admin-time-axis {
     font-size: 0.58rem;
-    padding-right: 6px;
+    padding-right: 5px;
+  }
+
+  .admin-time-axis span {
+    right: 5px;
   }
 
   .admin-time-axis span::after {
-    right: -7px;
+    right: -6px;
     width: 4px;
   }
 

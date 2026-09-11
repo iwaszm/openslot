@@ -116,6 +116,7 @@ function bindEvents() {
   els.dayBlockButton?.addEventListener("click", handleToggleDayBlock);
   els.slotLayoutButton?.addEventListener("click", toggleSlotLayout);
   els.logCollapseButton?.addEventListener("click", () => toggleSection("log"));
+  window.addEventListener("resize", syncAdminTimeAxis);
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".service-block-menu")) closeServiceBlockMenus();
   });
@@ -194,6 +195,7 @@ async function refreshDateOptions() {
         bookedSlotCount: countBookedSlots(appointments),
         totalSlotCount: countDaySlots(daySettings),
         blockedCount: blockedSlots.length,
+        isBlockedDay: daySettings.isBlockedDay,
         isBusinessDay: isScheduledBusinessDay(date),
       };
     }));
@@ -204,6 +206,7 @@ async function refreshDateOptions() {
       bookedSlotCount: 0,
       totalSlotCount: countDaySlots(createDefaultDaySettings(date)),
       blockedCount: 0,
+      isBlockedDay: false,
       isBusinessDay: isScheduledBusinessDay(date),
     }));
   }
@@ -355,6 +358,7 @@ function renderSlotManager() {
       if (menu.open) closeServiceBlockMenus(menu);
     });
   });
+  requestAnimationFrame(syncAdminTimeAxis);
 }
 
 function renderAdminTimeAxis() {
@@ -365,14 +369,28 @@ function renderAdminTimeAxis() {
   const lastHour = Math.floor((end - 1) / 60);
   const labels = [];
   for (let hour = firstHour; hour <= lastHour; hour += 1) {
-    labels.push(`<span>${String(hour).padStart(2, "0")}</span>`);
+    labels.push(`<span data-axis-minute="${hour * 60}">${String(hour).padStart(2, "0")}</span>`);
   }
   return `<div class="admin-time-axis" aria-hidden="true">${labels.join("")}</div>`;
+}
+
+function syncAdminTimeAxis() {
+  const board = els.appointmentList?.querySelector(".admin-slot-board");
+  const grid = board?.querySelector(".admin-slot-grid");
+  const axis = board?.querySelector(".admin-time-axis");
+  if (!grid || !axis) return;
+  axis.style.height = `${grid.offsetHeight}px`;
+  axis.querySelectorAll("[data-axis-minute]").forEach((marker) => {
+    const slot = grid.querySelector(`[data-slot-start="${marker.dataset.axisMinute}"]`);
+    marker.hidden = !slot;
+    if (slot) marker.style.top = `${slot.offsetTop}px`;
+  });
 }
 
 function toggleSlotLayout() {
   state.twoColumnSlots = !state.twoColumnSlots;
   renderSlotLayoutButton();
+  requestAnimationFrame(syncAdminTimeAxis);
 }
 
 function renderSlotLayoutButton() {
@@ -457,7 +475,7 @@ function renderAdminSlot(slot) {
     const edgeClasses = getOccupiedEdgeClasses(slot.appointment, slot.startMinutes);
     const customerName = slot.appointment.name || t("admin.unnamedCustomer");
     return `
-      <article class="admin-slot-card booked service-colored booking-segment ${edgeClasses} ${isCancelled ? "appointment-cancelled" : ""}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
+      <article class="admin-slot-card booked service-colored booking-segment ${edgeClasses} ${isCancelled ? "appointment-cancelled" : ""}" data-slot-start="${slot.startMinutes}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="service-tag">${escapeHtml(getServiceAbbrev(service))}</span>
@@ -472,7 +490,7 @@ function renderAdminSlot(slot) {
     const service = findService(slot.occupiedBy.serviceId);
     const edgeClasses = getOccupiedEdgeClasses(slot.occupiedBy, slot.startMinutes);
     return `
-      <article class="admin-slot-card occupied service-colored booking-segment ${edgeClasses}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
+      <article class="admin-slot-card occupied service-colored booking-segment ${edgeClasses}" data-slot-start="${slot.startMinutes}" style="--slot-color:${escapeAttribute(service.slotColor || "#F48FB1")}">
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="service-tag">${escapeHtml(getServiceAbbrev(service))}</span>
@@ -487,7 +505,7 @@ function renderAdminSlot(slot) {
     const edgeClasses = blockService ? ` booking-segment ${getOccupiedEdgeClasses(slot.block, slot.startMinutes)}` : "";
     const showUnblockButton = !blockService || edgeClasses.includes("booking-first") || edgeClasses.includes("booking-single");
     return `
-      <article class="admin-slot-card ${blockClass}${edgeClasses}"${blockStyle}>
+      <article class="admin-slot-card ${blockClass}${edgeClasses}" data-slot-start="${slot.startMinutes}"${blockStyle}>
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="${blockService ? "service-tag" : "blocked-tag"}">${blockService ? escapeHtml(getServiceAbbrev(blockService)) : t("admin.blockedSlot")}</span>
@@ -503,7 +521,7 @@ function renderAdminSlot(slot) {
       return `<button type="button" role="menuitem" data-block-service="${escapeAttribute(service.id)}" data-block-start="${slot.startMinutes}" ${disabled ? "disabled" : ""}>${escapeHtml(getServiceAbbrev(service))}</button>`;
     }).join("");
   return `
-    <article class="admin-slot-card free">
+    <article class="admin-slot-card free" data-slot-start="${slot.startMinutes}">
       <div class="admin-slot-head">
         <div class="admin-slot-time">${baseTime}</div>
       </div>
@@ -875,7 +893,7 @@ function findOverlap(candidate, ranges) {
 }
 
 function getDateStatus(option) {
-  if (!option.isBusinessDay) return "date-closed";
+  if (!option.isBusinessDay || option.isBlockedDay) return "date-closed";
   const ratio = option.totalSlotCount > 0 ? option.bookedSlotCount / option.totalSlotCount : 0;
   if (ratio >= 1) return "date-load-full";
   if (ratio > 0.75) return "date-load-dark-red";
