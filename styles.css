@@ -3766,3 +3766,44 @@ body {
     width: 100%;
   }
 }
+
+@media (orientation: portrait) and (max-width: 1180px) {
+  .admin-date-strip .date-row {
+    gap: 0;
+    overflow-x: hidden;
+  }
+
+  .admin-date-strip .date-button {
+    flex: 0 0 calc(100% / 7);
+  }
+
+  .slot-layout-button {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+  }
+
+  .admin-slot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .two-column-slots .admin-slot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .two-column-slots .admin-slot-card.booking-segment {
+    border-style: solid dashed;
+  }
+
+  .two-column-slots .admin-slot-card.booking-segment.booking-first {
+    border-left-style: solid;
+  }
+
+  .two-column-slots .admin-slot-card.booking-segment.booking-last {
+    border-right-style: solid;
+  }
+
+  .two-column-slots .admin-slot-card.booking-segment.booking-single {
+    border-style: solid;
+  }
+}

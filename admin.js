@@ -46,7 +46,7 @@ const state = {
   isOwner: false,
   accessRole: null,
   logCollapsed: false,
-  twoColumnSlots: false,
+  twoColumnSlots: true,
   repository: null,
   services: DEFAULT_SERVICES,
   salon: null,
@@ -469,13 +469,14 @@ function renderAdminSlot(slot) {
     const blockClass = blockService ? "service-block service-colored" : "blocked";
     const blockStyle = blockService ? ` style="--slot-color:${escapeAttribute(blockService.slotColor || "#F48FB1")}"` : "";
     const edgeClasses = blockService ? ` booking-segment ${getOccupiedEdgeClasses(slot.block, slot.startMinutes)}` : "";
+    const showUnblockButton = !blockService || edgeClasses.includes("booking-first") || edgeClasses.includes("booking-single");
     return `
       <article class="admin-slot-card ${blockClass}${edgeClasses}"${blockStyle}>
         <div class="admin-slot-head">
           <div class="admin-slot-time">${baseTime}</div>
           <span class="${blockService ? "service-tag" : "blocked-tag"}">${blockService ? escapeHtml(getServiceAbbrev(blockService)) : t("admin.blockedSlot")}</span>
         </div>
-        <button class="ghost-button mini-action" type="button" data-unblock-slot="${slot.block.id}">${t("admin.unblockSlot")}</button>
+        ${showUnblockButton ? `<button class="ghost-button mini-action" type="button" data-unblock-slot="${slot.block.id}">${t("admin.unblockSlot")}</button>` : ""}
       </article>
     `;
   }

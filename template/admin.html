@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Terminverwaltung</title>
-    <link rel="stylesheet" href="./styles.css?v=20260911-date-paging-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260911-admin-slots-2" />
   </head>
   <body>
     <main class="admin-page">
@@ -47,7 +47,7 @@
               <strong id="appointmentCardTitle" data-i18n="admin.today">当日预约</strong>
               <div class="appointment-title-actions">
                 <button id="dayBlockButton" class="ghost-button day-block-button" type="button"></button>
-                <button id="slotLayoutButton" class="ghost-button slot-layout-button" type="button" aria-label="Zwei Slots pro Zeile" aria-pressed="false" title="Zwei Slots pro Zeile"><span aria-hidden="true">▦</span></button>
+                <button id="slotLayoutButton" class="ghost-button slot-layout-button" type="button" aria-label="Ein Slot pro Zeile" aria-pressed="true" title="Ein Slot pro Zeile"><span aria-hidden="true">▦</span></button>
               </div>
             </div>
             <div id="appointmentList" class="appointment-list"></div>
@@ -67,7 +67,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./config.js?v=20260829-split-pages"></script>
     <script src="./i18n.js?v=20260910-admin-calendar-load-2"></script>
-    <script src="./admin.js?v=20260911-date-paging-1"></script>
+    <script src="./admin.js?v=20260911-admin-slots-2"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   </body>
 </html>
