@@ -379,7 +379,7 @@ function syncAdminTimeAxis() {
   const grid = board?.querySelector(".admin-slot-grid");
   const axis = board?.querySelector(".admin-time-axis");
   if (!grid || !axis) return;
-  axis.style.height = `${grid.offsetHeight}px`;
+  axis.style.removeProperty("height");
   axis.querySelectorAll("[data-axis-minute]").forEach((marker) => {
     const slot = grid.querySelector(`[data-slot-start="${marker.dataset.axisMinute}"]`);
     marker.hidden = !slot;

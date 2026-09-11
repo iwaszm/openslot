@@ -3447,16 +3447,6 @@ body {
   right: 7px;
 }
 
-.admin-time-axis span::after {
-  background: rgba(112, 96, 89, 0.34);
-  content: "";
-  height: 1px;
-  position: absolute;
-  right: -8px;
-  top: 0;
-  width: 5px;
-}
-
 .appointment-log-card .control-title,
 .service-admin-card .control-title {
   align-items: center;
@@ -3698,11 +3688,6 @@ body {
     right: 5px;
   }
 
-  .admin-time-axis span::after {
-    right: -6px;
-    width: 4px;
-  }
-
   .admin-slot-grid {
     grid-template-columns: 1fr;
   }
@@ -3870,6 +3855,8 @@ body {
 
   .admin-slot-board {
     --axis-track: 35px;
+    border-bottom: 1px solid var(--line);
+    border-top: 1px solid var(--line);
     display: grid;
     gap: 8px;
     grid-template-columns: 27px minmax(0, 1fr);
