@@ -158,7 +158,7 @@ async function refreshServices() {
     if (!selected?.isActive) state.selectedServiceId = activeServices()[0]?.id || "";
   } catch (error) {
     state.services = DEFAULT_SERVICES;
-    els.formMessage.textContent = `读取服务失败：${error.message}`;
+    els.formMessage.textContent = "Die Services konnten nicht geladen werden. Bitte laden Sie die Seite erneut.";
   }
   renderServices();
 }
@@ -203,7 +203,7 @@ async function refreshDayData(options = {}) {
     state.daySettings = daySettings;
     state.blockedSlots = blockedSlots;
   } catch (error) {
-    els.formMessage.textContent = `读取排班失败：${error.message}`;
+    els.formMessage.textContent = "Die verfügbaren Termine konnten nicht geladen werden. Bitte laden Sie die Seite erneut.";
   }
   if (shouldRender) render();
 }
@@ -307,7 +307,7 @@ function renderServices() {
   const serviceGroups = groupServicesByCategory(services);
   els.serviceOptions.innerHTML = `
     <div class="service-strip-shell">
-      <button class="service-nav-button" type="button" data-service-scroll="-1" aria-label="Previous services">‹</button>
+      <button class="service-nav-button" type="button" data-service-scroll="-1" aria-label="Vorherige Services">‹</button>
       <div class="service-carousel" aria-label="${t("booking.serviceLegend")}">
         ${serviceGroups.map((group) => `
           <section class="service-group" aria-label="${escapeHtml(group.label)}">
@@ -329,7 +329,7 @@ function renderServices() {
           </section>
         `).join("")}
       </div>
-      <button class="service-nav-button" type="button" data-service-scroll="1" aria-label="Next services">›</button>
+      <button class="service-nav-button" type="button" data-service-scroll="1" aria-label="Weitere Services">›</button>
     </div>
   `;
 }
@@ -631,9 +631,9 @@ function createSupabaseRepository(client) {
       const { data, error } = await client.functions.invoke("send-booking-email", {
         body: { booking_id: bookingId, event_type: eventType },
       });
-      if (error) return t("customer.emailSendFailed", { message: error.message });
+      if (error) return "Der Termin wurde gespeichert, aber die Bestätigungsmail konnte nicht versendet werden. Bitte kontaktieren Sie den Salon.";
       const failed = data?.results?.find((result) => result.status === "failed");
-      return failed ? t("customer.emailSendFailed", { message: failed.error || "unknown error" }) : "";
+      return failed ? "Der Termin wurde gespeichert, aber die Bestätigungsmail konnte nicht versendet werden. Bitte kontaktieren Sie den Salon." : "";
     },
     async getDaySettings(date) {
       const salon = await salonPromise;
@@ -669,7 +669,7 @@ async function loadCurrentSalon(client) {
     .eq("is_active", true)
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw new Error(`找不到店铺：${slug}`);
+  if (!data) throw new Error("Der Salon konnte nicht gefunden werden.");
   state.salon = data;
   return data;
 }
@@ -895,15 +895,13 @@ async function scrollDateStrip(direction) {
   const currentPageStart = Math.floor(currentIndex / pageSize) * pageSize;
   const targetIndex = Math.max(0, Math.min(currentPageStart + (direction * pageSize), buttons.length - pageSize));
 
-  if (isPortraitPager) {
-    const firstSelectable = buttons.slice(targetIndex, targetIndex + pageSize).find((button) => !button.disabled);
-    if (firstSelectable && firstSelectable.dataset.date !== els.dateInput.value) {
-      els.dateInput.value = firstSelectable.dataset.date;
-      state.selectedSlot = "";
-      renderSelectedSummaries();
-      await refreshDayData();
-      dateRow = els.dateStrip?.querySelector(".date-row");
-    }
+  const firstSelectable = buttons.slice(targetIndex, targetIndex + pageSize).find((button) => !button.disabled);
+  if (firstSelectable && firstSelectable.dataset.date !== els.dateInput.value) {
+    els.dateInput.value = firstSelectable.dataset.date;
+    state.selectedSlot = "";
+    renderSelectedSummaries();
+    await refreshDayData();
+    dateRow = els.dateStrip?.querySelector(".date-row");
   }
 
   if (dateRow) scrollDateRowToIndex(dateRow, targetIndex);
@@ -1084,18 +1082,20 @@ function getBookingErrorMessage(error) {
   if (/blocked slot/i.test(message)) return "Buchung fehlgeschlagen: Diese Uhrzeit wurde blockiert.";
   if (/prevent_double_booking|conflict|overlap/i.test(message)) return "Buchung fehlgeschlagen: Diese Uhrzeit wurde gerade belegt. Bitte wähle eine andere Zeit.";
   if (/Unknown or inactive service/i.test(message)) return "Buchung fehlgeschlagen: Dieser Service ist nicht mehr aktiv. Bitte aktualisiere die Seite.";
-  if (/Invalid customer name/i.test(message)) return "Buchung fehlgeschlagen: Der Name muss mindestens 2 Zeichen haben und darf nicht nur aus Zahlen bestehen.";
+  if (/Invalid (customer )?name/i.test(message)) return "Buchung fehlgeschlagen: Der Name muss mindestens 2 Zeichen haben und darf nicht nur aus Zahlen bestehen.";
   if (/Invalid phone/i.test(message)) return "Buchung fehlgeschlagen: Die Telefonnummer ist ungültig.";
   if (/Invalid email/i.test(message)) return "Buchung fehlgeschlagen: Die E-Mail-Adresse ist ungültig.";
   if (/Too many booking attempts/i.test(message)) return "Buchung fehlgeschlagen: Zu viele Versuche. Bitte versuche es in 10 Minuten erneut.";
-  if (isConflictError(error)) return `Buchung fehlgeschlagen: ${message}`;
-  return `Buchung fehlgeschlagen: ${message}`;
+  if (/Turnstile|captcha|token/i.test(message)) return "Buchung fehlgeschlagen: Die Sicherheitsprüfung ist abgelaufen. Bitte bestätigen Sie sie erneut.";
+  if (isConflictError(error)) return "Buchung fehlgeschlagen: Diese Uhrzeit ist nicht mehr verfügbar. Bitte wählen Sie eine andere Zeit.";
+  return "Buchung fehlgeschlagen. Bitte versuchen Sie es erneut oder kontaktieren Sie den Salon.";
 }
 
 function validateCustomerName(value) {
   const name = String(value || "").trim();
   if (!name) return "Bitte gib deinen Namen ein.";
   if (name.length < 2) return "Der Name muss mindestens 2 Zeichen haben.";
+  if (name.length > 50) return "Der Name darf höchstens 50 Zeichen lang sein.";
   if (/^\d+$/.test(name)) return "Bitte gib einen Namen ein, nicht nur Zahlen.";
   return "";
 }
@@ -1115,6 +1115,10 @@ function validateCustomerFields() {
     els.customerPhone.setCustomValidity("Bitte gib deine Telefonnummer ein.");
     return els.customerPhone;
   }
+  if (phone.length > 50) {
+    els.customerPhone.setCustomValidity("Die Telefonnummer darf höchstens 50 Zeichen lang sein.");
+    return els.customerPhone;
+  }
   if (!/^\+?[0-9][0-9\s()/.-]{5,}$/.test(phone)) {
     els.customerPhone.setCustomValidity("Bitte gib eine gültige Telefonnummer ein.");
     return els.customerPhone;
@@ -1123,6 +1127,10 @@ function validateCustomerFields() {
   const email = els.customerEmail?.value.trim() || "";
   if (!email) {
     els.customerEmail.setCustomValidity("Bitte gib deine E-Mail-Adresse ein.");
+    return els.customerEmail;
+  }
+  if (email.length > 50) {
+    els.customerEmail.setCustomValidity("Die E-Mail-Adresse darf höchstens 50 Zeichen lang sein.");
     return els.customerEmail;
   }
   if (!els.customerEmail.checkValidity()) {

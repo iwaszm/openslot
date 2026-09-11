@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" data-language-lock="de">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -23,9 +23,9 @@
                 <span id="selectedDateLabel" class="selection-summary"></span>
               </div>
               <div class="date-strip-shell">
-                <button id="datePrevButton" class="date-nav-button" type="button" aria-label="Previous dates">‹</button>
+                <button id="datePrevButton" class="date-nav-button" type="button" aria-label="Vorherige Termine">‹</button>
                 <div id="dateStrip" class="date-strip" aria-label="Buchbare Daten"></div>
-                <button id="dateNextButton" class="date-nav-button" type="button" aria-label="Next dates">›</button>
+                <button id="dateNextButton" class="date-nav-button" type="button" aria-label="Weitere Termine">›</button>
               </div>
               <input id="dateInput" class="native-date-input" name="date" type="date" required />
             </fieldset>
@@ -45,15 +45,15 @@
               <div class="field-grid">
                 <label>
                   <span data-i18n="booking.name">Name</span>
-                  <input id="customerName" name="name" type="text" autocomplete="name" required minlength="2" maxlength="120" data-i18n-placeholder="booking.namePlaceholder" placeholder="z.B. Lisa" />
+                  <input id="customerName" name="name" type="text" autocomplete="name" required minlength="2" maxlength="50" data-i18n-placeholder="booking.namePlaceholder" placeholder="z.B. Lisa" />
                 </label>
                 <label>
                   <span data-i18n="booking.phone">Telefon</span>
-                  <input name="phone" type="tel" autocomplete="tel" required data-i18n-placeholder="booking.phonePlaceholder" placeholder="+49 176 41164231" />
+                  <input name="phone" type="tel" autocomplete="tel" required maxlength="50" data-i18n-placeholder="booking.phonePlaceholder" placeholder="+49 176 41164231" />
                 </label>
                 <label class="wide-field">
                   <span data-i18n="booking.email">E-Mail</span>
-                  <input name="email" type="email" autocomplete="email" required data-i18n-placeholder="booking.emailPlaceholder" placeholder="name@beispiel.de" />
+                  <input name="email" type="email" autocomplete="email" required maxlength="50" data-i18n-placeholder="booking.emailPlaceholder" placeholder="name@beispiel.de" />
                 </label>
               </div>
             </fieldset>
@@ -70,13 +70,13 @@
                 data-error-callback="onOpenSlotTurnstileChange"
               ></div>
             </div>
-            <button class="primary-action" type="submit" data-i18n="booking.submit" disabled>Termin bestätigen</button>
+            <button class="primary-action" type="submit" data-i18n="booking.submit" disabled>Termin reservieren</button>
             <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
             <section id="bookingResult" class="booking-result" hidden></section>
           </form>
         </section>
 
-        <aside class="salon-card" aria-label="门店信息">
+        <aside class="salon-card" aria-label="Saloninformationen">
           <div class="salon-cover"></div>
           <div class="salon-body">
             <h2 id="salonName" data-i18n="salon.name">Berlin Hair Salon</h2>
@@ -116,8 +116,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./config.js?v=20260829-split-pages"></script>
-    <script src="./i18n.js?v=20260910-admin-calendar-load-2"></script>
-    <script src="./customer.js?v=20260911-date-paging-1"></script>
+    <script src="./i18n.js?v=20260911-booking-flow-2"></script>
+    <script src="./customer.js?v=20260911-booking-flow-2"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   </body>
 </html>

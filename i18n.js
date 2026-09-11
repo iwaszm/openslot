@@ -47,7 +47,7 @@ const OPENSLOT_TRANSLATIONS = {
     "booking.namePlaceholder": "z.B. Lisa",
     "booking.phonePlaceholder": "+49 176 41164231",
     "booking.emailPlaceholder": "name@beispiel.de",
-    "booking.submit": "确认预约",
+    "booking.submit": "预留预约",
     "booking.summaryNoTime": "选择时间",
     "lookup.title": "查询预约",
     "lookup.subtitle": "用预约编号和邮箱查看或取消预约。",
@@ -199,7 +199,7 @@ const OPENSLOT_TRANSLATIONS = {
     "booking.namePlaceholder": "z.B. Lisa",
     "booking.phonePlaceholder": "+49 176 41164231",
     "booking.emailPlaceholder": "name@beispiel.de",
-    "booking.submit": "Confirm booking",
+    "booking.submit": "Reserve appointment",
     "booking.summaryNoTime": "Choose time",
     "lookup.title": "Find your booking",
     "lookup.subtitle": "Use your booking code and email to view or cancel an appointment.",
@@ -351,7 +351,7 @@ const OPENSLOT_TRANSLATIONS = {
     "booking.namePlaceholder": "z.B. Lisa",
     "booking.phonePlaceholder": "+49 176 41164231",
     "booking.emailPlaceholder": "name@beispiel.de",
-    "booking.submit": "Termin bestätigen",
+    "booking.submit": "Termin reservieren",
     "booking.summaryNoTime": "Uhrzeit wählen",
     "lookup.title": "Termin suchen",
     "lookup.subtitle": "Mit Buchungscode und E-Mail kannst du deinen Termin ansehen oder stornieren.",
@@ -462,6 +462,8 @@ const OPENSLOT_TRANSLATIONS = {
 };
 
 function getStoredLanguage() {
+  const lockedLanguage = document.documentElement.dataset.languageLock;
+  if (lockedLanguage && OPENSLOT_TRANSLATIONS[lockedLanguage]) return lockedLanguage;
   if (!localStorage.getItem(OPENSLOT_LANGUAGE_DEFAULTED_KEY)) {
     localStorage.setItem(OPENSLOT_LANGUAGE_KEY, OPENSLOT_DEFAULT_LANGUAGE);
     localStorage.setItem(OPENSLOT_LANGUAGE_DEFAULTED_KEY, "1");
@@ -502,6 +504,8 @@ window.OpenSlotI18n = {
     return OPENSLOT_TRANSLATIONS[lang]?.[key] || OPENSLOT_TRANSLATIONS.zh[key] || service.name;
   },
   setLanguage(nextLanguage) {
+    const lockedLanguage = document.documentElement.dataset.languageLock;
+    if (lockedLanguage) nextLanguage = lockedLanguage;
     if (!OPENSLOT_TRANSLATIONS[nextLanguage]) return;
     localStorage.setItem(OPENSLOT_LANGUAGE_KEY, nextLanguage);
     window.OpenSlotI18n.language = nextLanguage;

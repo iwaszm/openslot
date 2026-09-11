@@ -76,9 +76,9 @@ function validatePayload(payload: BookingRequest) {
   if (!payload.appointment_date || !/^\d{4}-\d{2}-\d{2}$/.test(payload.appointment_date)) return "Invalid appointment_date";
   if (!payload.start_time || !/^\d{2}:\d{2}(:\d{2})?$/.test(payload.start_time)) return "Invalid start_time";
   if (!payload.gender || !["male", "female"].includes(payload.gender)) return "Invalid gender";
-  if (!payload.name || payload.name.trim().length < 2) return "Invalid name";
-  if (!payload.phone || payload.phone.trim().length < 3) return "Invalid phone";
-  if (!payload.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payload.email.trim())) return "Invalid email";
+  if (!payload.name || payload.name.trim().length < 2 || payload.name.trim().length > 50) return "Invalid name";
+  if (!payload.phone || payload.phone.trim().length < 3 || payload.phone.trim().length > 50) return "Invalid phone";
+  if (!payload.email || payload.email.trim().length > 50 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payload.email.trim())) return "Invalid email";
   if (!payload.turnstile_token) return "Missing Turnstile token";
   return "";
 }
