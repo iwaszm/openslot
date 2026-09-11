@@ -117,7 +117,13 @@ function renderBooking() {
 
 async function handleCancelBooking() {
   if (!state.booking || state.booking.status === "cancelled") return;
-  if (!window.confirm(confirmMessages.cancelBooking)) return;
+  const confirmed = await window.OpenSlotConfirm.ask({
+    title: "Termin stornieren",
+    message: confirmMessages.cancelBooking,
+    confirmLabel: "Stornieren",
+    tone: "danger",
+  });
+  if (!confirmed) return;
   try {
     await state.repository.cancelBooking(state.booking.id, els.bookingEmailInput.value.trim());
     const mailMessage = await state.repository.sendBookingEmail(state.booking.id, "cancelled");

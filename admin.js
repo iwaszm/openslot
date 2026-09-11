@@ -548,7 +548,13 @@ async function handleOwnerLogout() {
 async function handleToggleDayBlock() {
   const nextBlocked = !state.daySettings.isBlockedDay;
   const message = nextBlocked ? confirmMessages.blockDay : confirmMessages.unblockDay;
-  if (!window.confirm(message)) return;
+  const confirmed = await window.OpenSlotConfirm.ask({
+    title: nextBlocked ? "Tag blockieren" : "Tag freigeben",
+    message,
+    confirmLabel: nextBlocked ? "Tag blockieren" : "Freigeben",
+    tone: nextBlocked ? "danger" : "neutral",
+  });
+  if (!confirmed) return;
   const nextSettings = {
     ...state.daySettings,
     date: els.adminDateInput.value,
@@ -566,7 +572,13 @@ async function handleToggleDayBlock() {
 }
 
 async function cancelAppointmentById(appointmentId) {
-  if (!window.confirm(confirmMessages.cancelAppointment)) return;
+  const confirmed = await window.OpenSlotConfirm.ask({
+    title: "Termin stornieren",
+    message: confirmMessages.cancelAppointment,
+    confirmLabel: "Stornieren",
+    tone: "danger",
+  });
+  if (!confirmed) return;
   try {
     await state.repository.cancelAppointment(appointmentId);
     const mailMessage = await state.repository.sendBookingEmail(appointmentId, "cancelled");
@@ -610,7 +622,13 @@ async function handleBlockSlot(startMinutesValue, serviceId = null) {
 }
 
 async function handleUnblockSlot(blockId) {
-  if (!window.confirm(confirmMessages.unblockSlot)) return;
+  const confirmed = await window.OpenSlotConfirm.ask({
+    title: "Block freigeben",
+    message: confirmMessages.unblockSlot,
+    confirmLabel: "Freigeben",
+    tone: "neutral",
+  });
+  if (!confirmed) return;
   try {
     await state.repository.deleteBlockedSlot(blockId);
     setAdminMessage(t("admin.slotUnblocked"));

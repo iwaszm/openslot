@@ -23,6 +23,7 @@ for (const file of [
   "styles.css",
   "customer.js",
   "admin.js",
+  "confirm-dialog.js",
   "i18n.js",
 ]) {
   copyFile(file);
