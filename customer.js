@@ -36,15 +36,18 @@ const STORAGE_KEY = "openslot.barber.mvp.appointments";
 const SETTINGS_KEY = "openslot.barber.mvp.day-settings";
 const BLOCKS_KEY = "openslot.barber.mvp.blocked-slots";
 const SERVICES_KEY = "openslot.barber.mvp.services";
+const FLEXIBLE_SLOTS_KEY = "openslot.barber.mvp.flexible-staff-slots";
 const LEGACY_SERVICE_IDS = new Set(["haircut", "color", "perm"]);
 
 const state = {
   appointments: [],
+  scheduleRecords: [],
   blockedSlots: [],
   daySettings: createDefaultDaySettings(toDateInputValue(new Date())),
   repository: null,
   services: DEFAULT_SERVICES,
   salon: null,
+  laneLayout: createDefaultLaneLayout(),
   dateOptions: [],
   selectedServiceId: DEFAULT_SERVICES[0].id,
   selectedGender: DEFAULT_SERVICES[0].gender,
@@ -93,6 +96,7 @@ async function init() {
   state.repository = createRepository();
   bindEvents();
   await refreshServices();
+  await refreshLaneLayout();
   await refreshDateOptions();
   await refreshDayData();
 }
@@ -163,6 +167,15 @@ async function refreshServices() {
   renderServices();
 }
 
+async function refreshLaneLayout() {
+  try {
+    const layout = await state.repository.listLaneLayout();
+    state.laneLayout = normalizeLaneLayout(layout);
+  } catch (_error) {
+    state.laneLayout = createDefaultLaneLayout();
+  }
+}
+
 async function refreshDateOptions() {
   const dates = buildDateRange(els.dateInput.value);
   try {
@@ -194,14 +207,16 @@ async function refreshDayData(options = {}) {
   const { shouldRender = true } = options;
   try {
     const date = els.dateInput.value;
-    const [appointments, daySettings, blockedSlots] = await Promise.all([
+    const [appointments, daySettings, blockedSlots, scheduleRecords] = await Promise.all([
       state.repository.listAppointments(date),
       state.repository.getDaySettings(date),
       state.repository.listBlockedSlots(date),
+      state.repository.listSchedule(date),
     ]);
     state.appointments = appointments;
     state.daySettings = daySettings;
     state.blockedSlots = blockedSlots;
+    state.scheduleRecords = scheduleRecords;
   } catch (error) {
     els.formMessage.textContent = "Die verfügbaren Termine konnten nicht geladen werden. Bitte laden Sie die Seite erneut.";
   }
@@ -594,6 +609,23 @@ function createSupabaseRepository(client) {
       if (error) throw error;
       return (data || []).map(fromSupabaseService);
     },
+    async listLaneLayout() {
+      const salon = await salonPromise;
+      const { data, error } = await client
+        .from("staff_lanes")
+        .select("lane_key, sort_order, salon_staff!inner(staff_key, sort_order, is_active)")
+        .eq("salon_id", salon.id)
+        .eq("is_active", true)
+        .eq("salon_staff.is_active", true)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data || []).map((row) => ({
+        laneKey: row.lane_key,
+        laneSortOrder: Number(row.sort_order || 0),
+        staffKey: row.salon_staff?.staff_key || "default",
+        staffSortOrder: Number(row.salon_staff?.sort_order || 0),
+      }));
+    },
     async listAppointments(date) {
       const salon = await salonPromise;
       const { data, error } = await client.rpc("get_public_occupied_slots", {
@@ -605,6 +637,25 @@ function createSupabaseRepository(client) {
         id: `occupied-${index}`,
         date,
         occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
+        status: "confirmed",
+      }));
+    },
+    async listSchedule(date) {
+      const salon = await salonPromise;
+      const { data, error } = await client.rpc("get_public_schedule", {
+        p_salon_slug: salon.slug,
+        p_appointment_date: date,
+      });
+      if (error) return this.listAppointments(date);
+      return (data || []).map((row, index) => ({
+        id: row.record_id || `schedule-${index}`,
+        date,
+        staffKey: row.staff_key || "default",
+        laneKey: row.lane_key || null,
+        startMinutes: timeValueToMinutes(row.covered_start),
+        endMinutes: timeValueToMinutes(row.covered_end),
+        occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
+        kind: row.record_kind || "appointment",
         status: "confirmed",
       }));
     },
@@ -686,16 +737,22 @@ function createLocalRepository() {
     async listServices() {
       return loadLocalServices().filter((service) => service.isActive);
     },
+    async listLaneLayout() { return createDefaultLaneLayout(); },
     async listAppointments(date) {
       return loadLocalAppointments().filter((appointment) => appointment.date === date);
     },
+    async listSchedule(date) {
+      return buildLocalSchedule(date);
+    },
     async createAppointment(appointment) {
       const appointments = loadLocalAppointments();
-      if (hasOverlap(appointment, appointments.filter((item) => item.date === appointment.date))) {
+      const schedule = buildLocalSchedule(appointment.date);
+      const laneKey = findAvailableLane(appointment, schedule);
+      if (!laneKey) {
         throw new Error("Slot conflict");
       }
       const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
-      appointments.push({ ...appointment, id });
+      appointments.push({ ...appointment, id, laneKey });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appointments));
       return id;
     },
@@ -739,9 +796,10 @@ function buildSlots(date, service) {
       occupiedMinutes: getServiceOccupiedMinutes(service, start),
     };
     const isPast = isPastSlot(date, start);
-    const appointmentOverlap = hasOverlap(candidate, state.appointments);
+    const schedule = state.scheduleRecords.length > 0 ? state.scheduleRecords : state.appointments;
     const ownerBlocked = hasOverlap(candidate, state.blockedSlots);
-    const reason = getSlotReason({ isPast, appointmentOverlap, ownerBlocked });
+    const laneUnavailable = !findAvailableLane(candidate, schedule);
+    const reason = getSlotReason({ isPast, ownerBlocked, laneUnavailable });
     slots.push({
       time: formatMinutes(start),
       available: !reason,
@@ -752,10 +810,10 @@ function buildSlots(date, service) {
   return slots;
 }
 
-function getSlotReason({ isPast, appointmentOverlap, ownerBlocked }) {
+function getSlotReason({ isPast, ownerBlocked, laneUnavailable }) {
   if (isPast) return "Vergangen";
-  if (appointmentOverlap) return "Belegt";
   if (ownerBlocked) return "Blockiert";
+  if (laneUnavailable) return "Belegt";
   return "";
 }
 
@@ -772,8 +830,9 @@ function getNoSlotMessage(slots) {
 function validateBookingSlot(appointment) {
   if (state.daySettings.isBlockedDay) return "Dieser Tag ist nicht für Buchungen geöffnet.";
   if (appointment.startMinutes < state.daySettings.openMinutes || appointment.endMinutes > state.daySettings.closeMinutes) return "Diese Uhrzeit liegt außerhalb der Öffnungszeiten.";
-  if (hasOverlap(appointment, state.appointments)) return "Diese Uhrzeit wurde gerade belegt. Bitte wähle eine andere Zeit.";
+  const schedule = state.scheduleRecords.length > 0 ? state.scheduleRecords : state.appointments;
   if (hasOverlap(appointment, state.blockedSlots)) return "Diese Uhrzeit wurde blockiert. Bitte wähle eine andere Zeit.";
+  if (!findAvailableLane(appointment, schedule)) return "Für diesen Zeitraum ist kein vollständiger Platz mehr verfügbar.";
   return "";
 }
 
@@ -801,6 +860,98 @@ function hasOverlap(candidate, ranges) {
       && candidateRange.endMinutes > occupiedRange.startMinutes
     )))
   ));
+}
+
+function findAvailableLane(candidate, schedule) {
+  const lane = state.laneLayout.find((candidateLane) => {
+    const coveredConflict = schedule.some((item) => (
+      item.status !== "cancelled"
+      && item.laneKey === candidateLane.laneKey
+      && Number.isFinite(item.startMinutes)
+      && Number.isFinite(item.endMinutes)
+      && candidate.startMinutes < item.endMinutes
+      && candidate.endMinutes > item.startMinutes
+    ));
+    if (coveredConflict) return false;
+    return !hasOverlap(candidate, schedule.filter((item) => (
+      (item.staffKey || "default") === candidateLane.staffKey
+    )));
+  });
+  return lane?.laneKey || null;
+}
+
+function buildLocalSchedule(date) {
+  const appointments = allocateLocalAppointmentLanes(
+    loadLocalAppointments().filter((item) => item.date === date && item.status !== "cancelled"),
+  );
+  const primary = loadLocalBlocks().filter((item) => item.date === date).map((item) => ({ ...item, laneKey: "a", kind: item.serviceId ? "manual" : "blocked" }));
+  const overflow = groupLocalStaffSlots(date, "overflow", "b");
+  const flexible = groupLocalStaffSlots(date, "flexible", "c");
+  return [...appointments, ...primary, ...overflow, ...flexible];
+}
+
+function allocateLocalAppointmentLanes(appointments) {
+  const lanes = Object.fromEntries(state.laneLayout.map((lane) => [lane.laneKey, []]));
+  return appointments
+    .slice()
+    .sort((left, right) => left.startMinutes - right.startMinutes || right.endMinutes - left.endMinutes)
+    .map((appointment) => {
+      const requested = String(appointment.laneKey || "").toLowerCase();
+      const laneKeys = state.laneLayout.map((lane) => lane.laneKey);
+      const laneKey = laneKeys.includes(requested)
+        ? requested
+        : (laneKeys.find((lane) => !lanes[lane].some((item) => appointment.startMinutes < item.endMinutes && appointment.endMinutes > item.startMinutes)) || laneKeys[laneKeys.length - 1]);
+      const staffKey = state.laneLayout.find((lane) => lane.laneKey === laneKey)?.staffKey || "default";
+      const allocated = { ...appointment, laneKey, staffKey };
+      lanes[laneKey].push(allocated);
+      return allocated;
+    });
+}
+
+function createDefaultLaneLayout() {
+  const laneKeys = getCurrentSalonSlug() === "liyong" ? ["a", "b"] : ["a", "b", "c"];
+  return laneKeys.map((laneKey, index) => ({
+    laneKey,
+    laneSortOrder: index + 1,
+    staffKey: "default",
+    staffSortOrder: 1,
+  }));
+}
+
+function normalizeLaneLayout(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return createDefaultLaneLayout();
+  return rows
+    .filter((row) => row.laneKey)
+    .map((row) => ({
+      laneKey: String(row.laneKey).toLowerCase(),
+      laneSortOrder: Number(row.laneSortOrder || 0),
+      staffKey: row.staffKey || "default",
+      staffSortOrder: Number(row.staffSortOrder || 0),
+    }))
+    .sort((left, right) => left.staffSortOrder - right.staffSortOrder || left.laneSortOrder - right.laneSortOrder);
+}
+
+function groupLocalStaffSlots(date, staffKey, laneKey) {
+  const slots = JSON.parse(localStorage.getItem(FLEXIBLE_SLOTS_KEY) || "[]")
+    .filter((item) => item.date === date && (item.staffKey || "flexible") === staffKey);
+  const groups = new Map();
+  slots.forEach((item) => {
+    if (!item.serviceId && item.isOpen !== false) return;
+    const groupStart = item.serviceStartMinutes ?? item.startMinutes;
+    const key = item.serviceId ? `${item.serviceId}:${groupStart}` : `blocked:${item.startMinutes}`;
+    if (groups.has(key)) return;
+    const service = state.services.find((entry) => entry.id === item.serviceId);
+    groups.set(key, {
+      ...item,
+      laneKey,
+      startMinutes: groupStart,
+      endMinutes: groupStart + (service?.duration || SLOT_STEP),
+      occupiedMinutes: service ? getServiceOccupiedMinutes(service, groupStart) : [item.startMinutes],
+      kind: item.serviceId ? "manual" : "blocked",
+      status: "confirmed",
+    });
+  });
+  return [...groups.values()];
 }
 
 function getOccupiedRanges(item) {
@@ -1080,6 +1231,7 @@ function getBookingErrorMessage(error) {
   if (/outside working hours/i.test(message)) return "Buchung fehlgeschlagen: Diese Uhrzeit liegt außerhalb der Öffnungszeiten. Bitte aktualisiere die Seite und wähle neu.";
   if (/This day is not available/i.test(message)) return "Buchung fehlgeschlagen: Dieser Tag ist nicht für Buchungen geöffnet.";
   if (/blocked slot/i.test(message)) return "Buchung fehlgeschlagen: Diese Uhrzeit wurde blockiert.";
+  if (/No complete service lane/i.test(message)) return "Buchung fehlgeschlagen: Für diesen Zeitraum ist kein vollständiger Platz mehr verfügbar.";
   if (/prevent_double_booking|conflict|overlap/i.test(message)) return "Buchung fehlgeschlagen: Diese Uhrzeit wurde gerade belegt. Bitte wähle eine andere Zeit.";
   if (/Unknown or inactive service/i.test(message)) return "Buchung fehlgeschlagen: Dieser Service ist nicht mehr aktiv. Bitte aktualisiere die Seite.";
   if (/Invalid (customer )?name/i.test(message)) return "Buchung fehlgeschlagen: Der Name muss mindestens 2 Zeichen haben und darf nicht nur aus Zahlen bestehen.";

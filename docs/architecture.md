@@ -429,7 +429,7 @@ Resend is the external email provider. The app sends appointment confirmation an
 - Abuse prevention is basic: email/phone rate limit exists, but no CAPTCHA, IP-based throttle, or deposit flow yet.
 - Owner authorization is currently "any authenticated user"; production should restrict to explicit owner accounts.
 - Email failure does not roll back booking or cancellation; it is logged in `email_events`.
-- No online payment, SMS, WeChat mini-program, calendar sync, or multi-staff scheduling yet.
+- No online payment, SMS, WeChat mini-program, or calendar sync yet. Staff and lane configuration is available, while the current Lisa and Liyong deployments each use one active staff member.
 
 ## 12. Suggested Next Architecture Step / 下一步架构建议
 

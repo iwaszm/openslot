@@ -78,6 +78,12 @@ For a new Supabase project, run the SQL files in this order:
 ```text
 supabase/setup.sql
 supabase/multi-tenant-rpc.sql
+supabase/service-booked-slots.sql
+supabase/admin-service-blocks.sql
+supabase/staff-slot-overrides.sql
+supabase/staff-lane-configuration.sql
+supabase/three-lane-scheduling.sql
+supabase/unified-schedule-entries.sql
 ```
 
 Then configure Supabase Edge Function secrets:

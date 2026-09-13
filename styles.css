@@ -3923,6 +3923,310 @@ body {
   }
 }
 
+/* Outlook-style day view: grid below, appointments above, menus on top. */
+.staff-schedule {
+  --calendar-line: #d9dde3;
+  --calendar-line-strong: #bdc4cc;
+  --calendar-menu-layer: 30;
+  --calendar-event-layer: 10;
+  --slot-height: 48px;
+  --time-rail: 44px;
+  isolation: isolate;
+  min-width: 0;
+  overflow: visible;
+  position: relative;
+}
+
+.staff-schedule-head,
+.outlook-calendar {
+  display: grid;
+  grid-template-columns: var(--time-rail) repeat(var(--lane-count, 3), minmax(0, 1fr));
+}
+
+.staff-schedule-head {
+  align-items: center;
+  background: #f6f7f9;
+  border-block: 1px solid var(--calendar-line-strong);
+  min-height: 42px;
+}
+
+.staff-schedule-head strong {
+  color: #39424e;
+  font-size: 0.78rem;
+  font-weight: 760;
+  padding: 0 12px;
+  text-align: center;
+}
+
+.staff-schedule-head strong:nth-child(n + 3) {
+  border-left: 1px solid var(--calendar-line);
+}
+
+.staff-schedule-head small {
+  color: #77818d;
+  font-size: 0.68rem;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.outlook-calendar {
+  grid-template-rows: repeat(var(--calendar-rows), var(--slot-height));
+  overflow: visible;
+  position: relative;
+}
+
+.calendar-grid-line {
+  align-self: start;
+  border-top: 1px solid var(--calendar-line);
+  grid-column: 1 / -1;
+  height: 1px;
+  pointer-events: none;
+  position: relative;
+  z-index: 0;
+}
+
+.calendar-grid-line.half-hour-line {
+  border-top-color: #eceef1;
+}
+
+.calendar-grid-line.hour-line {
+  border-top-color: var(--calendar-line-strong);
+}
+
+.calendar-grid-end {
+  align-self: end;
+  border-top: 1px solid var(--calendar-line-strong);
+  bottom: 0;
+  grid-column: 1 / -1;
+  height: 1px;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+  z-index: 0;
+}
+
+.staff-time-marker {
+  border-right: 1px solid var(--calendar-line-strong);
+  color: #8a929c;
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  grid-column: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.staff-time-marker span {
+  background: var(--page, #fffaf8);
+  line-height: 1;
+  padding: 0 7px 0 3px;
+  position: absolute;
+  right: 0;
+  top: 5px;
+}
+
+.staff-time-marker.half-hour-marker::after {
+  border-top: 1px solid var(--calendar-line-strong);
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: 0;
+  width: 8px;
+}
+
+.calendar-lane-cell {
+  border-left: 1px solid var(--calendar-line);
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.calendar-lane-cell.is-last-lane {
+  border-right: 1px solid var(--calendar-line);
+}
+
+.calendar-lane-cell.is-open:hover {
+  background: rgba(92, 120, 151, 0.045);
+}
+
+.calendar-event {
+  align-self: stretch;
+  background: color-mix(in srgb, var(--slot-color) 48%, rgba(248, 244, 247, 0.78));
+  border: 1px solid color-mix(in srgb, var(--slot-color) 68%, #8b687d);
+  border-left-width: 4px;
+  color: color-mix(in srgb, var(--slot-color) 58%, #391d30);
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  margin: 2px 3px;
+  min-height: 0;
+  min-width: 0;
+  overflow: visible;
+  padding: 6px 8px;
+  position: relative;
+  z-index: var(--calendar-event-layer);
+}
+
+.calendar-event.online {
+  background: color-mix(in srgb, var(--slot-color) 56%, rgba(247, 241, 245, 0.8));
+}
+
+.calendar-event.blocked {
+  background: rgba(221, 224, 228, 0.88);
+  border-color: #b8bec5;
+  color: #626b75;
+}
+
+.calendar-event-copy {
+  align-content: start;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.calendar-event-copy strong,
+.calendar-event-copy span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-event-copy strong {
+  font-size: 0.76rem;
+  font-weight: 820;
+  line-height: 1.1;
+}
+
+.calendar-event-copy span {
+  font-size: 0.68rem;
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.staff-schedule .lane-menu {
+  align-self: end;
+  flex: 0 0 auto;
+  margin-left: auto;
+  position: relative;
+  z-index: var(--calendar-menu-layer);
+}
+
+.calendar-lane-cell > .lane-menu {
+  bottom: 3px;
+  position: absolute;
+  right: 4px;
+}
+
+.staff-schedule .service-block-menu {
+  min-width: 0;
+  width: 24px;
+}
+
+.staff-schedule .lane-menu summary {
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  color: #7c858f;
+  height: 24px;
+}
+
+.staff-schedule .lane-menu summary:hover,
+.staff-schedule .lane-menu[open] summary {
+  background: rgba(255, 255, 255, 0.82);
+  color: #374250;
+}
+
+.staff-schedule .lane-menu .service-block-options {
+  bottom: calc(100% + 4px);
+  max-height: 250px;
+  top: auto;
+  z-index: calc(var(--calendar-menu-layer) + 2);
+}
+
+.staff-schedule .lane-menu[open],
+.calendar-lane-cell:has(.lane-menu[open]),
+.calendar-event:has(.lane-menu[open]) {
+  z-index: calc(var(--calendar-menu-layer) + 1);
+}
+
+.staff-schedule .lane-menu .clear-lane-option {
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  color: #a4473f;
+  margin-bottom: 3px;
+}
+
+.service-block-options button:disabled {
+  color: #aaa29e;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.service-block-options button:disabled:hover {
+  background: transparent;
+}
+
+@media (max-width: 740px) {
+  .staff-schedule {
+    --slot-height: 48px;
+    --time-rail: 40px;
+  }
+
+  .staff-schedule-head {
+    min-height: 38px;
+  }
+
+  .staff-schedule-head strong {
+    font-size: 0.66rem;
+    padding: 0 4px;
+  }
+
+  .staff-schedule-head small {
+    font-size: 0.58rem;
+    margin-left: 2px;
+  }
+
+  .staff-time-marker {
+    font-size: 0.54rem;
+  }
+
+  .staff-time-marker span {
+    padding-right: 5px;
+    top: 5px;
+  }
+
+  .calendar-event {
+    border-left-width: 3px;
+    gap: 3px;
+    margin: 2px;
+    padding: 5px 4px;
+  }
+
+  .calendar-event-copy strong {
+    font-size: 0.62rem;
+  }
+
+  .calendar-event-copy span {
+    font-size: 0.56rem;
+  }
+
+  .staff-schedule .service-block-menu {
+    width: 21px;
+  }
+
+  .staff-schedule .lane-menu summary {
+    height: 21px;
+  }
+
+  .calendar-lane-cell > .lane-menu {
+    bottom: 2px;
+    right: 2px;
+  }
+}
+
 .confirm-dialog {
   width: min(420px, calc(100vw - 32px));
   border: 0;

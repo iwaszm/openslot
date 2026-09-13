@@ -31,8 +31,8 @@ security definer
 set search_path = public
 as $$
 declare
-  v_open_time time := '10:00';
-  v_close_time time := '19:00';
+  v_open_time time := time '10:00';
+  v_close_time time := time '19:00';
   v_blocked_day boolean := false;
   v_occupied_start time;
 begin
@@ -43,8 +43,8 @@ begin
     and setting_date = new.block_date;
 
   if not found then
-    v_open_time := '10:00';
-    v_close_time := '19:00';
+    v_open_time := time '10:00';
+    v_close_time := time '19:00';
     v_blocked_day := false;
   end if;
 
@@ -67,10 +67,12 @@ begin
     if time_to_minutes(v_occupied_start) % 30 <> 0 then
       raise exception 'Blocked slots must use 30 minute increments';
     end if;
-    if v_occupied_start < v_open_time or v_occupied_start + interval '30 minutes' > v_close_time then
-      raise exception 'Blocked slot is outside working hours';
-    end if;
   end loop;
+
+  if coalesce(new.service_start_time, new.start_time) < v_open_time
+    or coalesce(new.service_start_time, new.start_time) >= v_close_time then
+    raise exception 'Blocked slot must start inside working hours';
+  end if;
 
   new.service_start_time := coalesce(new.service_start_time, new.occupied_slots[1]);
   new.start_time := new.occupied_slots[1];
@@ -113,11 +115,10 @@ set search_path = public
 as $$
 declare
   v_block_id uuid := gen_random_uuid();
-  v_duration integer := 30;
   v_booked_slots smallint[] := array[1]::smallint[];
   v_occupied_slots time[];
-  v_open_time time := '10:00';
-  v_close_time time := '19:00';
+  v_open_time time := time '10:00';
+  v_close_time time := time '19:00';
   v_blocked_day boolean := false;
 begin
   if not exists (
@@ -129,8 +130,8 @@ begin
   end if;
 
   if p_service_id is not null then
-    select duration_minutes, booked_slots
-      into v_duration, v_booked_slots
+    select booked_slots
+      into v_booked_slots
     from services
     where id = p_service_id
       and salon_id = p_salon_id
@@ -155,8 +156,8 @@ begin
     and setting_date = p_block_date;
 
   if not found then
-    v_open_time := '10:00';
-    v_close_time := '19:00';
+    v_open_time := time '10:00';
+    v_close_time := time '19:00';
     v_blocked_day := false;
   end if;
 
@@ -166,8 +167,8 @@ begin
 
   if time_to_minutes(p_start_time) % 30 <> 0
     or p_start_time < v_open_time
-    or p_start_time + make_interval(mins => v_duration) > v_close_time then
-    raise exception 'Service block is outside working hours';
+    or p_start_time >= v_close_time then
+    raise exception 'Service block must start inside working hours';
   end if;
 
   perform pg_advisory_xact_lock(
