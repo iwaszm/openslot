@@ -84,6 +84,7 @@ supabase/staff-slot-overrides.sql
 supabase/staff-lane-configuration.sql
 supabase/three-lane-scheduling.sql
 supabase/unified-schedule-entries.sql
+supabase/migrations/20260913170000_admin_availability_blocks.sql
 ```
 
 Then configure Supabase Edge Function secrets:

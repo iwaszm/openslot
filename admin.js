@@ -22,6 +22,7 @@ const SETTINGS_KEY = "openslot.barber.mvp.day-settings";
 const BLOCKS_KEY = "openslot.barber.mvp.blocked-slots";
 const SERVICES_KEY = "openslot.barber.mvp.services";
 const FLEXIBLE_SLOTS_KEY = "openslot.barber.mvp.flexible-staff-slots";
+const TIME_BLOCKS_KEY = "openslot.barber.mvp.time-blocks";
 const LEGACY_SERVICE_IDS = new Set(["haircut", "color", "perm"]);
 const LEGACY_SERVICE_META = new Map([
   ["haircut", { category: "cut", gender: "unisex" }],
@@ -48,6 +49,7 @@ const state = {
   blockedSlots: [],
   overflowSlots: [],
   flexibleSlots: [],
+  timeBlocks: [],
   upcomingAppointments: [],
   dateOptions: [],
   daySettings: createDefaultDaySettings(toDateInputValue(new Date())),
@@ -85,6 +87,12 @@ const els = {
   adminDatePrevButton: document.querySelector("#adminDatePrevButton"),
   adminDateNextButton: document.querySelector("#adminDateNextButton"),
   dayBlockButton: document.querySelector("#dayBlockButton"),
+  timeBlockToggle: document.querySelector("#timeBlockToggle"),
+  timeBlockPanel: document.querySelector("#timeBlockPanel"),
+  timeBlockStart: document.querySelector("#timeBlockStart"),
+  timeBlockEnd: document.querySelector("#timeBlockEnd"),
+  timeBlockAction: document.querySelector("#timeBlockAction"),
+  timeBlockHint: document.querySelector("#timeBlockHint"),
   appointmentCardTitle: document.querySelector("#appointmentCardTitle"),
   upcomingLogTitle: document.querySelector("#upcomingLogTitle"),
   logCollapseButton: document.querySelector("#logCollapseButton"),
@@ -123,9 +131,20 @@ function bindEvents() {
   els.adminDatePrevButton?.addEventListener("click", () => scrollDateStrip(-1));
   els.adminDateNextButton?.addEventListener("click", () => scrollDateStrip(1));
   els.dayBlockButton?.addEventListener("click", handleToggleDayBlock);
+  els.timeBlockToggle?.addEventListener("click", toggleTimeBlockPanel);
+  els.timeBlockStart?.addEventListener("change", renderTimeBlockControls);
+  els.timeBlockEnd?.addEventListener("change", renderTimeBlockControls);
+  els.timeBlockAction?.addEventListener("click", handleToggleTimeBlock);
   els.logCollapseButton?.addEventListener("click", () => toggleSection("log"));
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".service-block-menu")) closeServiceBlockMenus();
+    if (!event.target.closest(".time-block-control")) closeTimeBlockPanel();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.timeBlockPanel?.hidden) {
+      closeTimeBlockPanel();
+      els.timeBlockToggle?.focus();
+    }
   });
   window.addEventListener("openslot:language-change", () => {
     render();
@@ -231,10 +250,11 @@ async function refreshDateOptions() {
   const dates = buildDateRange();
   try {
     const summaries = await Promise.all(dates.map(async (date) => {
-      const [appointments, daySettings, manualSchedule] = await Promise.all([
+      const [appointments, daySettings, manualSchedule, timeBlocks] = await Promise.all([
         state.repository.listAppointments(date),
         state.repository.getDaySettings(date),
         loadManualSchedule(date),
+        state.repository.listTimeBlocks(date),
       ]);
       return {
         date,
@@ -244,6 +264,7 @@ async function refreshDateOptions() {
           manualSchedule.overflowSlots,
           manualSchedule.flexibleSlots,
           daySettings,
+          timeBlocks,
         ),
         totalSlotCount: countDaySlots(daySettings),
         blockedCount: manualSchedule.blockedSlots.filter((item) => !item.serviceId).length,
@@ -270,16 +291,18 @@ async function refreshDayData() {
   if (!state.isOwner && state.repository.authSupported) return;
   try {
     const date = els.adminDateInput.value;
-    const [appointments, daySettings, manualSchedule] = await Promise.all([
+    const [appointments, daySettings, manualSchedule, timeBlocks] = await Promise.all([
       state.repository.listAppointments(date),
       state.repository.getDaySettings(date),
       loadManualSchedule(date),
+      state.repository.listTimeBlocks(date),
     ]);
     state.appointments = appointments;
     state.daySettings = daySettings;
     state.blockedSlots = manualSchedule.blockedSlots;
     state.overflowSlots = manualSchedule.overflowSlots;
     state.flexibleSlots = manualSchedule.flexibleSlots;
+    state.timeBlocks = timeBlocks;
     state.useUnifiedScheduleEntries = manualSchedule.isUnified;
   } catch (error) {
     setAdminMessage(`读取后台数据失败：${error.message}`);
@@ -394,11 +417,12 @@ function renderSlotManager() {
   const selectedDate = els.adminDateInput?.value || toDateInputValue(new Date());
   if (els.appointmentCardTitle) {
     const totalSlotCount = countDaySlots(state.daySettings);
-    const occupiedSlotCount = countOccupiedSlots(activeAppointments, state.blockedSlots, state.overflowSlots, state.flexibleSlots, state.daySettings);
+    const occupiedSlotCount = countOccupiedSlots(activeAppointments, state.blockedSlots, state.overflowSlots, state.flexibleSlots, state.daySettings, state.timeBlocks);
     els.appointmentCardTitle.textContent = `${t("admin.today")} ${formatSelectedDateTitle(selectedDate, `${occupiedSlotCount}/${totalSlotCount}`)}`;
   }
   if (els.bookingCount) els.bookingCount.textContent = activeAppointments.length;
   renderDayBlockButton();
+  renderTimeBlockControls();
   const slots = buildAdminSlots();
   if (slots.length === 0) {
     els.appointmentList.innerHTML = `<div class="empty-state">${state.daySettings.isBlockedDay ? t("admin.dayBlockedEmpty") : t("admin.emptyAppointments")}</div>`;
@@ -435,7 +459,10 @@ function renderOutlookSchedule(slots, lanes) {
     const row = rowIndex + 1;
     const isHour = slot.startMinutes % 60 === 0;
     const laneCells = lanes.map((lane, laneIndex) => {
-      const isCovered = [...lane.appointments, ...lane.manual].some((item) => (
+      const isTimeBlocked = state.timeBlocks.some((block) => (
+        slot.startMinutes >= block.startMinutes && slot.startMinutes < block.endMinutes
+      ));
+      const isCovered = isTimeBlocked || [...lane.appointments, ...lane.manual].some((item) => (
         slot.startMinutes >= item.startMinutes && slot.startMinutes < item.endMinutes
       ));
       return `
@@ -456,12 +483,31 @@ function renderOutlookSchedule(slots, lanes) {
     ...lane.appointments.map((item) => renderCalendarEvent(item, lane.storageKey, laneIndex, "online", rowCount)),
     ...lane.manual.map((item) => renderCalendarEvent(item, lane.storageKey, laneIndex, item.serviceId ? "manual" : "blocked", rowCount)),
   ].join("")).join("");
+  const timeBlockEvents = state.timeBlocks.map((block) => renderCalendarTimeBlock(block, rowCount)).join("");
   return `
     <div class="staff-schedule-body outlook-calendar" style="--calendar-rows:${rowCount}">
       ${gridRows}
       <div class="calendar-grid-end" aria-hidden="true"></div>
       ${eventBlocks}
+      ${timeBlockEvents}
     </div>
+  `;
+}
+
+function renderCalendarTimeBlock(block, rowCount) {
+  const openMinutes = state.daySettings.openMinutes;
+  const startRow = Math.max(1, Math.floor((block.startMinutes - openMinutes) / SLOT_STEP) + 1);
+  const visibleEnd = Math.min(block.endMinutes, state.daySettings.closeMinutes);
+  const rowSpan = Math.max(1, Math.min(rowCount - startRow + 1, Math.ceil((visibleEnd - block.startMinutes) / SLOT_STEP)));
+  return `
+    <article
+      class="calendar-time-block"
+      style="grid-column:2 / -1;grid-row:${startRow} / span ${rowSpan}"
+      aria-label="${escapeAttribute(`Blockiert ${formatMinutes(block.startMinutes)}-${formatMinutes(block.endMinutes)}`)}"
+    >
+      <strong>Blockiert</strong>
+      <span>${escapeHtml(formatMinutes(block.startMinutes))}-${escapeHtml(formatMinutes(block.endMinutes))}</span>
+    </article>
   `;
 }
 
@@ -803,19 +849,26 @@ async function handleToggleDayBlock() {
     tone: nextBlocked ? "danger" : "neutral",
   });
   if (!confirmed) return;
-  const nextSettings = {
-    ...state.daySettings,
-    date: els.adminDateInput.value,
-    isBlockedDay: nextBlocked,
-  };
+  els.dayBlockButton.disabled = true;
   try {
-    await state.repository.saveDaySettings(nextSettings);
-    state.daySettings = nextSettings;
-    setAdminMessage(nextBlocked ? t("admin.dayBlocked") : t("admin.dayUnblocked"));
+    await state.repository.setDayBlocked({
+      ...state.daySettings,
+      date: els.adminDateInput.value,
+      isBlockedDay: nextBlocked,
+    });
     await refreshDateOptions();
     await refreshDayData();
+    await window.OpenSlotConfirm.notice({
+      title: nextBlocked ? "Tag blockiert" : "Tag freigegeben",
+      message: nextBlocked
+        ? "Der Tag wurde erfolgreich für neue Buchungen gesperrt."
+        : "Der Tag ist wieder für Buchungen freigegeben.",
+      tone: "success",
+    });
   } catch (error) {
-    setAdminMessage(`Day block failed: ${error.message}`);
+    await showAvailabilityError(error, "Der Tag konnte nicht blockiert werden.");
+  } finally {
+    els.dayBlockButton.disabled = false;
   }
 }
 
@@ -843,8 +896,142 @@ function renderDayBlockButton() {
   if (!els.dayBlockButton) return;
   const weeklyRule = getWeeklyRule(new Date(`${els.adminDateInput.value}T00:00:00`));
   els.dayBlockButton.hidden = weeklyRule.openMinutes === null;
-  els.dayBlockButton.textContent = state.daySettings.isBlockedDay ? t("admin.unblockDay") : t("admin.blockDay");
+  const label = state.daySettings.isBlockedDay ? t("admin.unblockDay") : t("admin.blockDay");
+  els.dayBlockButton.innerHTML = `
+    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 2v3M16 2v3M3 9h18"/><rect x="3" y="4" width="18" height="17" rx="2"/><path d="${state.daySettings.isBlockedDay ? "m9 15 2 2 4-5" : "m9 13 6 6M15 13l-6 6"}"/></svg>
+    <span>${escapeHtml(label)}</span>
+  `;
+  els.dayBlockButton.setAttribute("aria-label", label);
   els.dayBlockButton.classList.toggle("is-blocked", state.daySettings.isBlockedDay);
+}
+
+function toggleTimeBlockPanel() {
+  if (!els.timeBlockPanel || !els.timeBlockToggle) return;
+  const willOpen = els.timeBlockPanel.hidden;
+  els.timeBlockPanel.hidden = !willOpen;
+  els.timeBlockToggle.setAttribute("aria-expanded", String(willOpen));
+  if (willOpen) requestAnimationFrame(() => els.timeBlockStart?.focus());
+}
+
+function closeTimeBlockPanel() {
+  if (!els.timeBlockPanel || !els.timeBlockToggle || els.timeBlockPanel.hidden) return;
+  els.timeBlockPanel.hidden = true;
+  els.timeBlockToggle.setAttribute("aria-expanded", "false");
+}
+
+function renderTimeBlockControls() {
+  if (!els.timeBlockStart || !els.timeBlockEnd || !els.timeBlockAction || !els.timeBlockToggle) return;
+  const { openMinutes, closeMinutes, isBlockedDay } = state.daySettings;
+  const signature = `${els.adminDateInput?.value}:${openMinutes}:${closeMinutes}:${state.timeBlocks.map((block) => `${block.id}:${block.startMinutes}-${block.endMinutes}`).join(",")}`;
+  if (els.timeBlockPanel?.dataset.signature !== signature) {
+    const currentStart = els.timeBlockStart.value ? Number(els.timeBlockStart.value) : Number.NaN;
+    const currentEnd = els.timeBlockEnd.value ? Number(els.timeBlockEnd.value) : Number.NaN;
+    els.timeBlockStart.innerHTML = buildTimeOptions(openMinutes, closeMinutes - SLOT_STEP);
+    els.timeBlockEnd.innerHTML = buildTimeOptions(openMinutes + SLOT_STEP, closeMinutes);
+    const preferredBlock = state.timeBlocks[0];
+    const startValue = preferredBlock?.startMinutes ?? (Number.isFinite(currentStart) ? currentStart : openMinutes);
+    const endValue = preferredBlock?.endMinutes ?? (Number.isFinite(currentEnd) ? currentEnd : Math.min(closeMinutes, startValue + 60));
+    els.timeBlockStart.value = String(Math.max(openMinutes, Math.min(startValue, closeMinutes - SLOT_STEP)));
+    els.timeBlockEnd.value = String(Math.max(openMinutes + SLOT_STEP, Math.min(endValue, closeMinutes)));
+    if (els.timeBlockPanel) els.timeBlockPanel.dataset.signature = signature;
+  }
+
+  const startMinutes = Number(els.timeBlockStart.value);
+  const endMinutes = Number(els.timeBlockEnd.value);
+  [...els.timeBlockEnd.options].forEach((option) => {
+    option.disabled = Number(option.value) <= startMinutes;
+  });
+  if (endMinutes <= startMinutes) {
+    els.timeBlockEnd.value = String(Math.min(closeMinutes, startMinutes + SLOT_STEP));
+  }
+
+  const selectedStart = Number(els.timeBlockStart.value);
+  const selectedEnd = Number(els.timeBlockEnd.value);
+  const exactBlock = findExactTimeBlock(selectedStart, selectedEnd);
+  const overlapsAnotherBlock = !exactBlock && state.timeBlocks.some((block) => (
+    selectedStart < block.endMinutes && selectedEnd > block.startMinutes
+  ));
+  const label = exactBlock ? "Uhrzeit freigeben" : "Uhrzeit blockieren";
+  const toggleLabel = els.timeBlockToggle.querySelector("span");
+  if (toggleLabel) toggleLabel.textContent = label;
+  els.timeBlockAction.textContent = label;
+  els.timeBlockAction.classList.toggle("is-unblock", Boolean(exactBlock));
+  els.timeBlockToggle.classList.toggle("is-blocked", Boolean(exactBlock));
+  els.timeBlockToggle.disabled = isBlockedDay;
+  els.timeBlockAction.disabled = isBlockedDay || overlapsAnotherBlock || selectedEnd <= selectedStart;
+  if (els.timeBlockHint) {
+    els.timeBlockHint.textContent = isBlockedDay
+      ? "Der gesamte Tag ist bereits blockiert."
+      : overlapsAnotherBlock
+      ? "Die Auswahl überschneidet eine bestehende Sperre. Wähle deren genaue Zeit, um sie freizugeben."
+        : "";
+  }
+}
+
+function buildTimeOptions(startMinutes, endMinutes) {
+  const options = [];
+  for (let minutes = startMinutes; minutes <= endMinutes; minutes += SLOT_STEP) {
+    options.push(`<option value="${minutes}">${escapeHtml(formatMinutes(minutes))}</option>`);
+  }
+  return options.join("");
+}
+
+function findExactTimeBlock(startMinutes, endMinutes) {
+  return state.timeBlocks.find((block) => block.startMinutes === startMinutes && block.endMinutes === endMinutes) || null;
+}
+
+async function handleToggleTimeBlock() {
+  const startMinutes = Number(els.timeBlockStart?.value);
+  const endMinutes = Number(els.timeBlockEnd?.value);
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) return;
+  const existing = findExactTimeBlock(startMinutes, endMinutes);
+  const confirmed = await window.OpenSlotConfirm.ask({
+    title: existing ? "Uhrzeit freigeben" : "Uhrzeit blockieren",
+    message: existing
+      ? `${formatMinutes(startMinutes)}-${formatMinutes(endMinutes)} wirklich wieder freigeben?`
+      : `${formatMinutes(startMinutes)}-${formatMinutes(endMinutes)} für neue Buchungen blockieren?`,
+    confirmLabel: existing ? "Freigeben" : "Blockieren",
+    tone: existing ? "neutral" : "danger",
+  });
+  if (!confirmed) return;
+
+  els.timeBlockAction.disabled = true;
+  try {
+    if (existing) {
+      await state.repository.deleteTimeBlock(existing.id);
+    } else {
+      await state.repository.createTimeBlock({
+        date: els.adminDateInput.value,
+        startMinutes,
+        endMinutes,
+      });
+    }
+    await refreshDateOptions();
+    await refreshDayData();
+    await window.OpenSlotConfirm.notice({
+      title: existing ? "Uhrzeit freigegeben" : "Uhrzeit blockiert",
+      message: existing
+        ? `${formatMinutes(startMinutes)}-${formatMinutes(endMinutes)} ist wieder buchbar.`
+        : `${formatMinutes(startMinutes)}-${formatMinutes(endMinutes)} wurde erfolgreich blockiert.`,
+      tone: "success",
+    });
+  } catch (error) {
+    await showAvailabilityError(error, "Die Uhrzeit konnte nicht blockiert werden.");
+  } finally {
+    renderTimeBlockControls();
+  }
+}
+
+async function showAvailabilityError(error, fallbackMessage) {
+  const message = String(error?.message || "");
+  const occupied = message.includes("OCCUPIED_SLOTS_PRESENT");
+  await window.OpenSlotConfirm.notice({
+    title: occupied ? "Blockierung nicht möglich" : "Änderung nicht möglich",
+    message: occupied
+      ? "In diesem Zeitraum liegen bereits belegte Arbeitszeiten. Verschiebe oder storniere die betroffenen Termine und versuche es erneut."
+      : fallbackMessage,
+    tone: "error",
+  });
 }
 
 async function handleBlockSlot(startMinutesValue, serviceId = null) {
@@ -1058,6 +1245,31 @@ function createSupabaseRepository(client) {
       if (error) throw error;
       return data ? fromSupabaseDaySettings(data) : createDefaultDaySettings(date);
     },
+    async listTimeBlocks(date) {
+      const salon = await salonPromise;
+      const { data, error } = await client
+        .from("admin_time_blocks")
+        .select("id, block_date, start_time, end_time")
+        .eq("salon_id", salon.id)
+        .eq("block_date", date)
+        .order("start_time", { ascending: true });
+      if (error) throw error;
+      return (data || []).map(fromSupabaseTimeBlock);
+    },
+    async createTimeBlock(block) {
+      const salon = await salonPromise;
+      const { error } = await client.rpc("create_admin_time_block", {
+        p_salon_id: salon.id,
+        p_block_date: block.date,
+        p_start_time: `${formatMinutes(block.startMinutes)}:00`,
+        p_end_time: `${formatMinutes(block.endMinutes)}:00`,
+      });
+      if (error) throw error;
+    },
+    async deleteTimeBlock(blockId) {
+      const { error } = await client.rpc("delete_admin_time_block", { p_block_id: blockId });
+      if (error) throw error;
+    },
     async listBlockedSlots(date) {
       const salon = await salonPromise;
       const { data, error } = await client
@@ -1136,6 +1348,17 @@ function createSupabaseRepository(client) {
           close_time: `${formatMinutes(settings.closeMinutes)}:00`,
           is_blocked_day: settings.isBlockedDay,
         }, { onConflict: "salon_id,setting_date" });
+      if (error) throw error;
+    },
+    async setDayBlocked(settings) {
+      const salon = await salonPromise;
+      const { error } = await client.rpc("set_admin_day_block", {
+        p_salon_id: salon.id,
+        p_block_date: settings.date,
+        p_is_blocked: settings.isBlockedDay,
+        p_open_time: `${formatMinutes(settings.openMinutes)}:00`,
+        p_close_time: `${formatMinutes(settings.closeMinutes)}:00`,
+      });
       if (error) throw error;
     },
   };
@@ -1217,6 +1440,38 @@ function createLocalRepository() {
       return "预约已取消。本地演示版不会发送邮件。";
     },
     async getDaySettings(date) { return loadLocalSettings()[date] || createDefaultDaySettings(date); },
+    async listTimeBlocks(date) {
+      if (isLaneDemo()) return previewTimeBlocksByDate.get(date) || [];
+      return JSON.parse(localStorage.getItem(TIME_BLOCKS_KEY) || "[]").filter((block) => block.date === date);
+    },
+    async createTimeBlock(block) {
+      const occupied = [
+        ...state.appointments.filter((appointment) => appointment.status !== "cancelled"),
+        ...getAllManualGroups().filter((item) => item.serviceId),
+      ].flatMap((item) => getOccupiedRanges(item).map((range) => range.startMinutes));
+      if (occupied.some((minutes) => minutes >= block.startMinutes && minutes < block.endMinutes)) {
+        throw new Error("OCCUPIED_SLOTS_PRESENT");
+      }
+      if (isLaneDemo()) {
+        const blocks = previewTimeBlocksByDate.get(block.date) || [];
+        blocks.push({ ...block, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) });
+        previewTimeBlocksByDate.set(block.date, blocks);
+        return;
+      }
+      const blocks = JSON.parse(localStorage.getItem(TIME_BLOCKS_KEY) || "[]");
+      blocks.push({ ...block, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) });
+      localStorage.setItem(TIME_BLOCKS_KEY, JSON.stringify(blocks));
+    },
+    async deleteTimeBlock(blockId) {
+      if (isLaneDemo()) {
+        for (const [date, blocks] of previewTimeBlocksByDate.entries()) {
+          previewTimeBlocksByDate.set(date, blocks.filter((block) => block.id !== blockId));
+        }
+        return;
+      }
+      const blocks = JSON.parse(localStorage.getItem(TIME_BLOCKS_KEY) || "[]");
+      localStorage.setItem(TIME_BLOCKS_KEY, JSON.stringify(blocks.filter((block) => block.id !== blockId)));
+    },
     async listBlockedSlots(date) {
       if (isLaneDemo()) return (await loadPreviewSchedule(date)).laneA;
       return loadLocalBlocks().filter((block) => block.date === date);
@@ -1274,6 +1529,16 @@ function createLocalRepository() {
       values[settings.date] = settings;
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(values));
     },
+    async setDayBlocked(settings) {
+      if (settings.isBlockedDay) {
+        const occupied = [
+          ...state.appointments.filter((appointment) => appointment.status !== "cancelled"),
+          ...getAllManualGroups().filter((item) => item.serviceId),
+        ].some((item) => getOccupiedRanges(item).length > 0);
+        if (occupied) throw new Error("OCCUPIED_SLOTS_PRESENT");
+      }
+      await this.saveDaySettings(settings);
+    },
   };
 }
 
@@ -1299,6 +1564,7 @@ function buildAdminSlots() {
 
 let previewSchedulePromise = null;
 const previewSchedulesByDate = new Map();
+const previewTimeBlocksByDate = new Map();
 
 function isLaneDemo() {
   return new URLSearchParams(window.location.search).get("demo") === "lanes";
@@ -1523,7 +1789,7 @@ function isScheduledBusinessDay(date) {
   return getWeeklyRule(new Date(`${date}T00:00:00`)).openMinutes !== null;
 }
 
-function countOccupiedSlots(appointments, blockedSlots = [], overflowSlots = [], flexibleSlots = [], daySettings = null) {
+function countOccupiedSlots(appointments, blockedSlots = [], overflowSlots = [], flexibleSlots = [], daySettings = null, timeBlocks = []) {
   const occupied = new Set();
   const addOccupiedRange = (range) => {
     if (daySettings && (range.startMinutes < daySettings.openMinutes || range.startMinutes >= daySettings.closeMinutes)) return;
@@ -1537,6 +1803,11 @@ function countOccupiedSlots(appointments, blockedSlots = [], overflowSlots = [],
   });
   [...groupStaffOverrides(overflowSlots), ...groupStaffOverrides(flexibleSlots)].forEach((item) => {
     getOccupiedRanges(item).forEach(addOccupiedRange);
+  });
+  timeBlocks.forEach((block) => {
+    for (let startMinutes = block.startMinutes; startMinutes < block.endMinutes; startMinutes += SLOT_STEP) {
+      addOccupiedRange({ startMinutes });
+    }
   });
   return occupied.size;
 }
@@ -1785,6 +2056,15 @@ function timeValueToMinutes(value) {
 
 function fromSupabaseDaySettings(row) {
   return { date: row.setting_date, openMinutes: parseTime(row.open_time.slice(0, 5)), closeMinutes: parseTime(row.close_time.slice(0, 5)), isBlockedDay: row.is_blocked_day };
+}
+
+function fromSupabaseTimeBlock(row) {
+  return {
+    id: row.id,
+    date: row.block_date,
+    startMinutes: parseTime(String(row.start_time).slice(0, 5)),
+    endMinutes: parseTime(String(row.end_time).slice(0, 5)),
+  };
 }
 
 function fromSupabaseBlockedSlot(row) {

@@ -50,11 +50,13 @@
     if (currentDialog.open) return Promise.resolve(false);
 
     currentDialog.returnValue = "cancel";
+    currentDialog.dataset.mode = "confirm";
     currentDialog.dataset.tone = tone;
     currentDialog.querySelector("#confirmDialogTitle").textContent = title;
     currentDialog.querySelector("#confirmDialogMessage").textContent = message;
     currentDialog.querySelector(".confirm-dialog-submit").textContent = confirmLabel;
     currentDialog.querySelector(".confirm-dialog-cancel").textContent = cancelLabel;
+    currentDialog.querySelector(".confirm-dialog-cancel").hidden = false;
 
     return new Promise((resolve) => {
       activeResolve = resolve;
@@ -63,5 +65,29 @@
     });
   }
 
-  window.OpenSlotConfirm = { ask };
+  function notice({
+    title,
+    message,
+    confirmLabel = "Schließen",
+    tone = "neutral",
+  }) {
+    const currentDialog = ensureDialog();
+    if (currentDialog.open) return Promise.resolve(false);
+
+    currentDialog.returnValue = "cancel";
+    currentDialog.dataset.mode = "notice";
+    currentDialog.dataset.tone = tone;
+    currentDialog.querySelector("#confirmDialogTitle").textContent = title;
+    currentDialog.querySelector("#confirmDialogMessage").textContent = message;
+    currentDialog.querySelector(".confirm-dialog-submit").textContent = confirmLabel;
+    currentDialog.querySelector(".confirm-dialog-cancel").hidden = true;
+
+    return new Promise((resolve) => {
+      activeResolve = resolve;
+      currentDialog.showModal();
+      requestAnimationFrame(() => currentDialog.querySelector(".confirm-dialog-submit")?.focus());
+    });
+  }
+
+  window.OpenSlotConfirm = { ask, notice };
 })();

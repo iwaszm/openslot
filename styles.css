@@ -3373,17 +3373,145 @@ body {
   justify-content: space-between;
 }
 
-.day-block-button {
-  min-height: 36px;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  padding: 0 14px;
+.schedule-block-controls {
+  align-items: start;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+  padding-top: 14px;
+  position: relative;
+  z-index: 40;
 }
 
-.day-block-button.is-blocked {
-  border-color: #d6b17b;
-  background: #f5ead8;
-  color: #79582f;
+.availability-action,
+.time-block-submit {
+  align-items: center;
+  background: #fffdfb;
+  border: 1px solid #cfc7c3;
+  border-radius: 7px;
+  color: #3e3835;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 780;
+  gap: 7px;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 12px;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.availability-action:hover:not(:disabled),
+.time-block-submit:hover:not(:disabled) {
+  background: #f8f3f0;
+  border-color: #a99d97;
+  transform: translateY(-1px);
+}
+
+.availability-action:focus-visible,
+.time-block-submit:focus-visible,
+.time-block-panel select:focus-visible {
+  outline: 3px solid rgba(205, 139, 132, 0.3);
+  outline-offset: 2px;
+}
+
+.availability-action:disabled,
+.time-block-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.availability-action svg {
+  fill: none;
+  flex: 0 0 auto;
+  height: 17px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 17px;
+}
+
+.availability-action .disclosure-icon {
+  height: 14px;
+  margin-left: 2px;
+  transition: transform 150ms ease;
+  width: 14px;
+}
+
+.availability-action[aria-expanded="true"] .disclosure-icon {
+  transform: rotate(180deg);
+}
+
+.availability-action.is-blocked,
+.time-block-submit.is-unblock {
+  background: #f4ead8;
+  border-color: #d3b986;
+  color: #705326;
+}
+
+.time-block-control {
+  position: relative;
+}
+
+.time-block-panel {
+  background: #fffdfb;
+  border: 1px solid #d6cfcb;
+  border-radius: 10px;
+  box-shadow: 0 16px 36px rgba(61, 47, 42, 0.16);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 14px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 7px);
+  width: min(330px, calc(100vw - 32px));
+  z-index: 50;
+}
+
+.time-block-panel label {
+  display: grid;
+  gap: 5px;
+}
+
+.time-block-panel label span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 720;
+}
+
+.time-block-panel select {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.86rem;
+  min-height: 38px;
+  padding: 0 30px 0 10px;
+}
+
+.time-block-submit,
+.time-block-panel small {
+  grid-column: 1 / -1;
+}
+
+.time-block-submit {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  width: 100%;
+}
+
+.time-block-panel small {
+  color: #8b5d2d;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  min-height: 1em;
 }
 
 .admin-status-message {
@@ -3946,8 +4074,13 @@ body {
 .staff-schedule-head {
   align-items: center;
   background: #f6f7f9;
-  border-block: 1px solid var(--calendar-line-strong);
-  min-height: 42px;
+  border: 1px solid var(--calendar-line-strong);
+  min-height: 34px;
+}
+
+.staff-schedule-head > span {
+  align-self: stretch;
+  border-right: 1px solid var(--calendar-line-strong);
 }
 
 .staff-schedule-head strong {
@@ -4078,6 +4211,35 @@ body {
   color: #626b75;
 }
 
+.calendar-time-block {
+  align-items: center;
+  align-self: stretch;
+  background: rgba(220, 223, 226, 0.9);
+  border: 1px solid #aeb5bc;
+  color: #59636d;
+  display: flex;
+  gap: 8px;
+  margin: 2px 3px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 5px 9px;
+  position: relative;
+  z-index: 8;
+}
+
+.calendar-time-block strong,
+.calendar-time-block span {
+  font-size: 0.7rem;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-time-block strong {
+  font-weight: 820;
+}
+
 .calendar-event-copy {
   align-content: start;
   display: grid;
@@ -4176,7 +4338,7 @@ body {
   }
 
   .staff-schedule-head {
-    min-height: 38px;
+    min-height: 32px;
   }
 
   .staff-schedule-head strong {
@@ -4224,6 +4386,22 @@ body {
   .calendar-lane-cell > .lane-menu {
     bottom: 2px;
     right: 2px;
+  }
+
+  .schedule-block-controls {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .availability-action {
+    font-size: 0.7rem;
+    padding: 0 8px;
+    width: 100%;
+  }
+
+  .time-block-panel {
+    right: 0;
   }
 }
 
@@ -4304,6 +4482,20 @@ body {
 .confirm-dialog[data-tone="neutral"] .confirm-dialog-submit {
   border-color: var(--ink) !important;
   background: var(--ink);
+}
+
+.confirm-dialog[data-mode="notice"] .confirm-dialog-actions {
+  grid-template-columns: 1fr;
+}
+
+.confirm-dialog[data-tone="success"] .confirm-dialog-submit {
+  background: #376f53;
+  border-color: #376f53 !important;
+}
+
+.confirm-dialog[data-tone="error"] .confirm-dialog-submit {
+  background: #9f463e;
+  border-color: #9f463e !important;
 }
 
 .confirm-dialog-actions button:hover {
