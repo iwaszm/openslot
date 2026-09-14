@@ -43,6 +43,39 @@ a {
   color: inherit;
 }
 
+.cancellation-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
+
+.cancellation-result {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  max-width: 620px;
+  padding: 32px;
+  width: 100%;
+}
+
+.cancellation-result h1 {
+  font-size: 28px;
+  line-height: 1.25;
+  margin: 0 0 16px;
+}
+
+.cancellation-result p {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+
+.cancellation-result a {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .customer-page,
 .admin-page {
   min-height: 100vh;

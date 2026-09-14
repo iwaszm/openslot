@@ -29,7 +29,7 @@ for (const file of [
   copyFile(file);
 }
 
-for (const dir of ["assets", "datenschutz", "lisa", "liyong"]) {
+for (const dir of ["assets", "datenschutz", "stornierung", "lisa", "liyong"]) {
   copyDir(dir);
 }
 replaceTurnstileSiteKeys(dist);
@@ -53,6 +53,7 @@ writeFile(
 /lisa/admin /lisa/admin/index.html 200
 /liyong /liyong/index.html 200
 /liyong/admin /liyong/admin/index.html 200
+/stornierung /stornierung/index.html 200
 `,
 );
 

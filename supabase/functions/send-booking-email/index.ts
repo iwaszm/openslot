@@ -190,20 +190,18 @@ function buildHtml(booking: BookingRow, event: MailEvent, supabaseUrl: string) {
       <p><strong>Name:</strong> ${escapeHtml(customer.name)}</p>
       <p><strong>Buchungsnummer:</strong> ${escapeHtml(booking.id)}</p>
 
-      ${cancelUrl ? `
-        <p style="margin:28px 0">
-          <a href="${escapeHtml(cancelUrl)}" style="display:inline-block;background:#1d1a16;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px">
-            Termin stornieren
-          </a>
-        </p>
-        <p style="font-size:13px;color:#6f675d">Falls Sie den Termin nicht wahrnehmen koennen, stornieren Sie ihn bitte ueber diesen Link.</p>
-      ` : ""}
-
       <h3 style="margin-top:24px">Saloninformationen</h3>
       <p><strong>${escapeHtml(salon.name)}</strong></p>
       ${salon.address ? `<p>${escapeHtml(salon.address)}</p>` : ""}
       ${salon.phone ? `<p>Telefon: <a href="tel:${escapeHtml(normalizePhoneHref(salon.phone))}">${escapeHtml(salon.phone)}</a></p>` : ""}
       <p>Oeffnungszeiten:<br>${formatOpeningHoursHtml(salon.opening_hours)}</p>
+
+      ${cancelUrl ? `
+        <p style="margin-top:28px;font-size:13px;color:#6f675d">
+          Falls Sie den Termin nicht wahrnehmen koennen, koennen Sie ihn
+          <a href="${escapeHtml(cancelUrl)}" style="color:#6f675d;text-decoration:underline">hier stornieren</a>.
+        </p>
+      ` : ""}
     </div>
   `;
 }
