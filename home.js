@@ -74,11 +74,6 @@
     render();
   }));
   document.getElementById("demoConfirm").addEventListener("click", () => {
-    const existing = appointments.find(item => item.fromBooking && item.day === selectedDate && item.time === selectedTime && !item.cancelled);
-    if (!existing) appointments.push({ id: nextId++, day: selectedDate, time: selectedTime, name: "Demo-Gast", service: selectedService.dataset.service, duration: Number(selectedService.dataset.duration), cancelled: false, fromBooking: true });
-    managementDate.value = String(selectedDate);
-    managementStatus.value = "active";
-    renderManagement();
     document.getElementById("demoConfirmedDetails").textContent = describeSelection();
     document.getElementById("demoForm").hidden = true;
     document.getElementById("demoSuccess").hidden = false;
@@ -93,95 +88,25 @@
     document.getElementById("demoForm").hidden = false;
     services[0].focus({ preventScroll: true });
   });
-  const managementDate = document.getElementById("managementDate");
-  const managementStatus = document.getElementById("managementStatus");
-  const managementList = document.getElementById("managementList");
-  const dialog = document.getElementById("appointmentDialog");
-  const cancelButton = document.getElementById("appointmentCancel");
-  let nextId = 100;
-  let openedId = null;
-  const seedAppointments = () => dates.slice(0, 4).flatMap((date, day) => [
-    { id: day * 2, day, time: "09:00", name: "Alex M.", service: "Haarschnitt", duration: 30, cancelled: false },
-    { id: day * 2 + 1, day, time: "13:00", name: "Sam K.", service: "Styling", duration: 60, cancelled: false },
-  ]);
-  let appointments = seedAppointments();
-  dates.forEach((date, index) => {
-    const option = document.createElement("option");
-    option.value = index;
-    option.textContent = date.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" });
-    managementDate.append(option);
-  });
-  const managementLink = document.createElement("a");
-  managementLink.className = "reset-button management-link";
-  managementLink.href = "#verwaltung-demo";
-  managementLink.textContent = "In der Verwaltung ansehen";
-  document.getElementById("demoSuccess").append(managementLink);
-
-  function renderManagement() {
-    const dayItems = appointments.filter(item => item.day === Number(managementDate.value));
-    const visible = dayItems.filter(item => managementStatus.value === "all" || item.cancelled === (managementStatus.value === "cancelled"))
-      .sort((a, b) => a.time.localeCompare(b.time) || a.id - b.id);
-    const active = dayItems.filter(item => !item.cancelled).length;
-    document.getElementById("managementCount").textContent = `${active} bestätigt · ${dayItems.length - active} storniert`;
-    managementList.replaceChildren();
-    if (!visible.length) {
-      const empty = document.createElement("p");
-      empty.className = "management-empty";
-      empty.textContent = "Keine Termine für diese Auswahl.";
-      managementList.append(empty);
-    }
-    visible.forEach(item => {
-      const row = document.createElement("div");
-      row.className = "appointment-row";
-      const time = document.createElement("strong");
-      time.textContent = item.time;
-      const customer = document.createElement("div");
-      const name = document.createElement("strong");
-      name.textContent = item.name;
-      const service = document.createElement("span");
-      service.textContent = `${item.service} · ${item.duration} Min.`;
-      customer.append(name, service);
-      const status = document.createElement("span");
-      status.className = `appointment-status${item.cancelled ? " cancelled" : ""}`;
-      status.textContent = item.cancelled ? "Storniert" : "Bestätigt";
-      const details = document.createElement("button");
-      details.type = "button";
-      details.className = "reset-button";
-      details.textContent = "Details";
-      details.setAttribute("aria-label", `Details: ${item.name}, ${item.time} Uhr`);
-      details.addEventListener("click", () => {
-        openedId = item.id;
-        document.getElementById("appointmentDetails").textContent = `${item.name} · ${item.service} · ${item.duration} Min. · ${dates[item.day].toLocaleDateString("de-DE")} · ${item.time} Uhr`;
-        document.getElementById("appointmentPrompt").textContent = item.cancelled ? "Dieser Demo-Termin ist storniert." : "Diesen Demo-Termin stornieren? Es wird keine E-Mail versendet.";
-        cancelButton.hidden = item.cancelled;
-        dialog.showModal();
-        document.getElementById("appointmentClose").focus();
-      });
-      row.append(time, customer, status, details);
-      managementList.append(row);
-    });
-  }
-  [managementDate, managementStatus].forEach(control => control.addEventListener("change", () => {
-    document.getElementById("managementMessage").textContent = "";
-    renderManagement();
-  }));
-  document.getElementById("appointmentClose").addEventListener("click", () => dialog.close());
-  cancelButton.addEventListener("click", () => {
-    const item = appointments.find(item => item.id === openedId);
-    if (!item || item.cancelled) return;
-    item.cancelled = true;
-    dialog.close();
-    renderManagement();
-    document.getElementById("managementMessage").textContent = `Demo-Termin von ${item.name} storniert. Es wurde keine E-Mail versendet.`;
-    managementStatus.focus({ preventScroll: true });
-  });
-  document.getElementById("managementReset").addEventListener("click", () => {
-    appointments = seedAppointments();
-    managementDate.value = "0";
-    managementStatus.value = "active";
-    document.getElementById("managementMessage").textContent = "Beispieltermine wiederhergestellt.";
-    renderManagement();
-  });
-  renderManagement();
   render();
+
+  document.querySelectorAll(".case-recording").forEach(recording => {
+    const image = recording.querySelector("img");
+    const canvas = recording.querySelector("canvas");
+    const button = recording.querySelector("button");
+    function setPaused(paused) {
+      if (!image.complete || !image.naturalWidth) return;
+      if (paused) canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.hidden = !paused;
+      image.hidden = paused;
+      button.setAttribute("aria-pressed", String(paused));
+      button.textContent = paused ? "Aufnahme abspielen" : "Aufnahme pausieren";
+    }
+    button.addEventListener("click", () => setPaused(canvas.hidden));
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const applyMotionPreference = () => setPaused(reducedMotion.matches);
+    image.addEventListener("load", applyMotionPreference, { once: true });
+    reducedMotion.addEventListener("change", applyMotionPreference);
+    applyMotionPreference();
+  });
 })();

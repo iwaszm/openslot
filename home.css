@@ -58,3 +58,15 @@
 @media(max-width:700px){.management-demo{padding:20px 16px}.management-toolbar{gap:12px}.management-toolbar label{min-width:0;flex:1 1 130px}.management-toolbar .reset-button{margin-left:0;margin-top:0}.appointment-labels{display:none}.appointment-row{grid-template-columns:55px minmax(0,1fr);gap:12px}.appointment-status{grid-column:2}.appointment-row .reset-button{grid-column:2;grid-row:auto}.management-heading h3{font-size:19px}}
 @media(max-width:700px){.management-toolbar{display:grid;grid-template-columns:minmax(0,1fr)}.management-toolbar select{width:100%;min-width:0}.management-toolbar .reset-button{justify-self:start}}
 @media(prefers-reduced-motion:reduce){:root{scroll-behavior:auto}.button{transition:none}.button:hover{transform:none}}
+.case-studies{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:64px;margin-top:52px}
+.case-study{min-width:0;border-top:1px solid var(--line);padding-top:26px;display:flex;flex-direction:column}
+.case-study h3{font-size:30px;line-height:1.2}
+.case-study>p{margin-top:12px;color:var(--muted);font-size:17px}
+.case-benefits{list-style:none;padding:0;margin:22px 0 30px;display:flex;flex-wrap:wrap;gap:10px 22px;line-height:1.5;font-size:14px}
+.case-benefits li{display:flex;align-items:baseline;gap:9px}
+.case-benefits li:before{content:'';width:6px;height:6px;flex-shrink:0;background:var(--ink);border-radius:50%}
+.case-recording{margin:auto auto 0;width:100%;max-width:390px}
+.case-recording img,.case-recording canvas{display:block;width:100%;height:auto;aspect-ratio:490/832;border:1px solid var(--line);border-radius:8px;object-fit:contain}
+.recording-toggle{min-height:44px;margin-top:12px}
+@media(max-width:1000px){.case-studies{gap:32px}.case-study h3{font-size:26px}}
+@media(max-width:600px){.case-studies{grid-template-columns:1fr;gap:48px;margin-top:34px}.case-benefits{margin-bottom:24px}.case-recording{max-width:350px}}
