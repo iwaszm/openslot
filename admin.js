@@ -16,7 +16,7 @@ const DEFAULT_OPEN_MINUTES = 10 * 60;
 const DEFAULT_CLOSE_MINUTES = 19 * 60;
 const SLOT_STEP = 30;
 const DATE_RANGE_DAYS = 21;
-const LOG_RANGE_DAYS = 7;
+const APPOINTMENT_PAGE_SIZE = 500;
 const STORAGE_KEY = "openslot.barber.mvp.appointments";
 const SETTINGS_KEY = "openslot.barber.mvp.day-settings";
 const BLOCKS_KEY = "openslot.barber.mvp.blocked-slots";
@@ -314,9 +314,8 @@ async function refreshUpcomingLog() {
   if (!els.upcomingLogList) return;
   if (!state.isOwner && state.repository.authSupported) return;
   const startDate = toDateInputValue(new Date());
-  const endDate = addDays(startDate, LOG_RANGE_DAYS - 1);
   try {
-    state.upcomingAppointments = await state.repository.listAppointmentsRange(startDate, endDate);
+    state.upcomingAppointments = await state.repository.listAppointmentsFrom(startDate);
   } catch (error) {
     setAdminMessage(`读取预约记录失败：${error.message}`);
     state.upcomingAppointments = [];
@@ -1180,28 +1179,37 @@ function createSupabaseRepository(client) {
       if (error) throw error;
       return (data || []).map(fromSupabaseAppointment);
     },
-    async listAppointmentsRange(startDate, endDate) {
+    async listAppointmentsFrom(startDate) {
       const salon = await salonPromise;
-      let { data, error } = await client
-        .from("appointments")
-        .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers(name, phone, email, gender)")
-        .eq("salon_id", salon.id)
-        .gte("appointment_date", startDate)
-        .lte("appointment_date", endDate)
-        .order("appointment_date", { ascending: true })
-        .order("start_time", { ascending: true });
-      if (error?.code === "42703") {
-        ({ data, error } = await client
+      const rows = [];
+      let offset = 0;
+      let includeLane = true;
+
+      while (true) {
+        const columns = includeLane
+          ? "id, service_id, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers(name, phone, email, gender)"
+          : "id, service_id, appointment_date, start_time, end_time, occupied_slots, status, customers(name, phone, email, gender)";
+        const { data, error } = await client
           .from("appointments")
-          .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, status, customers(name, phone, email, gender)")
+          .select(columns)
           .eq("salon_id", salon.id)
           .gte("appointment_date", startDate)
-          .lte("appointment_date", endDate)
           .order("appointment_date", { ascending: true })
-          .order("start_time", { ascending: true }));
+          .order("start_time", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + APPOINTMENT_PAGE_SIZE - 1);
+
+        if (error?.code === "42703" && includeLane && offset === 0) {
+          includeLane = false;
+          continue;
+        }
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < APPOINTMENT_PAGE_SIZE) break;
+        offset += APPOINTMENT_PAGE_SIZE;
       }
-      if (error) throw error;
-      return (data || []).map(fromSupabaseAppointment);
+
+      return rows.map(fromSupabaseAppointment);
     },
     async cancelAppointment(id) {
       const salon = await salonPromise;
@@ -1430,8 +1438,8 @@ function createLocalRepository() {
       const appointments = isLaneDemo() ? [] : loadLocalAppointments();
       return appointments.filter((appointment) => appointment.date === date);
     },
-    async listAppointmentsRange(startDate, endDate) {
-      return loadLocalAppointments().filter((appointment) => appointment.date >= startDate && appointment.date <= endDate);
+    async listAppointmentsFrom(startDate) {
+      return loadLocalAppointments().filter((appointment) => appointment.date >= startDate);
     },
     async cancelAppointment(id) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(loadLocalAppointments().map((appointment) => appointment.id === id ? { ...appointment, status: "cancelled", cancelledBy: "owner" } : appointment)));
@@ -1895,12 +1903,6 @@ function buildDateRange() {
     date.setDate(today.getDate() + index);
     return toDateInputValue(date);
   });
-}
-
-function addDays(dateValue, days) {
-  const date = new Date(`${dateValue}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return toDateInputValue(date);
 }
 
 function getWeeklyRule(date) {

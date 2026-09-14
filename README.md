@@ -85,7 +85,13 @@ supabase/staff-lane-configuration.sql
 supabase/three-lane-scheduling.sql
 supabase/unified-schedule-entries.sql
 supabase/migrations/20260913170000_admin_availability_blocks.sql
+supabase/migrations/20260914090000_history_retention.sql
 ```
+
+The history-retention migration installs a weekly Sunday Supabase Cron job. It keeps
+30 days of historical scheduling data, consolidates duplicate customer emails
+within each salon, removes orphan customer rows, and keeps retired scheduling
+tables empty. Cron execution history is available in the Supabase Cron dashboard.
 
 Then configure Supabase Edge Function secrets:
 
