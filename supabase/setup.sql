@@ -132,7 +132,7 @@ values
   ('pflegen', 'Pflegen', 30, 25, true, 'care'),
   ('straehnen', 'Strahnen', 90, 40, true, 'color'),
   ('blondierung', 'Blondierung', 120, 45, true, 'color'),
-  ('lonen_dauerwelle', 'Lonen Dauerwelle', 150, 120, true, 'shape'),
+  ('ionen_dauerwelle', 'Ionen Dauerwelle', 150, 120, true, 'shape'),
   ('digitale_dauerwelle', 'Digitale Dauerwelle', 150, 100, true, 'shape')
 on conflict (id) do update
 set

@@ -7,7 +7,7 @@ const DEFAULT_SERVICES = [
   { id: "pflegen", name: "Pflegen", shortName: "Pflegen", duration: 30, bookedSlots: [1], price: 25, priceFrom: false, category: "care", gender: "unisex", isActive: true },
   { id: "straehnen", name: "Strähnen", shortName: "Stra", duration: 120, bookedSlots: [1, 4], price: 40, priceFrom: true, category: "color", gender: "unisex", isActive: true },
   { id: "blondierung", name: "Blondieren", shortName: "Blond", duration: 120, bookedSlots: [1, 4], price: 45, priceFrom: true, category: "color", gender: "unisex", isActive: true },
-  { id: "lonen_dauerwelle", name: "Lonen Dauerwelle", shortName: "LDauer", duration: 240, bookedSlots: [1, 2, 4, 5, 7, 8], price: 120, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
+  { id: "ionen_dauerwelle", name: "Ionen Dauerwelle", shortName: "IDauer", duration: 240, bookedSlots: [1, 2, 4, 5, 7, 8], price: 120, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
   { id: "digitale_dauerwelle", name: "Digitale Dauerwelle", shortName: "DDauer", duration: 240, bookedSlots: [1, 2, 4, 5, 7, 8], price: 120, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
 ];
 const SERVICE_ORDER = new Map(DEFAULT_SERVICES.map((service, index) => [service.id, index]));
@@ -53,10 +53,30 @@ const state = {
   selectedGender: DEFAULT_SERVICES[0].gender,
   selectedSlot: "",
   storageStatusKey: "common.detecting",
+  formMessageRenderer: null,
 };
 
 const t = (key, values) => window.OpenSlotI18n?.t(key, values) || key;
-const getServiceName = (service) => service.name;
+function getServiceName(service) {
+  const language = window.OpenSlotI18n?.language || "de";
+  const databaseName = language === "en" ? service.nameEn : language === "zh" ? service.nameZh : service.name;
+  if (databaseName) return databaseName;
+  return window.OpenSlotI18n?.serviceName({ ...service, id: stripSalonPrefix(service.id) }) || service.name;
+}
+
+function getServiceCategoryName(service, category) {
+  const language = window.OpenSlotI18n?.language || "de";
+  const databaseName = language === "en" ? service?.categoryNameEn : language === "zh" ? service?.categoryNameZh : "";
+  if (databaseName) return databaseName;
+  const key = `service.category.${category}`;
+  const translated = t(key);
+  return translated === key ? SERVICE_CATEGORY_LABELS[category] || "Services" : translated;
+}
+
+function setFormMessage(message) {
+  state.formMessageRenderer = typeof message === "function" ? message : null;
+  els.formMessage.textContent = state.formMessageRenderer ? state.formMessageRenderer() : message;
+}
 
 const els = {
   bookingForm: document.querySelector("#bookingForm"),
@@ -134,6 +154,7 @@ function bindEvents() {
   });
   window.addEventListener("openslot:language-change", () => {
     if (els.storageStatus) els.storageStatus.textContent = t(state.storageStatusKey);
+    if (state.formMessageRenderer) els.formMessage.textContent = state.formMessageRenderer();
     render();
     renderServices();
     renderDateStrip();
@@ -162,7 +183,7 @@ async function refreshServices() {
     if (!selected?.isActive) state.selectedServiceId = activeServices()[0]?.id || "";
   } catch (error) {
     state.services = DEFAULT_SERVICES;
-    els.formMessage.textContent = "Die Services konnten nicht geladen werden. Bitte laden Sie die Seite erneut.";
+    setFormMessage(() => t("customer.servicesLoadFailed"));
   }
   renderServices();
 }
@@ -218,7 +239,7 @@ async function refreshDayData(options = {}) {
     state.blockedSlots = blockedSlots;
     state.scheduleRecords = scheduleRecords;
   } catch (error) {
-    els.formMessage.textContent = "Die verfügbaren Termine konnten nicht geladen werden. Bitte laden Sie die Seite erneut.";
+    setFormMessage(() => t("customer.scheduleLoadFailed"));
   }
   if (shouldRender) render();
 }
@@ -322,7 +343,7 @@ function renderServices() {
   const serviceGroups = groupServicesByCategory(services);
   els.serviceOptions.innerHTML = `
     <div class="service-strip-shell">
-      <button class="service-nav-button" type="button" data-service-scroll="-1" aria-label="Vorherige Services">‹</button>
+      <button class="service-nav-button" type="button" data-service-scroll="-1" aria-label="${t("customer.previousServices")}">‹</button>
       <div class="service-carousel" aria-label="${t("booking.serviceLegend")}">
         ${serviceGroups.map((group) => `
           <section class="service-group" aria-label="${escapeHtml(group.label)}">
@@ -344,7 +365,7 @@ function renderServices() {
           </section>
         `).join("")}
       </div>
-      <button class="service-nav-button" type="button" data-service-scroll="1" aria-label="Weitere Services">›</button>
+      <button class="service-nav-button" type="button" data-service-scroll="1" aria-label="${t("customer.nextServices")}">›</button>
     </div>
   `;
 }
@@ -369,7 +390,12 @@ function groupServicesByCategory(services) {
     }
     byCategory.get(category).services.push(service);
   });
-  return Array.from(byCategory.values()).filter((group) => group.services.length > 0);
+  return Array.from(byCategory.values())
+    .filter((group) => group.services.length > 0)
+    .map((group) => ({
+      ...group,
+      label: getServiceCategoryName(group.services[0], group.category),
+    }));
 }
 
 function getServiceCategory(service) {
@@ -474,7 +500,7 @@ function renderSlots() {
   els.slotGrid.querySelectorAll(".slot-button.available").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedSlot = button.dataset.slot;
-      els.formMessage.textContent = "";
+      setFormMessage("");
       renderSelectedSummaries();
       renderSlots();
     });
@@ -525,7 +551,10 @@ async function handleSubmit(event) {
   if (!state.selectedSlot) {
     const service = getSelectedService();
     const slots = service ? buildSlots(els.dateInput.value, service) : [];
-    els.formMessage.textContent = getNoSlotMessage(slots);
+    setFormMessage(() => {
+      const currentService = getSelectedService();
+      return getNoSlotMessage(currentService ? buildSlots(els.dateInput.value, currentService) : []);
+    });
     return;
   }
 
@@ -549,7 +578,7 @@ async function handleSubmit(event) {
 
   const slotError = validateBookingSlot(appointment);
   if (slotError) {
-    els.formMessage.textContent = slotError;
+    setFormMessage(() => validateBookingSlot(appointment));
     state.selectedSlot = "";
     renderSlots();
     return;
@@ -558,7 +587,7 @@ async function handleSubmit(event) {
   if (state.repository.requiresTurnstile) {
     appointment.turnstileToken = getTurnstileToken();
     if (!appointment.turnstileToken) {
-      els.formMessage.textContent = "Bitte bestaetige, dass du kein Bot bist.";
+      setFormMessage(() => t("customer.securityRequired"));
       updateSubmitState();
       return;
     }
@@ -576,12 +605,12 @@ async function handleSubmit(event) {
     resetTurnstile();
     const mailMessage = await state.repository.sendBookingEmail(bookingId, "created");
     renderBookingResult();
-    els.formMessage.textContent = mailMessage || "";
+    setFormMessage(mailMessage || "");
     await refreshDayData();
     renderServices();
   } catch (error) {
     resetTurnstile();
-    els.formMessage.textContent = getBookingErrorMessage(error);
+    setFormMessage(() => getBookingErrorMessage(error));
     await refreshDayData();
   }
 }
@@ -589,8 +618,8 @@ async function handleSubmit(event) {
 function renderBookingResult() {
   els.bookingResult.hidden = false;
   els.bookingResult.innerHTML = `
-    <strong>Termin bestätigt</strong>
-    <span>Bitte prüfen Sie Ihre E-Mail.</span>
+    <strong>${t("customer.success")}</strong>
+    <span>${t("customer.checkEmail")}</span>
   `;
 }
 
@@ -600,12 +629,20 @@ function createSupabaseRepository(client) {
     requiresTurnstile: true,
     async listServices() {
       const salon = await salonPromise;
-      const { data, error } = await client
+      let { data, error } = await client
         .from("services")
-        .select("id, name, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, slot_color")
+        .select("id, name, name_en, name_zh, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, category_name_en, category_name_zh, slot_color")
         .eq("salon_id", salon.id)
         .eq("is_active", true)
         .order("id", { ascending: true });
+      if (error?.code === "42703") {
+        ({ data, error } = await client
+          .from("services")
+          .select("id, name, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, slot_color")
+          .eq("salon_id", salon.id)
+          .eq("is_active", true)
+          .order("id", { ascending: true }));
+      }
       if (error) throw error;
       return (data || []).map(fromSupabaseService);
     },
@@ -682,9 +719,9 @@ function createSupabaseRepository(client) {
       const { data, error } = await client.functions.invoke("send-booking-email", {
         body: { booking_id: bookingId, event_type: eventType },
       });
-      if (error) return "Der Termin wurde gespeichert, aber die Bestätigungsmail konnte nicht versendet werden. Bitte kontaktieren Sie den Salon.";
+      if (error) return t("customer.emailDeliveryFailed");
       const failed = data?.results?.find((result) => result.status === "failed");
-      return failed ? "Der Termin wurde gespeichert, aber die Bestätigungsmail konnte nicht versendet werden. Bitte kontaktieren Sie den Salon." : "";
+      return failed ? t("customer.emailDeliveryFailed") : "";
     },
     async getDaySettings(date) {
       const salon = await salonPromise;
@@ -774,7 +811,7 @@ function getTurnstileToken(options = {}) {
   const formToken = els.bookingForm?.querySelector('input[name="cf-turnstile-response"]')?.value || "";
   const token = formToken || window.turnstile?.getResponse?.(els.turnstileWidget) || window.turnstile?.getResponse?.() || "";
   if (!token && !silent) {
-    els.formMessage.textContent = "Bitte schliesse die Sicherheitspruefung ab.";
+    setFormMessage(() => t("customer.securityRequired"));
   }
   return token;
 }
@@ -811,28 +848,28 @@ function buildSlots(date, service) {
 }
 
 function getSlotReason({ isPast, ownerBlocked, laneUnavailable }) {
-  if (isPast) return "Vergangen";
-  if (ownerBlocked) return "Blockiert";
-  if (laneUnavailable) return "Belegt";
+  if (isPast) return t("customer.slotPast");
+  if (ownerBlocked) return t("customer.slotBlocked");
+  if (laneUnavailable) return t("customer.slotOccupied");
   return "";
 }
 
 function getNoSlotMessage(slots) {
-  if (!getSelectedService()) return "Aktuell ist kein buchbarer Service verfügbar.";
-  if (state.daySettings.isBlockedDay) return "Dieser Tag ist nicht für Buchungen geöffnet. Bitte wähle ein anderes Datum.";
-  if (slots.length === 0) return "Der gewählte Service passt nicht in die Öffnungszeiten dieses Tages.";
-  if (slots.every((slot) => slot.isPast)) return "Für heute sind keine späteren Termine mehr verfügbar.";
-  if (slots.every((slot) => slot.reason === "Belegt")) return "Alle passenden Zeiten für diesen Service sind bereits belegt.";
-  if (slots.every((slot) => slot.reason === "Blockiert")) return "Alle passenden Zeiten für diesen Service wurden blockiert.";
-  return "Bitte wähle eine verfügbare Uhrzeit.";
+  if (!getSelectedService()) return t("customer.noServices");
+  if (state.daySettings.isBlockedDay) return t("customer.dayUnavailable");
+  if (slots.length === 0) return t("customer.serviceOutsideHours");
+  if (slots.every((slot) => slot.isPast)) return t("customer.noLaterToday");
+  if (slots.every((slot) => slot.reason === t("customer.slotOccupied"))) return t("customer.allTimesOccupied");
+  if (slots.every((slot) => slot.reason === t("customer.slotBlocked"))) return t("customer.allTimesBlocked");
+  return t("customer.chooseAvailableTime");
 }
 
 function validateBookingSlot(appointment) {
-  if (state.daySettings.isBlockedDay) return "Dieser Tag ist nicht für Buchungen geöffnet.";
-  if (appointment.startMinutes < state.daySettings.openMinutes || appointment.endMinutes > state.daySettings.closeMinutes) return "Diese Uhrzeit liegt außerhalb der Öffnungszeiten.";
+  if (state.daySettings.isBlockedDay) return t("customer.dayUnavailable");
+  if (appointment.startMinutes < state.daySettings.openMinutes || appointment.endMinutes > state.daySettings.closeMinutes) return t("customer.timeOutsideHours");
   const schedule = state.scheduleRecords.length > 0 ? state.scheduleRecords : state.appointments;
-  if (hasOverlap(appointment, state.blockedSlots)) return "Diese Uhrzeit wurde blockiert. Bitte wähle eine andere Zeit.";
-  if (!findAvailableLane(appointment, schedule)) return "Für diesen Zeitraum ist kein vollständiger Platz mehr verfügbar.";
+  if (hasOverlap(appointment, state.blockedSlots)) return t("customer.timeBlocked");
+  if (!findAvailableLane(appointment, schedule)) return t("customer.noCompleteLane");
   return "";
 }
 
@@ -1016,7 +1053,7 @@ function formatDateButtonLabel(date) {
   const weekday = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date);
   return {
     weekday,
-    day: new Intl.DateTimeFormat(locale, { day: "numeric" }).format(date),
+    day: lang === "zh" ? String(date.getDate()) : new Intl.DateTimeFormat(locale, { day: "numeric" }).format(date),
   };
 }
 
@@ -1096,6 +1133,8 @@ function fromSupabaseService(row) {
   return {
     id: row.id,
     name: row.name,
+    nameEn: row.name_en || "",
+    nameZh: row.name_zh || "",
     shortName: row.short_name || row.name,
     duration: row.duration_minutes,
     bookedSlots: row.booked_slots || [],
@@ -1103,6 +1142,8 @@ function fromSupabaseService(row) {
     priceFrom: Boolean(row.price_from),
     slotColor: row.slot_color || "",
     category: row.category || fallback?.category || "care",
+    categoryNameEn: row.category_name_en || "",
+    categoryNameZh: row.category_name_zh || "",
     gender: fallback?.gender || row.gender || "unisex",
     isActive: row.is_active,
   };
@@ -1228,27 +1269,27 @@ function isConflictError(error) {
 
 function getBookingErrorMessage(error) {
   const message = error.message || "";
-  if (/outside working hours/i.test(message)) return "Buchung fehlgeschlagen: Diese Uhrzeit liegt außerhalb der Öffnungszeiten. Bitte aktualisiere die Seite und wähle neu.";
-  if (/This day is not available/i.test(message)) return "Buchung fehlgeschlagen: Dieser Tag ist nicht für Buchungen geöffnet.";
-  if (/blocked slot/i.test(message)) return "Buchung fehlgeschlagen: Diese Uhrzeit wurde blockiert.";
-  if (/No complete service lane/i.test(message)) return "Buchung fehlgeschlagen: Für diesen Zeitraum ist kein vollständiger Platz mehr verfügbar.";
-  if (/prevent_double_booking|conflict|overlap/i.test(message)) return "Buchung fehlgeschlagen: Diese Uhrzeit wurde gerade belegt. Bitte wähle eine andere Zeit.";
-  if (/Unknown or inactive service/i.test(message)) return "Buchung fehlgeschlagen: Dieser Service ist nicht mehr aktiv. Bitte aktualisiere die Seite.";
-  if (/Invalid (customer )?name/i.test(message)) return "Buchung fehlgeschlagen: Der Name muss mindestens 2 Zeichen haben und darf nicht nur aus Zahlen bestehen.";
-  if (/Invalid phone/i.test(message)) return "Buchung fehlgeschlagen: Die Telefonnummer ist ungültig.";
-  if (/Invalid email/i.test(message)) return "Buchung fehlgeschlagen: Die E-Mail-Adresse ist ungültig.";
-  if (/Too many booking attempts/i.test(message)) return "Buchung fehlgeschlagen: Zu viele Versuche. Bitte versuche es in 10 Minuten erneut.";
-  if (/Turnstile|captcha|token/i.test(message)) return "Buchung fehlgeschlagen: Die Sicherheitsprüfung ist abgelaufen. Bitte bestätigen Sie sie erneut.";
-  if (isConflictError(error)) return "Buchung fehlgeschlagen: Diese Uhrzeit ist nicht mehr verfügbar. Bitte wählen Sie eine andere Zeit.";
-  return "Buchung fehlgeschlagen. Bitte versuchen Sie es erneut oder kontaktieren Sie den Salon.";
+  if (/outside working hours/i.test(message)) return t("customer.timeOutsideHours");
+  if (/This day is not available/i.test(message)) return t("customer.dayUnavailable");
+  if (/blocked slot/i.test(message)) return t("customer.timeBlocked");
+  if (/No complete service lane/i.test(message)) return t("customer.noCompleteLane");
+  if (/prevent_double_booking|conflict|overlap/i.test(message)) return t("customer.bookingConflict");
+  if (/Unknown or inactive service/i.test(message)) return t("customer.noServices");
+  if (/Invalid (customer )?name/i.test(message)) return t("customer.nameNotNumeric");
+  if (/Invalid phone/i.test(message)) return t("customer.phoneInvalid");
+  if (/Invalid email/i.test(message)) return t("customer.emailInvalid");
+  if (/Too many booking attempts/i.test(message)) return t("customer.tooManyAttempts");
+  if (/Turnstile|captcha|token/i.test(message)) return t("customer.securityRequired");
+  if (isConflictError(error)) return t("customer.bookingConflict");
+  return t("customer.bookingFailed");
 }
 
 function validateCustomerName(value) {
   const name = String(value || "").trim();
-  if (!name) return "Bitte gib deinen Namen ein.";
-  if (name.length < 2) return "Der Name muss mindestens 2 Zeichen haben.";
-  if (name.length > 50) return "Der Name darf höchstens 50 Zeichen lang sein.";
-  if (/^\d+$/.test(name)) return "Bitte gib einen Namen ein, nicht nur Zahlen.";
+  if (!name) return t("customer.nameRequired");
+  if (name.length < 2) return t("customer.nameTooShort");
+  if (name.length > 50) return t("customer.nameTooLong");
+  if (/^\d+$/.test(name)) return t("customer.nameNotNumeric");
   return "";
 }
 
@@ -1264,29 +1305,29 @@ function validateCustomerFields() {
 
   const phone = els.customerPhone?.value.trim() || "";
   if (!phone) {
-    els.customerPhone.setCustomValidity("Bitte gib deine Telefonnummer ein.");
+    els.customerPhone.setCustomValidity(t("customer.phoneRequired"));
     return els.customerPhone;
   }
   if (phone.length > 50) {
-    els.customerPhone.setCustomValidity("Die Telefonnummer darf höchstens 50 Zeichen lang sein.");
+    els.customerPhone.setCustomValidity(t("customer.phoneTooLong"));
     return els.customerPhone;
   }
   if (!/^\+?[0-9][0-9\s()/.-]{5,}$/.test(phone)) {
-    els.customerPhone.setCustomValidity("Bitte gib eine gültige Telefonnummer ein.");
+    els.customerPhone.setCustomValidity(t("customer.phoneInvalid"));
     return els.customerPhone;
   }
 
   const email = els.customerEmail?.value.trim() || "";
   if (!email) {
-    els.customerEmail.setCustomValidity("Bitte gib deine E-Mail-Adresse ein.");
+    els.customerEmail.setCustomValidity(t("customer.emailRequired"));
     return els.customerEmail;
   }
   if (email.length > 50) {
-    els.customerEmail.setCustomValidity("Die E-Mail-Adresse darf höchstens 50 Zeichen lang sein.");
+    els.customerEmail.setCustomValidity(t("customer.emailTooLong"));
     return els.customerEmail;
   }
   if (!els.customerEmail.checkValidity()) {
-    els.customerEmail.setCustomValidity("Bitte gib eine gültige E-Mail-Adresse ein.");
+    els.customerEmail.setCustomValidity(t("customer.emailInvalid"));
     return els.customerEmail;
   }
 

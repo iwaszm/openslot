@@ -86,6 +86,7 @@ supabase/three-lane-scheduling.sql
 supabase/unified-schedule-entries.sql
 supabase/migrations/20260913170000_admin_availability_blocks.sql
 supabase/migrations/20260914090000_history_retention.sql
+supabase/migrations/20260915090000_service_translations.sql
 ```
 
 The history-retention migration installs a weekly Sunday Supabase Cron job. It keeps

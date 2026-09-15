@@ -7,7 +7,7 @@ const DEFAULT_SERVICES = [
   { id: "pflegen", name: "Pflegen", shortName: "Pflegen", duration: 30, bookedSlots: [1], price: 25, priceFrom: false, category: "care", gender: "unisex", isActive: true },
   { id: "straehnen", name: "Strähnen", shortName: "Stra", duration: 120, bookedSlots: [1, 4], price: 40, priceFrom: true, category: "color", gender: "unisex", isActive: true },
   { id: "blondierung", name: "Blondieren", shortName: "Blond", duration: 120, bookedSlots: [1, 4], price: 45, priceFrom: true, category: "color", gender: "unisex", isActive: true },
-  { id: "lonen_dauerwelle", name: "Lonen Dauerwelle", shortName: "LDauer", duration: 240, bookedSlots: [1, 2, 4, 5, 7, 8], price: 120, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
+  { id: "ionen_dauerwelle", name: "Ionen Dauerwelle", shortName: "IDauer", duration: 240, bookedSlots: [1, 2, 4, 5, 7, 8], price: 120, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
   { id: "digitale_dauerwelle", name: "Digitale Dauerwelle", shortName: "DDauer", duration: 240, bookedSlots: [1, 2, 4, 5, 7, 8], price: 120, priceFrom: true, category: "shape", gender: "unisex", isActive: true },
 ];
 const SERVICE_ORDER = new Map(DEFAULT_SERVICES.map((service, index) => [service.id, index]));
@@ -1914,7 +1914,7 @@ function formatDateButtonLabel(date) {
   const locale = lang === "zh" ? "zh-CN" : lang === "de" ? "de-DE" : "en-US";
   return {
     weekday: new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date),
-    day: new Intl.DateTimeFormat(locale, { day: "numeric" }).format(date),
+    day: lang === "zh" ? String(date.getDate()) : new Intl.DateTimeFormat(locale, { day: "numeric" }).format(date),
   };
 }
 

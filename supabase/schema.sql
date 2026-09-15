@@ -54,7 +54,7 @@ values
   ('pflegen', 'Pflegen', 30, 25, 'care'),
   ('straehnen', 'Strahnen', 90, 40, 'color'),
   ('blondierung', 'Blondierung', 120, 45, 'color'),
-  ('lonen_dauerwelle', 'Lonen Dauerwelle', 150, 120, 'shape'),
+  ('ionen_dauerwelle', 'Ionen Dauerwelle', 150, 120, 'shape'),
   ('digitale_dauerwelle', 'Digitale Dauerwelle', 150, 100, 'shape')
 on conflict (id) do update
 set
@@ -147,7 +147,7 @@ with check (
     'pflegen',
     'straehnen',
     'blondierung',
-    'lonen_dauerwelle',
+    'ionen_dauerwelle',
     'digitale_dauerwelle'
   )
   and end_time > start_time

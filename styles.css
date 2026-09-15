@@ -1266,6 +1266,59 @@ h2 {
   padding: 26px 34px 34px;
 }
 
+.salon-heading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.salon-heading h2 {
+  margin: 0;
+  min-width: 0;
+}
+
+.language-switcher {
+  border: 1px solid #d8cbc4;
+  border-radius: 5px;
+  display: inline-grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(3, auto);
+  overflow: hidden;
+}
+
+.language-option {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid #d8cbc4;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 750;
+  min-height: 30px;
+  min-width: 36px;
+  padding: 5px 7px;
+}
+
+.language-option:first-child {
+  border-left: 0;
+}
+
+.language-option:hover,
+.language-option:focus-visible {
+  background: #f4ebe7;
+  color: var(--ink);
+  outline: none;
+}
+
+.language-option[aria-pressed="true"] {
+  background: var(--ink);
+  color: #fff;
+}
+
 .muted-link {
   color: var(--muted);
   display: inline-flex;
@@ -1794,6 +1847,20 @@ select:focus-visible,
 }
 
 @media (max-width: 390px) {
+  .salon-heading {
+    gap: 8px;
+  }
+
+  .salon-heading h2 {
+    font-size: 1.25rem;
+  }
+
+  .language-option {
+    font-size: 0.66rem;
+    min-width: 30px;
+    padding: 4px 5px;
+  }
+
   .topbar-actions {
     grid-template-columns: 1fr;
   }
@@ -2062,7 +2129,7 @@ body {
   padding-top: 30px;
 }
 
-.salon-body h2 {
+.salon-body > h2 {
   margin-bottom: 24px;
 }
 

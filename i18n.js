@@ -136,6 +136,38 @@ const OPENSLOT_TRANSLATIONS = {
     "customer.emailSent": "预约已提交，确认邮件已发送。",
     "customer.emailSendFailed": "预约已提交，但邮件发送失败：{message}",
     "customer.localNoEmail": "预约已提交。本地演示版不会发送邮件。",
+    "customer.checkEmail": "请查看您的邮箱。",
+    "customer.servicesLoadFailed": "服务项目无法加载，请刷新页面。",
+    "customer.scheduleLoadFailed": "可预约时间无法加载，请刷新页面。",
+    "customer.securityRequired": "请完成人机验证。",
+    "customer.emailDeliveryFailed": "预约已保存，但确认邮件发送失败。请联系店铺。",
+    "customer.slotPast": "已过去",
+    "customer.slotBlocked": "已暂停",
+    "customer.slotOccupied": "已占用",
+    "customer.dayUnavailable": "这一天暂不开放预约，请选择其他日期。",
+    "customer.serviceOutsideHours": "所选服务时长不适合当天营业时间。",
+    "customer.noLaterToday": "今天没有更晚的可预约时间。",
+    "customer.allTimesOccupied": "该服务的所有合适时间均已被预约。",
+    "customer.allTimesBlocked": "该服务的所有合适时间均已暂停。",
+    "customer.chooseAvailableTime": "请选择一个可预约时间。",
+    "customer.timeOutsideHours": "该时间不在营业时间内。",
+    "customer.timeBlocked": "该时间已暂停，请选择其他时间。",
+    "customer.noCompleteLane": "该时段已没有完整服务位。",
+    "customer.bookingFailed": "预约失败，请重试或联系店铺。",
+    "customer.bookingConflict": "该时间刚刚被预约，请选择其他时间。",
+    "customer.tooManyAttempts": "尝试次数过多，请在 10 分钟后重试。",
+    "customer.nameRequired": "请输入姓名。",
+    "customer.nameTooShort": "姓名至少需要 2 个字符。",
+    "customer.nameTooLong": "姓名最多可输入 50 个字符。",
+    "customer.nameNotNumeric": "请输入姓名，不能只输入数字。",
+    "customer.phoneRequired": "请输入电话号码。",
+    "customer.phoneTooLong": "电话号码最多可输入 50 个字符。",
+    "customer.phoneInvalid": "请输入有效的电话号码。",
+    "customer.emailRequired": "请输入邮箱地址。",
+    "customer.emailTooLong": "邮箱地址最多可输入 50 个字符。",
+    "customer.emailInvalid": "请输入有效的邮箱地址。",
+    "customer.previousServices": "上一组服务",
+    "customer.nextServices": "下一组服务",
     "date.today": "今天",
     "service.category.cut": "剪发",
     "service.category.care": "护理与造型",
@@ -149,7 +181,7 @@ const OPENSLOT_TRANSLATIONS = {
     "service.pflegen": "护理",
     "service.straehnen": "挑染",
     "service.blondierung": "漂发",
-    "service.lonen_dauerwelle": "Lonen 烫发",
+    "service.ionen_dauerwelle": "离子烫",
     "service.digitale_dauerwelle": "数码烫",
     "service.haircut": "剪发",
     "service.color": "染发",
@@ -288,6 +320,38 @@ const OPENSLOT_TRANSLATIONS = {
     "customer.emailSent": "Booking submitted. Confirmation email sent.",
     "customer.emailSendFailed": "Booking submitted, but email delivery failed: {message}",
     "customer.localNoEmail": "Booking submitted. Local demo mode does not send email.",
+    "customer.checkEmail": "Please check your email.",
+    "customer.servicesLoadFailed": "Services could not be loaded. Please refresh the page.",
+    "customer.scheduleLoadFailed": "Available appointments could not be loaded. Please refresh the page.",
+    "customer.securityRequired": "Please complete the security check.",
+    "customer.emailDeliveryFailed": "The booking was saved, but the confirmation email could not be sent. Please contact the salon.",
+    "customer.slotPast": "Past",
+    "customer.slotBlocked": "Blocked",
+    "customer.slotOccupied": "Occupied",
+    "customer.dayUnavailable": "This day is not open for bookings. Please choose another date.",
+    "customer.serviceOutsideHours": "The selected service does not fit within this day's opening hours.",
+    "customer.noLaterToday": "There are no later appointments available today.",
+    "customer.allTimesOccupied": "All suitable times for this service are already booked.",
+    "customer.allTimesBlocked": "All suitable times for this service are blocked.",
+    "customer.chooseAvailableTime": "Please choose an available time.",
+    "customer.timeOutsideHours": "This time is outside the opening hours.",
+    "customer.timeBlocked": "This time is blocked. Please choose another time.",
+    "customer.noCompleteLane": "No complete service space is available for this period.",
+    "customer.bookingFailed": "Booking failed. Please try again or contact the salon.",
+    "customer.bookingConflict": "This time was just booked. Please choose another time.",
+    "customer.tooManyAttempts": "Too many attempts. Please try again in 10 minutes.",
+    "customer.nameRequired": "Please enter your name.",
+    "customer.nameTooShort": "The name must contain at least 2 characters.",
+    "customer.nameTooLong": "The name can contain no more than 50 characters.",
+    "customer.nameNotNumeric": "Please enter a name, not only numbers.",
+    "customer.phoneRequired": "Please enter your phone number.",
+    "customer.phoneTooLong": "The phone number can contain no more than 50 characters.",
+    "customer.phoneInvalid": "Please enter a valid phone number.",
+    "customer.emailRequired": "Please enter your email address.",
+    "customer.emailTooLong": "The email address can contain no more than 50 characters.",
+    "customer.emailInvalid": "Please enter a valid email address.",
+    "customer.previousServices": "Previous services",
+    "customer.nextServices": "Next services",
     "date.today": "Today",
     "service.category.cut": "Haircut",
     "service.category.care": "Care and styling",
@@ -301,7 +365,7 @@ const OPENSLOT_TRANSLATIONS = {
     "service.pflegen": "Care",
     "service.straehnen": "Highlights",
     "service.blondierung": "Bleaching",
-    "service.lonen_dauerwelle": "Lonen perm",
+    "service.ionen_dauerwelle": "Ionic perm",
     "service.digitale_dauerwelle": "Digital perm",
     "service.haircut": "Haircut",
     "service.color": "Color",
@@ -440,6 +504,38 @@ const OPENSLOT_TRANSLATIONS = {
     "customer.emailSent": "Termin wurde gesendet. Die Bestätigungsmail wurde verschickt.",
     "customer.emailSendFailed": "Termin wurde gesendet, aber die E-Mail konnte nicht verschickt werden: {message}",
     "customer.localNoEmail": "Termin wurde gesendet. Die lokale Demo verschickt keine E-Mail.",
+    "customer.checkEmail": "Bitte prüfen Sie Ihre E-Mail.",
+    "customer.servicesLoadFailed": "Die Services konnten nicht geladen werden. Bitte laden Sie die Seite erneut.",
+    "customer.scheduleLoadFailed": "Die verfügbaren Termine konnten nicht geladen werden. Bitte laden Sie die Seite erneut.",
+    "customer.securityRequired": "Bitte schließen Sie die Sicherheitsprüfung ab.",
+    "customer.emailDeliveryFailed": "Der Termin wurde gespeichert, aber die Bestätigungsmail konnte nicht versendet werden. Bitte kontaktieren Sie den Salon.",
+    "customer.slotPast": "Vergangen",
+    "customer.slotBlocked": "Blockiert",
+    "customer.slotOccupied": "Belegt",
+    "customer.dayUnavailable": "Dieser Tag ist nicht für Buchungen geöffnet. Bitte wählen Sie ein anderes Datum.",
+    "customer.serviceOutsideHours": "Der gewählte Service passt nicht in die Öffnungszeiten dieses Tages.",
+    "customer.noLaterToday": "Für heute sind keine späteren Termine mehr verfügbar.",
+    "customer.allTimesOccupied": "Alle passenden Zeiten für diesen Service sind bereits belegt.",
+    "customer.allTimesBlocked": "Alle passenden Zeiten für diesen Service wurden blockiert.",
+    "customer.chooseAvailableTime": "Bitte wählen Sie eine verfügbare Uhrzeit.",
+    "customer.timeOutsideHours": "Diese Uhrzeit liegt außerhalb der Öffnungszeiten.",
+    "customer.timeBlocked": "Diese Uhrzeit wurde blockiert. Bitte wählen Sie eine andere Zeit.",
+    "customer.noCompleteLane": "Für diesen Zeitraum ist kein vollständiger Platz mehr verfügbar.",
+    "customer.bookingFailed": "Buchung fehlgeschlagen. Bitte versuchen Sie es erneut oder kontaktieren Sie den Salon.",
+    "customer.bookingConflict": "Diese Uhrzeit wurde gerade belegt. Bitte wählen Sie eine andere Zeit.",
+    "customer.tooManyAttempts": "Zu viele Versuche. Bitte versuchen Sie es in 10 Minuten erneut.",
+    "customer.nameRequired": "Bitte geben Sie Ihren Namen ein.",
+    "customer.nameTooShort": "Der Name muss mindestens 2 Zeichen haben.",
+    "customer.nameTooLong": "Der Name darf höchstens 50 Zeichen lang sein.",
+    "customer.nameNotNumeric": "Bitte geben Sie einen Namen ein, nicht nur Zahlen.",
+    "customer.phoneRequired": "Bitte geben Sie Ihre Telefonnummer ein.",
+    "customer.phoneTooLong": "Die Telefonnummer darf höchstens 50 Zeichen lang sein.",
+    "customer.phoneInvalid": "Bitte geben Sie eine gültige Telefonnummer ein.",
+    "customer.emailRequired": "Bitte geben Sie Ihre E-Mail-Adresse ein.",
+    "customer.emailTooLong": "Die E-Mail-Adresse darf höchstens 50 Zeichen lang sein.",
+    "customer.emailInvalid": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+    "customer.previousServices": "Vorherige Services",
+    "customer.nextServices": "Weitere Services",
     "date.today": "Heute",
     "service.category.cut": "Haarschnitt",
     "service.category.care": "Pflege & Styling",
@@ -453,7 +549,7 @@ const OPENSLOT_TRANSLATIONS = {
     "service.pflegen": "Pflegen",
     "service.straehnen": "Strahnen",
     "service.blondierung": "Blondierung",
-    "service.lonen_dauerwelle": "Lonen Dauerwelle",
+    "service.ionen_dauerwelle": "Ionen Dauerwelle",
     "service.digitale_dauerwelle": "Digitale Dauerwelle",
     "service.haircut": "Haarschnitt",
     "service.color": "Farbe",
@@ -493,6 +589,9 @@ function translatePage() {
   document.querySelectorAll(".language-select").forEach((select) => {
     select.value = lang;
   });
+  document.querySelectorAll("[data-language-option]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.languageOption === lang));
+  });
 }
 
 window.OpenSlotI18n = {
@@ -501,7 +600,7 @@ window.OpenSlotI18n = {
   serviceName(service) {
     const lang = window.OpenSlotI18n.language;
     const key = `service.${service.id}`;
-    return OPENSLOT_TRANSLATIONS[lang]?.[key] || OPENSLOT_TRANSLATIONS.zh[key] || service.name;
+    return OPENSLOT_TRANSLATIONS[lang]?.[key] || service.name;
   },
   setLanguage(nextLanguage) {
     const lockedLanguage = document.documentElement.dataset.languageLock;
@@ -516,6 +615,10 @@ window.OpenSlotI18n = {
 
 document.querySelectorAll(".language-select").forEach((select) => {
   select.addEventListener("change", (event) => window.OpenSlotI18n.setLanguage(event.target.value));
+});
+
+document.querySelectorAll("[data-language-option]").forEach((button) => {
+  button.addEventListener("click", () => window.OpenSlotI18n.setLanguage(button.dataset.languageOption));
 });
 
 translatePage();

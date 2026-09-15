@@ -124,7 +124,7 @@ from (
     ('lisa_straehnen', 'Strähnen', 'Stra', 120, array[1,4]::smallint[], 40::numeric, true, true, 'color', '#AB47BC'),
     ('lisa_dauerwelle', 'Dauerwelle', 'Dauer', 120, array[1,4]::smallint[], 50::numeric, true, true, 'shape', '#FFCC80'),
     ('lisa_digitale_dauerwelle', 'Digitale Dauerwelle', 'DDauer', 240, array[1,2,4,5,7,8]::smallint[], 120::numeric, true, true, 'shape', '#FFA726'),
-    ('lisa_lonen_dauerwelle', 'Lonen Dauerwelle', 'LDauer', 240, array[1,2,4,5,7,8]::smallint[], 120::numeric, true, true, 'shape', '#FB8C00')
+    ('lisa_ionen_dauerwelle', 'Ionen Dauerwelle', 'IDauer', 240, array[1,2,4,5,7,8]::smallint[], 120::numeric, true, true, 'shape', '#FB8C00')
 ) as values_list(
   id, name, short_name, duration_minutes, booked_slots,
   price, price_from, is_active, category, slot_color

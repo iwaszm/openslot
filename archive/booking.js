@@ -8,7 +8,7 @@ const DEFAULT_SERVICES = [
   { id: "pflegen", name: "Pflegen" },
   { id: "straehnen", name: "Strahnen" },
   { id: "blondierung", name: "Blondierung" },
-  { id: "lonen_dauerwelle", name: "Lonen Dauerwelle" },
+  { id: "ionen_dauerwelle", name: "Ionen Dauerwelle" },
   { id: "digitale_dauerwelle", name: "Digitale Dauerwelle" },
 ];
 
