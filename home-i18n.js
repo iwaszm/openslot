@@ -400,12 +400,12 @@
     }
   });
   const originalTitle = document.title;
-  const select = document.getElementById("homeLanguage");
+  const languageButtons = document.querySelectorAll("#homeLanguage [data-language]");
   function t(text) { return translations[text]?.[language] || text; }
   function apply() {
     document.documentElement.lang = language;
     document.title = t(originalTitle);
-    select.value = language;
+    languageButtons.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.language === language)));
     bindings.forEach(({node, original}) => {
       node.textContent = original.replace(original.trim(), t(original.trim()));
     });
@@ -413,10 +413,10 @@
     window.dispatchEvent(new Event("home-language-change"));
   }
   window.homeLanguage = { t, get locale() { return {de:"de-DE",en:"en-GB",zh:"zh-CN"}[language]; } };
-  select.addEventListener("change", () => {
-    language = select.value;
+  languageButtons.forEach(button => button.addEventListener("click", () => {
+    language = button.dataset.language;
     try { localStorage.setItem(storageKey, language); } catch {}
     apply();
-  });
+  }));
   apply();
 })();

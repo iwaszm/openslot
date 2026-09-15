@@ -16,10 +16,14 @@
     <header class="site-header">
       <a class="wordmark" href="#" aria-label="OpenSlotBerlin Startseite"><span class="brand-mark" aria-hidden="true"></span>OpenSlot<span class="wordmark-city">Berlin</span></a>
       <nav aria-label="Hauptnavigation">
-        <select id="homeLanguage" aria-label="Sprache / Language / 语言"><option value="de">DE</option><option value="en">EN</option><option value="zh">中文</option></select>
         <a href="#ablauf">So funktioniert's</a>
         <a href="#vertrauen">Sicherheit</a>
         <a class="nav-cta" href="#demo">Demo ansehen <img class="icon" src="./assets/home/arrow-up-right.svg" alt=""></a>
+        <div id="homeLanguage" role="group" aria-label="Sprache / Language / 语言">
+          <button type="button" data-language="de" lang="de" aria-label="Deutsch" aria-pressed="true">DE</button><span aria-hidden="true">/</span>
+          <button type="button" data-language="en" lang="en" aria-label="English" aria-pressed="false">EN</button><span aria-hidden="true">/</span>
+          <button type="button" data-language="zh" lang="zh" aria-label="中文" aria-pressed="false">中</button>
+        </div>
       </nav>
     </header>
     <main id="main">
