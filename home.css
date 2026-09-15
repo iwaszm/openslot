@@ -80,3 +80,5 @@
 @media(max-width:1000px){.site-header nav{gap:16px}}
 @media(max-width:700px){.site-header{height:auto;min-height:100px;flex-wrap:wrap;gap:0;padding-top:10px;padding-bottom:10px}.site-header nav{width:100%;justify-content:flex-end;gap:20px}.site-header .nav-cta{display:flex}}
 :lang(zh) .hero-tagline,:lang(zh) h2,:lang(zh) h3{font-family:var(--display),"Microsoft YaHei","PingFang SC",sans-serif}
+:lang(ko) .hero-tagline,:lang(ko) h2,:lang(ko) h3{font-family:var(--display),"Malgun Gothic","Apple SD Gothic Neo",sans-serif;word-break:keep-all;overflow-wrap:anywhere}
+@media(max-width:700px){.site-header nav{gap:12px}}
