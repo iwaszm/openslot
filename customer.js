@@ -70,7 +70,7 @@ function getServiceCategoryName(service, category) {
   if (databaseName) return databaseName;
   const key = `service.category.${category}`;
   const translated = t(key);
-  return translated === key ? SERVICE_CATEGORY_LABELS[category] || "Services" : translated;
+  return translated === key ? SERVICE_CATEGORY_LABELS[category] || t("booking.serviceLegend") : translated;
 }
 
 function setFormMessage(message) {
@@ -298,7 +298,7 @@ function renderSalonOpeningHours(openingHours) {
       </summary>
       <dl class="weekly-hours">
         ${Object.values(rows).map((day) => `
-          <div class="${day.hours === "geschlossen" || day.hours === "closed" ? "closed-day" : ""}">
+          <div class="${isClosedHours(day.hours) ? "closed-day" : ""}">
             <dt>${escapeHtml(day.label)}</dt>
             <dd>${escapeHtml(day.hours)}</dd>
           </div>
@@ -310,14 +310,23 @@ function renderSalonOpeningHours(openingHours) {
 
 function normalizeOpeningHours(openingHours) {
   return {
-    monday: { label: t("salon.day.monday"), hours: openingHours.monday || "10:00-18:00" },
-    tuesday: { label: t("salon.day.tuesday"), hours: openingHours.tuesday || "10:00-18:00" },
-    wednesday: { label: t("salon.day.wednesday"), hours: openingHours.wednesday || "10:00-18:00" },
-    thursday: { label: t("salon.day.thursday"), hours: openingHours.thursday || "10:00-18:00" },
-    friday: { label: t("salon.day.friday"), hours: openingHours.friday || "10:00-18:00" },
-    saturday: { label: t("salon.day.saturday"), hours: openingHours.saturday || "10:00-17:00" },
-    sunday: { label: t("salon.day.sunday"), hours: openingHours.sunday || t("salon.closed") },
+    monday: { label: t("salon.day.monday"), hours: localizeOpeningHours(openingHours.monday, "10:00-18:00") },
+    tuesday: { label: t("salon.day.tuesday"), hours: localizeOpeningHours(openingHours.tuesday, "10:00-18:00") },
+    wednesday: { label: t("salon.day.wednesday"), hours: localizeOpeningHours(openingHours.wednesday, "10:00-18:00") },
+    thursday: { label: t("salon.day.thursday"), hours: localizeOpeningHours(openingHours.thursday, "10:00-18:00") },
+    friday: { label: t("salon.day.friday"), hours: localizeOpeningHours(openingHours.friday, "10:00-18:00") },
+    saturday: { label: t("salon.day.saturday"), hours: localizeOpeningHours(openingHours.saturday, "10:00-17:00") },
+    sunday: { label: t("salon.day.sunday"), hours: localizeOpeningHours(openingHours.sunday, t("salon.closed")) },
   };
+}
+
+function localizeOpeningHours(value, fallback) {
+  if (!value) return fallback;
+  return isClosedHours(value) ? t("salon.closed") : value;
+}
+
+function isClosedHours(value) {
+  return ["closed", "geschlossen", "休息"].includes(String(value || "").trim().toLowerCase());
 }
 
 function getOpeningHoursTodayKey() {
@@ -384,7 +393,7 @@ function groupServicesByCategory(services) {
     if (!byCategory.has(category)) {
       byCategory.set(category, {
         category,
-        label: SERVICE_CATEGORY_LABELS[category] || "Services",
+        label: SERVICE_CATEGORY_LABELS[category] || t("booking.serviceLegend"),
         services: [],
       });
     }

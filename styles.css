@@ -2998,6 +2998,10 @@ body {
     width: calc(100% - (var(--booking-side-inset) * 2));
   }
 
+  .customer-booking fieldset:nth-of-type(4) > legend {
+    margin-left: calc(-1 * var(--booking-form-inset));
+  }
+
   .customer-booking .slot-row {
     padding-left: 0;
   }
