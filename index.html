@@ -8,6 +8,7 @@
     <title>OpenSlotBerlin | Dein Kiez. Deine Termine.</title>
     <link rel="stylesheet" href="./home.css">
     <link rel="preload" href="./assets/home/space-grotesk-bold.ttf" as="font" type="font/ttf" crossorigin>
+    <script src="./home-i18n.js" defer></script>
     <script src="./home.js" defer></script>
   </head>
   <body>
@@ -15,6 +16,7 @@
     <header class="site-header">
       <a class="wordmark" href="#" aria-label="OpenSlotBerlin Startseite"><span class="brand-mark" aria-hidden="true"></span>OpenSlot<span class="wordmark-city">Berlin</span></a>
       <nav aria-label="Hauptnavigation">
+        <select id="homeLanguage" aria-label="Sprache / Language / 语言"><option value="de">DE</option><option value="en">EN</option><option value="zh">中文</option></select>
         <a href="#ablauf">So funktioniert's</a>
         <a href="#vertrauen">Sicherheit</a>
         <a class="nav-cta" href="#demo">Demo ansehen <img class="icon" src="./assets/home/arrow-up-right.svg" alt=""></a>

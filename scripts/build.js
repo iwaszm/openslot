@@ -20,6 +20,7 @@ for (const file of [
   "index.html",
   "home.css",
   "home.js",
+  "home-i18n.js",
   "styles.css",
   "customer.js",
   "admin.js",

@@ -70,3 +70,7 @@
 .recording-toggle{min-height:44px;margin-top:12px}
 @media(max-width:1000px){.case-studies{gap:32px}.case-study h3{font-size:26px}}
 @media(max-width:600px){.case-studies{grid-template-columns:1fr;gap:48px;margin-top:34px}.case-benefits{margin-bottom:24px}.case-recording{max-width:350px}}
+#homeLanguage{font:inherit;min-height:44px;min-width:64px;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:4px;padding:8px;cursor:pointer}
+#homeLanguage:focus-visible{outline:3px solid #325ce5;outline-offset:3px}
+@media(max-width:700px){.site-header nav{gap:12px}.site-header .nav-cta{display:none}.site-header{gap:12px}}
+:lang(zh) .hero-tagline,:lang(zh) h2,:lang(zh) h3{font-family:var(--display),"Microsoft YaHei","PingFang SC",sans-serif}

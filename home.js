@@ -1,4 +1,5 @@
 (() => {
+  const language = window.homeLanguage;
   const dateContainer = document.getElementById("demoDates");
   const slotsContainer = document.getElementById("demoSlots");
   const summary = document.getElementById("demoSummary");
@@ -25,19 +26,19 @@
   ];
 
   function describeSelection() {
-    return `${selectedService.dataset.service} · ${dates[selectedDate].toLocaleDateString("de-DE", { day: "numeric", month: "long" })} · ${selectedTime} Uhr`;
+    return `${language.t(selectedService.dataset.service)} · ${dates[selectedDate].toLocaleDateString(language.locale, { day: "numeric", month: "long" })} · ${selectedTime}`;
   }
 
   function render() {
     const selected = dates[selectedDate];
-    document.getElementById("demoMonth").textContent = selected.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+    document.getElementById("demoMonth").textContent = selected.toLocaleDateString(language.locale, { month: "long", year: "numeric" });
     dateContainer.replaceChildren(...dates.map((date, index) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = `date-button${index === selectedDate ? " selected" : ""}`;
       button.setAttribute("aria-pressed", String(index === selectedDate));
-      button.setAttribute("aria-label", date.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
-      button.append(date.toLocaleDateString("de-DE", { weekday: "short" }));
+      button.setAttribute("aria-label", date.toLocaleDateString(language.locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
+      button.append(date.toLocaleDateString(language.locale, { weekday: "short" }));
       const number = document.createElement("strong");
       number.textContent = date.getDate();
       button.append(number);
@@ -89,6 +90,13 @@
     services[0].focus({ preventScroll: true });
   });
   render();
+  window.addEventListener("home-language-change", () => {
+    render();
+    document.getElementById("demoConfirmedDetails").textContent = describeSelection();
+    document.querySelectorAll(".recording-toggle").forEach(button => {
+      button.textContent = language.t(button.getAttribute("aria-pressed") === "true" ? "Aufnahme abspielen" : "Aufnahme pausieren");
+    });
+  });
 
   document.querySelectorAll(".case-recording").forEach(recording => {
     const image = recording.querySelector("img");
@@ -100,7 +108,7 @@
       canvas.hidden = !paused;
       image.hidden = paused;
       button.setAttribute("aria-pressed", String(paused));
-      button.textContent = paused ? "Aufnahme abspielen" : "Aufnahme pausieren";
+      button.textContent = language.t(paused ? "Aufnahme abspielen" : "Aufnahme pausieren");
     }
     button.addEventListener("click", () => setPaused(canvas.hidden));
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
