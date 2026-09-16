@@ -134,6 +134,12 @@ OPENSLOT_TURNSTILE_SITE_KEY=your-cloudflare-turnstile-site-key
 
 The build script creates `dist/config.js` from these variables and copies the static site into `dist/`. The generated `dist/` directory and local `config.js` are intentionally ignored by Git.
 
+## Owner Mobile App
+
+The admin pages are currently responsive websites, not installable PWAs. A planned first step is an online-only PWA for each `/{salon-slug}/admin/` route, with a separate manifest, app icon, and home-screen launch path per salon. Supabase Auth and salon membership remain the access controls; installation does not grant access.
+
+Admin actions and customer data must stay network-backed. Do not cache appointments, customer details, auth responses, or Supabase API results, and do not queue offline cancellations or schedule edits. Show an offline state and disable write actions instead. Web Push for new bookings would be a separate later feature requiring device subscriptions and server-side delivery; installing the PWA alone does not enable notifications.
+
 ## Notes
 
 - Do not commit production secrets.
