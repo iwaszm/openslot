@@ -1127,8 +1127,17 @@ function scrollDateRowToIndex(dateRow, index) {
 function scrollServiceStrip(direction) {
   const serviceRow = els.serviceOptions?.querySelector(".service-carousel");
   if (!serviceRow) return;
-  const amount = Math.max(serviceRow.clientWidth * 0.78, 220);
-  serviceRow.scrollBy({ left: direction * amount, behavior: "smooth" });
+  const groups = [...serviceRow.querySelectorAll(".service-group")];
+  if (groups.length < 2) return;
+  const columnStep = groups[1].offsetLeft - groups[0].offsetLeft;
+  if (columnStep <= 0) return;
+  const gap = Number.parseFloat(getComputedStyle(serviceRow).columnGap) || 0;
+  const visibleColumns = Math.max(1, Math.round((serviceRow.clientWidth + gap) / columnStep));
+  const maxStartIndex = Math.max(0, groups.length - visibleColumns);
+  const currentIndex = Math.round(serviceRow.scrollLeft / columnStep);
+  const targetIndex = Math.max(0, Math.min(maxStartIndex, currentIndex + direction * 2));
+  const targetLeft = groups[targetIndex].offsetLeft - groups[0].offsetLeft;
+  serviceRow.scrollTo({ left: targetLeft, behavior: "smooth" });
 }
 
 function resetPageHorizontalScroll() {
