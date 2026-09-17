@@ -13,7 +13,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.mode !== "navigate" || !event.request.url.startsWith(self.registration.scope)) return;
-  event.respondWith(fetch(event.request).catch(() => caches.match(OFFLINE_URL)));
+  event.respondWith(fetch(event.request, { cache: "no-store" }).catch(() => caches.match(OFFLINE_URL)));
 });
 
 self.addEventListener("push", (event) => {

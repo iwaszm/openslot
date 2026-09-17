@@ -4,6 +4,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const dist = path.join(root, "dist");
 const turnstileSiteKey = process.env.OPENSLOT_TURNSTILE_SITE_KEY || "0x4AAAAAAEsrM-tkdjA40QZH";
+const buildId = `${process.env.CF_PAGES_COMMIT_SHA || "local"}-${Date.now().toString(36)}`;
 
 const requiredEnv = ["OPENSLOT_SUPABASE_URL", "OPENSLOT_SUPABASE_ANON_KEY"];
 const missing = requiredEnv.filter((key) => !process.env[key]);
@@ -34,6 +35,7 @@ for (const dir of ["assets", "datenschutz", "stornierung", "lisa", "liyong"]) {
   copyDir(dir);
 }
 replaceTurnstileSiteKeys(dist);
+stampAdminAssetUrls();
 
 writeFile(
   "config.js",
@@ -43,11 +45,14 @@ writeFile(
       anonKey: process.env.OPENSLOT_SUPABASE_ANON_KEY,
       turnstileSiteKey,
       vapidPublicKey: process.env.OPENSLOT_VAPID_PUBLIC_KEY || "",
+      buildId,
     },
     null,
     2,
   )};\n`,
 );
+
+writeFile("version.json", `${JSON.stringify({ buildId })}\n`);
 
 writeFile(
   "_redirects",
@@ -73,6 +78,20 @@ function writeFile(relativePath, content) {
   const target = path.join(dist, relativePath);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, content, "utf8");
+}
+
+function stampAdminAssetUrls() {
+  for (const salon of ["lisa", "liyong"]) {
+    const file = path.join(dist, salon, "admin", "index.html");
+    const html = fs.readFileSync(file, "utf8");
+    let count = 0;
+    const updated = html.replace(/((?:src|href)=")(\.\.\/\.\.\/(?:config\.js|admin\.js|styles\.css)|\.\/(?:pwa\.js|pwa\.css|push\.js))(?:\?v=[^"]+)?"/g, (_match, prefix, asset) => {
+      count += 1;
+      return `${prefix}${asset}?v=${buildId}"`;
+    });
+    if (count !== 6) throw new Error(`Expected six admin assets in ${file}, found ${count}`);
+    fs.writeFileSync(file, updated, "utf8");
+  }
 }
 
 function replaceTurnstileSiteKeys(directory) {

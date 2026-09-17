@@ -50,4 +50,40 @@
       });
     });
   }
+
+  const buildId = window.OPENSLOT_SUPABASE?.buildId;
+  if (!buildId) return;
+
+  let checkingVersion = false;
+  let lastInteraction = Date.now();
+  const markInteraction = () => { lastInteraction = Date.now(); };
+  document.addEventListener("pointerdown", markInteraction, { passive: true });
+  document.addEventListener("keydown", markInteraction);
+
+  async function checkForUpdate() {
+    if (checkingVersion || !navigator.onLine || document.hidden) return;
+    checkingVersion = true;
+    try {
+      const response = await fetch(`/version.json?t=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const { buildId: latestBuildId } = await response.json();
+      if (latestBuildId && latestBuildId !== buildId
+        && Date.now() - lastInteraction > 30_000
+        && !document.querySelector(".confirm-dialog[open], .service-block-menu[open], #timeBlockPanel:not([hidden])")
+        && !document.activeElement?.matches("input, select, textarea")) {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.warn("Admin version check failed:", error);
+    } finally {
+      checkingVersion = false;
+    }
+  }
+
+  window.setInterval(checkForUpdate, 60_000);
+  window.addEventListener("online", checkForUpdate);
+  window.addEventListener("focus", checkForUpdate);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) checkForUpdate();
+  });
 })();

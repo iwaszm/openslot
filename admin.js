@@ -17,6 +17,8 @@ const DEFAULT_CLOSE_MINUTES = 19 * 60;
 const SLOT_STEP = 30;
 const DATE_RANGE_DAYS = 21;
 const APPOINTMENT_PAGE_SIZE = 500;
+const LIVE_REFRESH_MS = 20 * 1000;
+const DATE_OPTIONS_REFRESH_MS = 10 * 60 * 1000;
 const STORAGE_KEY = "openslot.barber.mvp.appointments";
 const SETTINGS_KEY = "openslot.barber.mvp.day-settings";
 const BLOCKS_KEY = "openslot.barber.mvp.blocked-slots";
@@ -62,6 +64,12 @@ const state = {
   laneLayout: createDefaultLaneLayout(),
   useUnifiedScheduleEntries: false,
 };
+let liveRefreshInFlight = false;
+let lastDateOptionsRefresh = 0;
+let pendingDayRender = false;
+let dayRefreshSequence = 0;
+let logRefreshSequence = 0;
+let dateOptionsRefreshSequence = 0;
 
 const t = (key, values) => window.OpenSlotI18n?.t(key, values) || key;
 const getServiceName = (service) => service.name;
@@ -82,6 +90,7 @@ const els = {
   ownerEmailLabel: document.querySelector("#ownerEmailLabel"),
   ownerLogoutButton: document.querySelector("#ownerLogoutButton"),
   ownerControls: document.querySelector("#ownerControls"),
+  adminSyncNotice: document.querySelector("#adminSyncNotice"),
   adminDateInput: document.querySelector("#adminDateInput"),
   adminDateStrip: document.querySelector("#adminDateStrip"),
   adminDatePrevButton: document.querySelector("#adminDatePrevButton"),
@@ -122,6 +131,51 @@ async function init() {
   await refreshDateOptions();
   await refreshDayData();
   await refreshUpcomingLog();
+  startLiveRefresh();
+}
+
+function startLiveRefresh() {
+  window.setInterval(refreshLiveData, LIVE_REFRESH_MS);
+  window.addEventListener("online", refreshLiveData);
+  window.addEventListener("focus", refreshLiveData);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshLiveData();
+  });
+}
+
+function isEditingSchedule() {
+  return Boolean(document.querySelector(".confirm-dialog[open], .service-block-menu[open], #timeBlockPanel:not([hidden])"))
+    || Boolean(document.activeElement?.closest("#ownerControls input, #ownerControls select, #ownerControls textarea"));
+}
+
+async function refreshLiveData() {
+  if (liveRefreshInFlight || document.hidden || !navigator.onLine || !state.isOwner) return;
+  liveRefreshInFlight = true;
+  try {
+    const today = toDateInputValue(new Date());
+    const rolledOver = els.adminDateInput.value < today;
+    if (rolledOver) {
+      els.adminDateInput.value = today;
+      els.adminDateInput.min = today;
+    }
+    const previousLog = JSON.stringify(state.upcomingAppointments);
+    const [dayOk, logOk] = await Promise.all([
+      refreshDayData({ onlyIfChanged: true }),
+      refreshUpcomingLog({ onlyIfChanged: true }),
+    ]);
+    let datesOk = true;
+    if (rolledOver || Date.now() - lastDateOptionsRefresh >= DATE_OPTIONS_REFRESH_MS
+      || (logOk && previousLog !== JSON.stringify(state.upcomingAppointments))) {
+      datesOk = await refreshDateOptions({ keepOnError: true });
+    }
+    if (!state.isOwner) return;
+    if (els.adminSyncNotice) els.adminSyncNotice.hidden = dayOk && logOk && datesOk;
+  } catch (error) {
+    if (state.isOwner && els.adminSyncNotice) els.adminSyncNotice.hidden = false;
+    console.warn("Admin refresh failed:", error);
+  } finally {
+    liveRefreshInFlight = false;
+  }
 }
 
 function bindEvents() {
@@ -245,10 +299,11 @@ function splitManualScheduleEntries(entries) {
   return result;
 }
 
-async function refreshDateOptions() {
+async function refreshDateOptions({ keepOnError = false } = {}) {
   if (!els.adminDateInput || !els.adminDateStrip) return;
   if (!state.isOwner && state.repository.authSupported) return;
   const dates = buildDateRange();
+  const requestId = ++dateOptionsRefreshSequence;
   try {
     const summaries = await Promise.all(dates.map(async (date) => {
       const [appointments, daySettings, manualSchedule, timeBlocks] = await Promise.all([
@@ -273,8 +328,15 @@ async function refreshDateOptions() {
         isBusinessDay: isScheduledBusinessDay(date),
       };
     }));
+    if (requestId !== dateOptionsRefreshSequence || (!state.isOwner && state.repository.authSupported)) return true;
     state.dateOptions = summaries;
+    lastDateOptionsRefresh = Date.now();
   } catch (error) {
+    if (requestId !== dateOptionsRefreshSequence) return true;
+    if (keepOnError) {
+      console.warn("Calendar refresh failed:", error);
+      return false;
+    }
     state.dateOptions = dates.map((date) => ({
       date,
       occupiedSlotCount: 0,
@@ -285,11 +347,13 @@ async function refreshDateOptions() {
     }));
   }
   renderDateStrip();
+  return true;
 }
 
-async function refreshDayData() {
+async function refreshDayData({ onlyIfChanged = false } = {}) {
   if (!els.adminDateInput || !els.appointmentList) return;
   if (!state.isOwner && state.repository.authSupported) return;
+  const requestId = ++dayRefreshSequence;
   try {
     const date = els.adminDateInput.value;
     const [appointments, daySettings, manualSchedule, timeBlocks] = await Promise.all([
@@ -298,6 +362,15 @@ async function refreshDayData() {
       loadManualSchedule(date),
       state.repository.listTimeBlocks(date),
     ]);
+    if (requestId !== dayRefreshSequence || date !== els.adminDateInput.value
+      || (!state.isOwner && state.repository.authSupported)) return true;
+    const changed = pendingDayRender || !onlyIfChanged || JSON.stringify([
+      state.appointments, state.daySettings, state.blockedSlots, state.overflowSlots,
+      state.flexibleSlots, state.timeBlocks,
+    ]) !== JSON.stringify([
+      appointments, daySettings, manualSchedule.blockedSlots, manualSchedule.overflowSlots,
+      manualSchedule.flexibleSlots, timeBlocks,
+    ]);
     state.appointments = appointments;
     state.daySettings = daySettings;
     state.blockedSlots = manualSchedule.blockedSlots;
@@ -305,23 +378,41 @@ async function refreshDayData() {
     state.flexibleSlots = manualSchedule.flexibleSlots;
     state.timeBlocks = timeBlocks;
     state.useUnifiedScheduleEntries = manualSchedule.isUnified;
+    if (changed) {
+      if (onlyIfChanged && isEditingSchedule()) pendingDayRender = true;
+      else {
+        pendingDayRender = false;
+        render();
+      }
+    }
   } catch (error) {
+    if (requestId !== dayRefreshSequence) return true;
     setAdminMessage(`读取后台数据失败：${error.message}`);
+    console.warn("Schedule refresh failed:", error);
+    return false;
   }
-  render();
+  return true;
 }
 
-async function refreshUpcomingLog() {
+async function refreshUpcomingLog({ onlyIfChanged = false } = {}) {
   if (!els.upcomingLogList) return;
   if (!state.isOwner && state.repository.authSupported) return;
   const startDate = toDateInputValue(new Date());
+  const requestId = ++logRefreshSequence;
   try {
-    state.upcomingAppointments = await state.repository.listAppointmentsFrom(startDate);
+    const appointments = await state.repository.listAppointmentsFrom(startDate);
+    if (requestId !== logRefreshSequence || (!state.isOwner && state.repository.authSupported)) return true;
+    if (!onlyIfChanged || JSON.stringify(appointments) !== JSON.stringify(state.upcomingAppointments)) {
+      state.upcomingAppointments = appointments;
+      renderUpcomingLog();
+    }
   } catch (error) {
+    if (requestId !== logRefreshSequence) return true;
     setAdminMessage(`读取预约记录失败：${error.message}`);
-    state.upcomingAppointments = [];
+    console.warn("Booking log refresh failed:", error);
+    return false;
   }
-  renderUpcomingLog();
+  return true;
 }
 
 function render() {
@@ -334,6 +425,7 @@ function render() {
 
 function renderAuthState(user = null, message = "") {
   if (els.ownerControls) els.ownerControls.hidden = !state.isOwner;
+  if (!state.isOwner && els.adminSyncNotice) els.adminSyncNotice.hidden = true;
   if (els.ownerLoginForm) els.ownerLoginForm.hidden = Boolean(user);
   if (els.ownerSession) els.ownerSession.hidden = !user;
   if (els.ownerEmailLabel) els.ownerEmailLabel.textContent = user?.email || "";
