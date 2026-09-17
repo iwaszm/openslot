@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#202020" />
+    <title>Offline · Lisa Terminverwaltung</title>
+    <style>
+      body { margin: 0; background: #f5f5f3; color: #202020; font-family: system-ui, sans-serif; }
+      main { box-sizing: border-box; display: grid; place-content: center; min-height: 100dvh; max-width: 440px; margin: auto; padding: 32px; }
+      h1 { margin: 0 0 12px; font-size: 24px; }
+      p { margin: 0 0 24px; line-height: 1.5; }
+      button { width: fit-content; padding: 12px 18px; border: 0; border-radius: 4px; background: #202020; color: #fff; font: inherit; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Keine Internetverbindung</h1>
+      <p>Die Terminverwaltung benötigt eine Verbindung. Es werden keine Buchungsdaten offline gespeichert.</p>
+      <button type="button" onclick="location.reload()">Erneut versuchen</button>
+    </main>
+  </body>
+</html>

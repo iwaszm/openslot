@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     });
 
     if (error) throw error;
-    if (payload.salon_slug === "liyong") {
+    if (payload.salon_slug === "liyong" || payload.salon_slug === "lisa") {
       try {
         await notifyNewBooking(supabase, data, env);
       } catch (pushError) {
@@ -92,7 +92,7 @@ async function notifyNewBooking(
     .eq("id", bookingId)
     .single();
   if (bookingError) throw bookingError;
-  if ((booking.salons as unknown as { slug: string }).slug !== "liyong") return;
+  if (!["liyong", "lisa"].includes((booking.salons as unknown as { slug: string }).slug)) return;
 
   const { error: dispatchError } = await supabase.from("booking_push_dispatches")
     .insert({ booking_id: booking.id });
