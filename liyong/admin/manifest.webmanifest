@@ -1,0 +1,15 @@
+{
+  "id": "/liyong/admin/",
+  "name": "Li Yong Terminverwaltung",
+  "short_name": "Li Yong Admin",
+  "description": "Terminverwaltung für Li Yong",
+  "start_url": "/liyong/admin/",
+  "scope": "/liyong/admin/",
+  "display": "standalone",
+  "theme_color": "#202020",
+  "background_color": "#ffffff",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

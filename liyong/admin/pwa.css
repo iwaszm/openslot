@@ -1,0 +1,22 @@
+.admin-offline-notice {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  margin: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid #ad7241;
+  background: #fff2df;
+  color: #532b11;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.admin-offline-notice[hidden] {
+  display: none;
+}
+
+.admin-offline [data-offline-write][aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
