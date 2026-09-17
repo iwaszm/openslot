@@ -42,6 +42,7 @@ writeFile(
       url: process.env.OPENSLOT_SUPABASE_URL,
       anonKey: process.env.OPENSLOT_SUPABASE_ANON_KEY,
       turnstileSiteKey,
+      vapidPublicKey: process.env.OPENSLOT_VAPID_PUBLIC_KEY || "",
     },
     null,
     2,

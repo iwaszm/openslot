@@ -160,6 +160,7 @@ function createRepository() {
     return createLocalRepository();
   }
   const client = window.supabase.createClient(config.url, config.anonKey);
+  window.OpenSlotAdminClient = client;
   return createSupabaseRepository(client);
 }
 

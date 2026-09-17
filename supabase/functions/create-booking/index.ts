@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
+import { generateRequestDetails } from "npm:web-push@3.6.7";
 
 type BookingRequest = {
   salon_slug?: string;
@@ -53,6 +54,13 @@ Deno.serve(async (req) => {
     });
 
     if (error) throw error;
+    if (payload.salon_slug === "liyong") {
+      try {
+        await notifyNewBooking(supabase, data, env);
+      } catch (pushError) {
+        console.error("Booking push failed:", pushError);
+      }
+    }
     return json({ ok: true, booking_id: data });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : String(error) }, 500);
@@ -64,10 +72,95 @@ function readEnv() {
     supabaseUrl: Deno.env.get("SUPABASE_URL") || "",
     serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
     turnstileSecretKey: Deno.env.get("TURNSTILE_SECRET_KEY") || "",
+    vapidPublicKey: Deno.env.get("VAPID_PUBLIC_KEY") || "",
+    vapidPrivateKey: Deno.env.get("VAPID_PRIVATE_KEY") || "",
   };
-  const missing = Object.entries(env).filter(([, value]) => !value).map(([key]) => key);
+  const missing = ["supabaseUrl", "serviceRoleKey", "turnstileSecretKey"].filter((key) => !env[key as keyof typeof env]);
   if (missing.length > 0) throw new Error(`Missing function secrets: ${missing.join(", ")}`);
   return env;
+}
+
+async function notifyNewBooking(
+  supabase: ReturnType<typeof createClient>,
+  bookingId: string,
+  env: ReturnType<typeof readEnv>,
+) {
+  if (!env.vapidPublicKey || !env.vapidPrivateKey) return;
+
+  const { data: booking, error: bookingError } = await supabase.from("appointments")
+    .select("id, salon_id, salons!inner(slug)")
+    .eq("id", bookingId)
+    .single();
+  if (bookingError) throw bookingError;
+  if ((booking.salons as unknown as { slug: string }).slug !== "liyong") return;
+
+  const { error: dispatchError } = await supabase.from("booking_push_dispatches")
+    .insert({ booking_id: booking.id });
+  if (dispatchError?.code === "23505") return;
+  if (dispatchError) throw dispatchError;
+
+  const { data: subscriptions, error } = await supabase.from("push_subscriptions")
+    .select("id, endpoint, user_id")
+    .eq("salon_id", booking.salon_id)
+    .limit(100);
+  if (error) throw error;
+  if (!subscriptions?.length) return;
+
+  const { data: memberships, error: memberError } = await supabase.from("salon_members")
+    .select("user_id, salon_id, role")
+    .in("user_id", [...new Set(subscriptions.map((subscription) => subscription.user_id))]);
+  if (memberError) throw memberError;
+  const authorizedUsers = new Set((memberships || [])
+    .filter((member) => member.role === "super_admin" || member.salon_id === booking.salon_id)
+    .map((member) => member.user_id));
+
+  await Promise.allSettled(subscriptions.map(async (subscription) => {
+    try {
+      if (!authorizedUsers.has(subscription.user_id)) {
+        await supabase.from("push_subscriptions").delete().eq("id", subscription.id);
+        return;
+      }
+      if (!isTrustedPushEndpoint(subscription.endpoint)) throw new Error("Unsupported push endpoint");
+      const request = generateRequestDetails({ endpoint: subscription.endpoint }, null, {
+        vapidDetails: {
+          subject: "https://openslotberlin.de",
+          publicKey: env.vapidPublicKey,
+          privateKey: env.vapidPrivateKey,
+        },
+        TTL: 3600,
+        urgency: "high",
+      });
+      const headers = new Headers(request.headers);
+      headers.delete("Content-Length");
+      const response = await fetch(request.endpoint, {
+        method: "POST",
+        headers,
+        redirect: "error",
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.status === 404 || response.status === 410) {
+        await supabase.from("push_subscriptions").delete().eq("id", subscription.id);
+      } else if (!response.ok) {
+        throw new Error(`Push service returned ${response.status}`);
+      }
+    } catch (pushError) {
+      console.error("Push delivery failed:", pushError);
+    }
+  }));
+}
+
+function isTrustedPushEndpoint(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && (!url.port || url.port === "443") && (
+      url.hostname === "fcm.googleapis.com"
+      || url.hostname === "web.push.apple.com"
+      || url.hostname === "updates.push.services.mozilla.com"
+      || url.hostname.endsWith(".notify.windows.com")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function validatePayload(payload: BookingRequest) {

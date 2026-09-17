@@ -2,4 +2,5 @@ window.OPENSLOT_SUPABASE = {
   url: "YOUR_SUPABASE_PROJECT_URL",
   anonKey: "YOUR_SUPABASE_ANON_KEY",
   turnstileSiteKey: "YOUR_TURNSTILE_SITE_KEY",
+  vapidPublicKey: "YOUR_VAPID_PUBLIC_KEY",
 };
