@@ -72,7 +72,13 @@
           <section class="control-card appointment-log-card">
             <div class="control-title">
               <strong id="upcomingLogTitle" data-i18n="admin.upcomingLog">预约记录</strong>
-              <button id="logCollapseButton" class="ghost-button collapse-button" type="button" aria-controls="upcomingLogList" aria-expanded="true">⌃</button>
+              <div class="log-title-actions">
+                <button id="pushToggleButton" class="ghost-button push-toggle-button" type="button" aria-label="Benachrichtigungen aktivieren" title="Benachrichtigungen aktivieren" aria-pressed="false" disabled>
+                  <svg class="push-icon push-icon-on" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+                  <svg class="push-icon push-icon-off" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 2.25A6 6 0 0 1 18 8c0 7 3 7 3 9H9"/><path d="M10 21h4"/><path d="M2 2l20 20"/><path d="M6.26 6.26A5.97 5.97 0 0 0 6 8c0 7-3 7-3 9h4"/></svg>
+                </button>
+                <button id="logCollapseButton" class="ghost-button collapse-button" type="button" aria-controls="upcomingLogList" aria-expanded="true">⌃</button>
+              </div>
             </div>
             <div id="upcomingLogList" class="appointment-log-list"></div>
           </section>
@@ -86,7 +92,7 @@
     <script src="../../confirm-dialog.js?v=20260913-notice-dialog-1"></script>
     <script src="./pwa.js"></script>
     <script src="../../admin.js?v=20260917-liyong-push-1"></script>
-    <script src="./push.js?v=20260917-auto-prompt-1"></script>
+    <script src="./push.js?v=20260917-bell-1"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   </body>
 </html>
