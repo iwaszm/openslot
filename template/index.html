@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OpenSlot Theme Preview · Buchung</title>
     <link rel="stylesheet" href="../styles.css?v=20260915-customer-languages-2" />
-    <link rel="stylesheet" href="./theme.css" />
+    <link rel="stylesheet" href="./theme.css?v=20260918-tabs-reset" />
   </head>
   <body class="theme-preview" style='--salon-cover-image: url("../liyong/feature.jpg");'>
     <main class="customer-page">
@@ -15,6 +15,7 @@
           <form id="bookingForm" class="booking-form customer-booking" novalidate>
             <fieldset>
               <legend class="section-title" data-i18n="booking.serviceLegend">Dienstleistungen</legend>
+              <div id="serviceCategoryTabs" class="service-category-tabs" role="tablist" aria-label="Dienstleistungskategorien"></div>
               <div class="service-grid" id="serviceOptions"></div>
             </fieldset>
 
@@ -72,21 +73,20 @@
               ></div>
             </div>
             <button class="primary-action" type="submit" data-i18n="booking.submit" disabled>Termin reservieren</button>
-            <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
-            <section id="bookingResult" class="booking-result" aria-live="polite"></section>
           </form>
         </section>
 
         <aside class="salon-card" aria-label="Saloninformationen">
-          <div class="salon-cover"></div>
+          <div class="salon-cover">
+            <div class="language-switcher" role="group" aria-label="Sprache wählen">
+              <button class="language-option" type="button" data-language-option="de" aria-pressed="true"><span>DE</span></button>
+              <button class="language-option" type="button" data-language-option="en" aria-pressed="false"><span>EN</span></button>
+              <button class="language-option" type="button" data-language-option="zh" aria-pressed="false"><span>中文</span></button>
+            </div>
+          </div>
           <div class="salon-body">
             <div class="salon-heading">
               <h2 id="salonName" data-i18n="salon.name">Berlin Hair Salon</h2>
-              <div class="language-switcher" role="group" aria-label="Sprache wählen">
-                <button class="language-option" type="button" data-language-option="de" aria-pressed="true">DE</button>
-                <button class="language-option" type="button" data-language-option="en" aria-pressed="false">EN</button>
-                <button class="language-option" type="button" data-language-option="zh" aria-pressed="false">中文</button>
-              </div>
             </div>
             <ul class="contact-list">
               <li>
@@ -122,8 +122,18 @@
       </footer>
     </main>
 
+    <div id="bookingToast" class="booking-toast" role="status" aria-live="polite" hidden>
+      <div class="booking-toast-content">
+        <section id="bookingResult" class="booking-result" aria-live="polite"></section>
+        <p id="formMessage" class="form-message" aria-live="polite"></p>
+      </div>
+      <button id="bookingToastClose" class="booking-toast-close" type="button" aria-label="Hinweis schließen">×</button>
+    </div>
+
     <script src="./demo-data.js"></script>
     <script src="../i18n.js?v=20260915-customer-languages-2"></script>
-    <script src="../customer.js?v=20260915-customer-languages-2"></script>
+    <script>window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION = true;</script>
+    <script src="../customer.js?v=20260918-template-selection"></script>
+    <script src="./booking-preview.js?v=20260918-tabs-reset"></script>
   </body>
 </html>

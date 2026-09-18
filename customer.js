@@ -140,6 +140,14 @@ function bindEvents() {
     event.preventDefault();
     selectServiceInput(serviceInput);
   });
+  if (window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION) {
+    window.addEventListener("openslot:clear-service-selection", () => {
+      state.selectedServiceId = "";
+      state.selectedSlot = "";
+      renderServices();
+      render();
+    });
+  }
   els.customerName.addEventListener("input", () => {
     els.customerName.setCustomValidity("");
   });
@@ -362,7 +370,7 @@ function renderServices() {
               ${group.services.map((service) => {
         const serviceGender = service.gender === "male" ? "male" : "female";
         const checked = service.id === state.selectedServiceId;
-        const fallbackChecked = !state.selectedServiceId && service.id === services[0]?.id;
+        const fallbackChecked = !window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION && !state.selectedServiceId && service.id === services[0]?.id;
         return `
           <label class="service-card">
             <input type="radio" name="service" value="${service.id}" data-gender="${serviceGender}" ${checked || fallbackChecked ? "checked" : ""} />
@@ -482,7 +490,7 @@ function renderDateStrip() {
 function renderSlots() {
   const service = getSelectedService();
   if (!service) {
-    els.slotGrid.innerHTML = `<div class="empty-state compact-empty">${t("customer.noServices")}</div>`;
+    els.slotGrid.innerHTML = window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : `<div class="empty-state compact-empty">${t("customer.noServices")}</div>`;
     return;
   }
 
@@ -884,6 +892,7 @@ function validateBookingSlot(appointment) {
 }
 
 function getSelectedService() {
+  if (window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION && !state.selectedServiceId) return null;
   return state.services.find((service) => service.id === state.selectedServiceId) || activeServices()[0];
 }
 
