@@ -32,11 +32,12 @@ const WEEKLY_HOURS = [
   { index: 6, key: "salon.day.saturday", openMinutes: 10 * 60, closeMinutes: 17 * 60 },
   { index: 0, key: "salon.day.sunday", openMinutes: null, closeMinutes: null },
 ];
-const STORAGE_KEY = "openslot.barber.mvp.appointments";
-const SETTINGS_KEY = "openslot.barber.mvp.day-settings";
-const BLOCKS_KEY = "openslot.barber.mvp.blocked-slots";
-const SERVICES_KEY = "openslot.barber.mvp.services";
-const FLEXIBLE_SLOTS_KEY = "openslot.barber.mvp.flexible-staff-slots";
+const LOCAL_STORAGE_NAMESPACE = window.OPENSLOT_LOCAL_STORAGE_NAMESPACE || "openslot.barber.mvp";
+const STORAGE_KEY = `${LOCAL_STORAGE_NAMESPACE}.appointments`;
+const SETTINGS_KEY = `${LOCAL_STORAGE_NAMESPACE}.day-settings`;
+const BLOCKS_KEY = `${LOCAL_STORAGE_NAMESPACE}.blocked-slots`;
+const SERVICES_KEY = `${LOCAL_STORAGE_NAMESPACE}.services`;
+const FLEXIBLE_SLOTS_KEY = `${LOCAL_STORAGE_NAMESPACE}.flexible-staff-slots`;
 const LEGACY_SERVICE_IDS = new Set(["haircut", "color", "perm"]);
 
 const state = {

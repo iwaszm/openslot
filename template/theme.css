@@ -1,0 +1,337 @@
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("../assets/home/space-grotesk-bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+.theme-preview {
+  --theme-ink: #191b19;
+  --theme-paper: #ffffff;
+  --theme-lime: #e4ff43;
+  --theme-muted: #5d625d;
+  --theme-line: #d9ded6;
+  --theme-soft: #f2f4f0;
+  --accent: var(--theme-ink);
+  --accent-strong: #363c33;
+  --accent-soft: var(--theme-soft);
+  --ink: var(--theme-ink);
+  --muted: var(--theme-muted);
+  --line: var(--theme-line);
+  background: var(--theme-paper);
+  color: var(--theme-ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.theme-preview ::selection {
+  background: var(--theme-lime);
+  color: var(--theme-ink);
+}
+
+.theme-preview :is(h1, h2, h3, legend, .section-title, .primary-action) {
+  font-family: "Space Grotesk", Arial, sans-serif;
+  font-weight: 700;
+}
+
+.theme-preview :is(button, input, select, textarea, .ghost-link) {
+  border-radius: 0;
+}
+
+.theme-preview :is(button, input, select, textarea, a):focus-visible,
+.theme-preview .service-card:has(input:focus-visible) {
+  outline: 3px solid #325ce5;
+  outline-offset: 3px;
+}
+
+.theme-preview .customer-page {
+  background: var(--theme-paper);
+}
+
+.theme-preview .customer-layout {
+  align-items: start;
+}
+
+.theme-preview .booking-form fieldset {
+  border-color: var(--theme-line);
+}
+
+.theme-preview .customer-booking fieldset:first-of-type .section-title,
+.theme-preview .date-month-heading,
+.theme-preview .customer-booking fieldset:nth-of-type(4) > legend {
+  color: var(--theme-ink);
+  letter-spacing: 0;
+}
+
+.theme-preview .customer-booking .service-group h3 {
+  color: var(--theme-muted);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.theme-preview .customer-booking .service-group h3::after {
+  background: var(--theme-line);
+  border-radius: 0;
+}
+
+.theme-preview .customer-booking .service-card {
+  border: 0;
+  border-bottom: 1px solid var(--theme-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--theme-ink);
+  padding: 11px 6px 13px;
+  position: relative;
+}
+
+.theme-preview .customer-booking .service-card::after {
+  background: transparent;
+  bottom: -1px;
+  content: "";
+  height: 4px;
+  left: 6px;
+  position: absolute;
+  right: 6px;
+}
+
+.theme-preview .customer-booking .service-card:hover {
+  background: var(--theme-soft);
+  border-color: var(--theme-ink);
+  color: var(--theme-ink);
+}
+
+.theme-preview .customer-booking .service-card:has(input:checked) {
+  background: transparent;
+  border-color: var(--theme-ink);
+  color: var(--theme-ink);
+}
+
+.theme-preview .customer-booking .service-card:has(input:checked)::after {
+  background: var(--theme-lime);
+  box-shadow: 0 -1px 0 var(--theme-ink);
+}
+
+.theme-preview .customer-booking .service-card:has(input:checked) :is(strong, small) {
+  color: var(--theme-ink);
+}
+
+.theme-preview .date-button {
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--theme-ink);
+  position: relative;
+}
+
+.theme-preview .date-button strong {
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.theme-preview .date-button:hover:not(:disabled) strong {
+  background: var(--theme-soft);
+}
+
+.theme-preview .date-button.selected,
+.theme-preview .date-button.selected:hover {
+  background: transparent;
+  color: var(--theme-ink);
+}
+
+.theme-preview .date-button.selected strong,
+.theme-preview .date-button.selected:hover strong {
+  background: transparent;
+  color: var(--theme-ink);
+  box-shadow: inset 0 -5px var(--theme-lime);
+}
+
+.theme-preview .date-button.selected .date-weekday {
+  color: var(--theme-ink);
+}
+
+.theme-preview :is(.date-nav-button, .service-nav-button) {
+  color: var(--theme-muted);
+}
+
+.theme-preview :is(.date-nav-button, .service-nav-button):hover {
+  background: var(--theme-lime);
+  color: var(--theme-ink);
+}
+
+.theme-preview .slot-row {
+  border-top: 1px solid var(--theme-line);
+  gap: 0;
+}
+
+.theme-preview .slot-button.available {
+  border: 0;
+  border-bottom: 1px solid var(--theme-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--theme-ink);
+  margin-right: 1px;
+  position: relative;
+}
+
+.theme-preview .slot-button.available:hover {
+  background: var(--theme-soft);
+  border-color: var(--theme-ink);
+  color: var(--theme-ink);
+  transform: none;
+}
+
+.theme-preview .slot-button.selected {
+  border: 0;
+  border-bottom: 1px solid var(--theme-ink);
+  background: transparent;
+  color: var(--theme-ink);
+  box-shadow: inset 0 -5px var(--theme-lime);
+}
+
+.theme-preview .empty-state {
+  border: 0;
+  border-bottom: 1px solid var(--theme-line);
+  border-radius: 0;
+  border-top: 1px solid var(--theme-line);
+  background: transparent;
+  color: var(--theme-muted);
+}
+
+.theme-preview .booking-summary-line {
+  border-bottom: 1px solid var(--theme-line);
+  gap: 18px;
+  padding-bottom: 14px;
+}
+
+.theme-preview .booking-summary-line span {
+  border-radius: 0;
+  background: transparent;
+  color: var(--theme-ink);
+  min-height: auto;
+  padding: 0;
+}
+
+.theme-preview .customer-booking input[type="text"],
+.theme-preview .customer-booking input[type="tel"],
+.theme-preview .customer-booking input[type="email"] {
+  border: 0;
+  border-bottom: 1px solid var(--theme-ink);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--theme-ink);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.theme-preview .customer-booking input:is(:hover, :focus) {
+  border-color: var(--theme-ink);
+  box-shadow: inset 0 -4px var(--theme-lime);
+}
+
+.theme-preview .customer-booking .primary-action {
+  border: 0;
+  border-radius: 0;
+  background: var(--theme-lime);
+  box-shadow: none;
+  color: var(--theme-ink);
+}
+
+.theme-preview .customer-booking .primary-action:hover {
+  background: #edff85;
+  color: var(--theme-ink);
+  transform: translateY(-2px);
+}
+
+.theme-preview .customer-booking .primary-action:disabled,
+.theme-preview .customer-booking .primary-action:disabled:hover {
+  background: var(--theme-soft);
+  color: #8a9089;
+  transform: none;
+}
+
+.theme-preview .customer-booking .booking-result {
+  border: 0;
+  border-radius: 0;
+  border-top: 4px solid var(--theme-lime);
+  background: var(--theme-soft);
+}
+
+.theme-preview .salon-card {
+  border: 1px solid var(--theme-line);
+  border-radius: 0;
+  background: var(--theme-paper);
+  box-shadow: none;
+}
+
+.theme-preview .salon-cover {
+  border-radius: 0;
+  filter: saturate(0.88) contrast(1.03);
+}
+
+.theme-preview .language-switcher {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 4px;
+}
+
+.theme-preview .language-option {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--theme-muted);
+  position: relative;
+}
+
+.theme-preview .language-option[aria-pressed="true"] {
+  background: transparent;
+  color: var(--theme-ink);
+  box-shadow: inset 0 -4px var(--theme-lime);
+}
+
+.theme-preview .contact-list li {
+  border-top: 1px solid var(--theme-line);
+}
+
+.theme-preview .customer-support-footer {
+  border-top: 1px solid var(--theme-ink);
+}
+
+.theme-preview .customer-support-footer a {
+  text-decoration-color: var(--theme-lime);
+  text-decoration-thickness: 4px;
+  text-underline-offset: 4px;
+}
+
+.theme-preview .turnstile-field {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .theme-preview .customer-page {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .theme-preview .salon-card {
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .theme-preview .customer-booking .service-card {
+    min-height: 58px;
+  }
+
+  .theme-preview .booking-summary-line {
+    gap: 10px 16px;
+  }
+}

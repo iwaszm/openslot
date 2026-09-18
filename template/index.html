@@ -3,10 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Berlin Hair Salon Termin</title>
-    <link rel="stylesheet" href="./styles.css?v=20260915-customer-languages-2" />
+    <title>OpenSlot Theme Preview · Buchung</title>
+    <link rel="stylesheet" href="../styles.css?v=20260915-customer-languages-2" />
+    <link rel="stylesheet" href="./theme.css" />
   </head>
-  <body>
+  <body class="theme-preview" style='--salon-cover-image: url("../liyong/feature.jpg");'>
     <main class="customer-page">
       <div class="customer-layout">
         <section id="book" class="booking-section" aria-labelledby="booking-title">
@@ -45,15 +46,15 @@
               <div class="field-grid">
                 <label>
                   <span data-i18n="booking.name">Name</span>
-                  <input id="customerName" name="name" type="text" autocomplete="name" required minlength="2" maxlength="50" data-i18n-placeholder="booking.namePlaceholder" placeholder="z.B. Lisa" />
+                  <input id="customerName" name="name" type="text" autocomplete="name" required minlength="2" maxlength="50" />
                 </label>
                 <label>
                   <span data-i18n="booking.phone">Telefon</span>
-                  <input name="phone" type="tel" autocomplete="tel" required maxlength="50" data-i18n-placeholder="booking.phonePlaceholder" placeholder="+49 176 41164231" />
+                  <input name="phone" type="tel" autocomplete="tel" required maxlength="50" />
                 </label>
                 <label class="wide-field">
                   <span data-i18n="booking.email">E-Mail</span>
-                  <input name="email" type="email" autocomplete="email" required maxlength="50" data-i18n-placeholder="booking.emailPlaceholder" placeholder="name@beispiel.de" />
+                  <input name="email" type="email" autocomplete="email" required maxlength="50" />
                 </label>
               </div>
             </fieldset>
@@ -72,7 +73,7 @@
             </div>
             <button class="primary-action" type="submit" data-i18n="booking.submit" disabled>Termin reservieren</button>
             <p id="formMessage" class="form-message" role="status" aria-live="polite"></p>
-            <section id="bookingResult" class="booking-result" hidden></section>
+            <section id="bookingResult" class="booking-result" aria-live="polite"></section>
           </form>
         </section>
 
@@ -121,10 +122,8 @@
       </footer>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./config.js?v=20260829-split-pages"></script>
-    <script src="./i18n.js?v=20260915-customer-languages-2"></script>
-    <script src="./customer.js?v=20260915-customer-languages-2"></script>
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <script src="./demo-data.js"></script>
+    <script src="../i18n.js?v=20260915-customer-languages-2"></script>
+    <script src="../customer.js?v=20260915-customer-languages-2"></script>
   </body>
 </html>
