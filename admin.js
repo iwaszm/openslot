@@ -1811,9 +1811,13 @@ function normalizeLaneLayout(rows) {
         staffId: row.staffId || null,
         staffKey: row.staffKey || "default",
         staffName: row.staffName || "Mitarbeiter 1",
+        staffSortOrder: Number(row.staffSortOrder || 0),
       };
     })
-    .sort((left, right) => left.sortOrder - right.sortOrder);
+    .sort((left, right) => (
+      left.staffSortOrder - right.staffSortOrder
+      || left.sortOrder - right.sortOrder
+    ));
   return normalized.length > 0 ? normalized : createDefaultLaneLayout();
 }
 
