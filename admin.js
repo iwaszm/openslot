@@ -751,23 +751,21 @@ function renderCalendarEvent(item, lane, laneIndex, kind, rowCount, lanes) {
   const rowSpan = Math.max(1, Math.min(rowCount - startRow + 1, Math.ceil((visibleEnd - item.startMinutes) / SLOT_STEP)));
   const service = item.serviceId ? findService(item.serviceId) : null;
   const customerName = kind === "online" ? (item.name || t("admin.unnamedCustomer")) : "";
-  const label = service ? getServiceName(service) : t("admin.blockedSlot");
+  const fullLabel = service ? getServiceName(service) : t("admin.blockedSlot");
+  const label = service ? getServiceAbbrev(service) : fullLabel;
   const color = service?.slotColor || "#c98f86";
   const menu = kind === "online" || !canEditLane(lane) ? "" : renderSlotMenu({ startMinutes: item.startMinutes, lane: lane.storageKey, item });
   const placement = getStaffEventPlacement(item, lane, laneIndex, lanes);
-  const detail = kind === "online" ? customerName : (item.note || item.reason || "");
   return `
     <article
       class="calendar-event ${kind} ${rowSpan === 1 ? "duration-single" : ""} ${service ? "service-colored" : ""}"
       data-slot-start="${item.startMinutes}"
       style="grid-column:${placement.start + 2} / span ${placement.span};grid-row:${startRow} / span ${rowSpan};--slot-color:${escapeAttribute(color)}"
-      aria-label="${escapeAttribute(`${formatMinutes(item.startMinutes)}-${formatMinutes(item.endMinutes)} ${label}${customerName ? ` ${customerName}` : ""}`)}"
+      aria-label="${escapeAttribute(`${formatMinutes(item.startMinutes)}-${formatMinutes(item.endMinutes)} ${fullLabel}${customerName ? ` ${customerName}` : ""}`)}"
     >
       <button class="calendar-event-copy event-main" type="button" data-event-detail="${escapeAttribute(item.id || item.scheduleEntryId || "")}" data-event-kind="${kind}">
         <strong>${escapeHtml(label)}</strong>
-        ${detail ? `<span>${escapeHtml(detail)}</span>` : ""}
-        <span class="event-time">${escapeHtml(formatMinutes(item.startMinutes))}-${escapeHtml(formatMinutes(item.endMinutes))}</span>
-        ${kind === "online" ? `<span class="online-label">Online</span>` : ""}
+        <span class="event-meta"><span class="event-time">${escapeHtml(formatMinutes(item.startMinutes))}-${escapeHtml(formatMinutes(item.endMinutes))}</span>${kind === "online" ? `<span class="online-label">Online</span>` : ""}</span>
       </button>
       ${menu}
     </article>

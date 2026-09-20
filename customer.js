@@ -172,8 +172,9 @@ function bindEvents() {
 
 function createRepository() {
   const config = window.OPENSLOT_SUPABASE || {};
+  const isLocalPreview = new URLSearchParams(window.location.search).has("demo");
   const hasSupabase = Boolean(window.supabase && config.url && config.anonKey);
-  if (!hasSupabase) {
+  if (isLocalPreview || !hasSupabase) {
     state.storageStatusKey = "common.localDemo";
     if (els.storageStatus) els.storageStatus.textContent = t("common.localDemo");
     return createLocalRepository();
@@ -668,10 +669,11 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("staff_lanes")
-        .select("lane_key, sort_order, salon_staff!inner(staff_key, sort_order, is_active)")
+        .select("lane_key, sort_order, salon_staff!inner(staff_key, sort_order, is_active, accepts_online_bookings)")
         .eq("salon_id", salon.id)
         .eq("is_active", true)
         .eq("salon_staff.is_active", true)
+        .eq("salon_staff.accepts_online_bookings", true)
         .order("sort_order", { ascending: true });
       if (error) throw error;
       return (data || []).map((row) => ({
@@ -920,18 +922,10 @@ function hasOverlap(candidate, ranges) {
 
 function findAvailableLane(candidate, schedule) {
   const lane = state.laneLayout.find((candidateLane) => {
-    const coveredConflict = schedule.some((item) => (
-      item.status !== "cancelled"
-      && item.laneKey === candidateLane.laneKey
-      && Number.isFinite(item.startMinutes)
-      && Number.isFinite(item.endMinutes)
-      && candidate.startMinutes < item.endMinutes
-      && candidate.endMinutes > item.startMinutes
+    const laneSchedule = schedule.filter((item) => (
+      item.status !== "cancelled" && item.laneKey === candidateLane.laneKey
     ));
-    if (coveredConflict) return false;
-    return !hasOverlap(candidate, schedule.filter((item) => (
-      (item.staffKey || "default") === candidateLane.staffKey
-    )));
+    return !hasOverlap(candidate, laneSchedule);
   });
   return lane?.laneKey || null;
 }
@@ -965,7 +959,7 @@ function allocateLocalAppointmentLanes(appointments) {
 }
 
 function createDefaultLaneLayout() {
-  const laneKeys = getCurrentSalonSlug() === "liyong" ? ["a", "b"] : ["a", "b", "c"];
+  const laneKeys = ["a", "b"];
   return laneKeys.map((laneKey, index) => ({
     laneKey,
     laneSortOrder: index + 1,

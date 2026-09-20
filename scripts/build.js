@@ -36,6 +36,7 @@ for (const dir of ["assets", "datenschutz", "stornierung", "lisa", "liyong"]) {
 }
 replaceTurnstileSiteKeys(dist);
 stampAdminAssetUrls();
+stampCustomerAssetUrls();
 
 writeFile(
   "config.js",
@@ -91,6 +92,20 @@ function stampAdminAssetUrls() {
     });
     const expectedCount = salon === "lisa" ? 5 : 6;
     if (count !== expectedCount) throw new Error(`Expected ${expectedCount} admin assets in ${file}, found ${count}`);
+    fs.writeFileSync(file, updated, "utf8");
+  }
+}
+
+function stampCustomerAssetUrls() {
+  for (const salon of ["lisa", "liyong"]) {
+    const file = path.join(dist, salon, "index.html");
+    const html = fs.readFileSync(file, "utf8");
+    let count = 0;
+    const updated = html.replace(/((?:src)="\.\.\/customer\.js)(?:\?v=[^"]+)?"/g, (_match, asset) => {
+      count += 1;
+      return `${asset}?v=${buildId}"`;
+    });
+    if (count !== 1) throw new Error(`Expected one customer.js asset in ${file}, found ${count}`);
     fs.writeFileSync(file, updated, "utf8");
   }
 }

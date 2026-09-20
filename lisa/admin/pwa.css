@@ -192,8 +192,9 @@ body.production-admin { margin: 0; background: #fff; color: #191b19; font-family
 .calendar-event-copy strong, .calendar-event-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-event-copy strong { font-size: 12px; }
 .calendar-event-copy span { font-size: 11px; }
+.calendar-event-copy .event-meta { display: flex; align-items: center; justify-content: space-between; gap: 5px; width: 100%; overflow: visible; }
 .calendar-event .event-time { font-variant-numeric: tabular-nums; }
-.calendar-event .online-label { align-self: flex-start; margin-top: auto; padding: 2px 4px; background: rgba(255,255,255,.7); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.calendar-event .online-label { flex: none; margin-left: auto; padding: 2px 4px; background: rgba(255,255,255,.7); font-size: 9px; font-weight: 700; text-transform: uppercase; }
 .calendar-time-block { background: rgba(224,229,224,.88); color: #354139; }
 .service-block-menu { position: absolute; top: 2px; right: 2px; }
 .service-block-menu > summary { list-style: none; width: 20px; height: 20px; display: grid; place-items: center; cursor: pointer; }
