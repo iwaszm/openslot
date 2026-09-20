@@ -183,7 +183,8 @@ body.production-admin { margin: 0; background: #fff; color: #191b19; font-family
 .calendar-grid-line.hour-line { border-color: #cbd5ca; }
 .staff-time-marker { position: relative; grid-column: 1; border-right: 1px solid #d9ded6; color: #66716b; font-size: 10px; font-variant-numeric: tabular-nums; }
 .staff-time-marker span { position: absolute; right: 5px; top: -7px; background: #fff; padding: 0 2px; }
-.calendar-lane-cell { border-left: 1px solid #d9ded6; }
+.calendar-lane-cell { border-left: 0; }
+.calendar-lane-cell.is-staff-start { border-left: 1px solid #d9ded6; }
 .calendar-lane-cell .service-block-menu { width: 100%; height: 100%; }
 .calendar-lane-cell .service-block-menu > summary { width: 100%; height: 100%; opacity: 0; }
 .calendar-event, .calendar-time-block { position: relative; z-index: 3; margin: 3px 4px; min-width: 0; padding: 6px 8px; overflow: visible; border: 1px solid rgba(55,65,59,.13); box-shadow: 0 2px 8px rgba(25,27,25,.07); }

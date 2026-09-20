@@ -624,7 +624,7 @@ function renderSlotManager() {
         <span></span>
         ${staffGroups.map((group) => {
           const staffNumber = Math.max(1, staffOrder.indexOf(group.key) + 1);
-          return `<strong style="grid-column:${group.start + 2} / span ${group.lanes.length}"><span class="staff-avatar">${staffNumber}</span>M${staffNumber}</strong>`;
+          return `<strong style="grid-column:${group.start + 2} / span ${group.lanes.length}"><span class="staff-avatar">${staffNumber}</span>Mitarbeiter ${staffNumber}</strong>`;
         }).join("")}
       </div>
       ${renderOutlookSchedule(slots, lanes)}
@@ -677,6 +677,7 @@ function renderOutlookSchedule(slots, lanes) {
     const row = rowIndex + 1;
     const isHour = slot.startMinutes % 60 === 0;
     const laneCells = lanes.map((lane, laneIndex) => {
+      const isStaffStart = laneIndex === 0 || lanes[laneIndex - 1]?.staffKey !== lane.staffKey;
       const isTimeBlocked = state.timeBlocks.some((block) => (
         slot.startMinutes >= block.startMinutes && slot.startMinutes < block.endMinutes
       ));
@@ -684,7 +685,7 @@ function renderOutlookSchedule(slots, lanes) {
         slot.startMinutes >= item.startMinutes && slot.startMinutes < item.endMinutes
       ));
       return `
-        <div class="calendar-lane-cell lane-column-${laneIndex + 1} ${laneIndex === lanes.length - 1 ? "is-last-lane" : ""} ${isCovered ? "is-covered" : "is-open"}" style="grid-column:${laneIndex + 2};grid-row:${row}">
+        <div class="calendar-lane-cell lane-column-${laneIndex + 1} ${isStaffStart ? "is-staff-start" : "is-staff-continuation"} ${laneIndex === lanes.length - 1 ? "is-last-lane" : ""} ${isCovered ? "is-covered" : "is-open"}" style="grid-column:${laneIndex + 2};grid-row:${row}">
         </div>
       `;
     }).join("");
