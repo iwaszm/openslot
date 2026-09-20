@@ -111,7 +111,7 @@ async function notifyNewBooking(
     .in("user_id", [...new Set(subscriptions.map((subscription) => subscription.user_id))]);
   if (memberError) throw memberError;
   const authorizedUsers = new Set((memberships || [])
-    .filter((member) => member.role === "super_admin" || member.salon_id === booking.salon_id)
+    .filter((member) => ["admin", "super_admin"].includes(member.role) || member.salon_id === booking.salon_id)
     .map((member) => member.user_id));
 
   await Promise.allSettled(subscriptions.map(async (subscription) => {

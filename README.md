@@ -38,7 +38,7 @@ Resend is used for transactional customer emails.
 ├─ docs/                Architecture and security notes
 ├─ scripts/build.js     Cloudflare Pages build script
 ├─ supabase/            SQL migrations and Edge Functions
-├─ template/            Reference HTML templates
+├─ template/            Isolated local UI theme sandbox
 ├─ customer.js          Public booking page logic
 ├─ admin.js             Admin page logic
 ├─ styles.css           Shared UI styles
@@ -70,6 +70,18 @@ http://127.0.0.1:5173/{salon-slug}/admin/
 ```
 
 The first path segment is used as the salon slug. The frontend loads the matching salon record from Supabase and scopes all services, appointments, opening hours, and admin actions to that salon.
+
+### UI theme sandbox
+
+The `template/` pages mirror the current Li Yong booking and admin markup but do not load `config.js`, Supabase, or Cloudflare Turnstile. They use an isolated localStorage namespace and synthetic data from `template/demo-data.js`, so UI experiments do not modify Lisa, Li Yong, or production data.
+
+```text
+http://127.0.0.1:5173/template/index.html
+http://127.0.0.1:5173/template/admin.html
+```
+
+Put experimental visual overrides in `template/theme.css`. Keep shared business logic in the root JavaScript files unless the experiment explicitly changes application behavior.
+Append `?reset=1` to either preview URL to restore the synthetic appointments and clear only the template sandbox data.
 
 ## Supabase Setup
 

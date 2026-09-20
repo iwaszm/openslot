@@ -89,7 +89,8 @@ function stampAdminAssetUrls() {
       count += 1;
       return `${prefix}${asset}?v=${buildId}"`;
     });
-    if (count !== 6) throw new Error(`Expected six admin assets in ${file}, found ${count}`);
+    const expectedCount = salon === "lisa" ? 5 : 6;
+    if (count !== expectedCount) throw new Error(`Expected ${expectedCount} admin assets in ${file}, found ${count}`);
     fs.writeFileSync(file, updated, "utf8");
   }
 }

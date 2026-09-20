@@ -4325,10 +4325,19 @@ body {
   gap: 8px;
   margin: 2px 3px;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 5px 9px;
   position: relative;
   z-index: 8;
+}
+
+.calendar-time-block:has(.time-block-menu[open]) {
+  z-index: calc(var(--calendar-menu-layer) + 1);
+}
+
+.calendar-time-block .time-block-menu {
+  flex: 0 0 24px;
+  margin-left: auto;
 }
 
 .calendar-time-block strong,

@@ -61,7 +61,7 @@
       if (salonResult.error) throw salonResult.error;
       if (memberResult.error) throw memberResult.error;
       const salon = salonResult.data;
-      if (!memberResult.data?.some((member) => member.role === "super_admin" || member.salon_id === salon.id)) return;
+      if (!memberResult.data?.some((member) => ["admin", "super_admin"].includes(member.role) || member.salon_id === salon.id)) return;
       salonId = salon.id;
       if (!supported || !config.vapidPublicKey) return;
 
