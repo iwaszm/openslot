@@ -921,13 +921,16 @@ function hasOverlap(candidate, ranges) {
 }
 
 function findAvailableLane(candidate, schedule) {
-  const lane = state.laneLayout.find((candidateLane) => {
-    const laneSchedule = schedule.filter((item) => (
-      item.status !== "cancelled" && item.laneKey === candidateLane.laneKey
+  const staffKeys = [...new Set(state.laneLayout.map((lane) => lane.staffKey))];
+  for (const staffKey of staffKeys) {
+    const staffLanes = state.laneLayout.filter((lane) => lane.staffKey === staffKey);
+    const laneKeys = new Set(staffLanes.map((lane) => lane.laneKey));
+    const staffSchedule = schedule.filter((item) => (
+      item.status !== "cancelled" && laneKeys.has(item.laneKey)
     ));
-    return !hasOverlap(candidate, laneSchedule);
-  });
-  return lane?.laneKey || null;
+    if (!hasOverlap(candidate, staffSchedule)) return staffLanes[0]?.laneKey || null;
+  }
+  return null;
 }
 
 function buildLocalSchedule(date) {

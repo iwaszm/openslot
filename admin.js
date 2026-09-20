@@ -47,7 +47,6 @@ const LEGACY_LANE_DEFINITIONS = [
   { laneKey: "c", storageKey: "flexible", label: "C", sortOrder: 3 },
   { laneKey: "d", storageKey: "lane-d", label: "D", sortOrder: 4 },
 ];
-const STAFF_VISIBILITY_QUERY = "(max-width: 700px) and (orientation: portrait)";
 
 const state = {
   appointments: [],
@@ -77,7 +76,6 @@ let pendingDayRender = false;
 let dayRefreshSequence = 0;
 let logRefreshSequence = 0;
 let dateOptionsRefreshSequence = 0;
-let visibleStaffLimitActive = window.matchMedia(STAFF_VISIBILITY_QUERY).matches;
 let toastTimeout = null;
 
 const t = (key, values) => window.OpenSlotI18n?.t(key, values) || key;
@@ -263,10 +261,6 @@ function bindEvents() {
   });
   window.addEventListener("openslot:language-change", () => {
     render();
-  });
-  window.matchMedia(STAFF_VISIBILITY_QUERY).addEventListener("change", (event) => {
-    visibleStaffLimitActive = event.matches;
-    renderSlotManager();
   });
 }
 
@@ -589,7 +583,7 @@ function getVisibleLaneLayout() {
   const selected = state.visibleStaffKey === "all"
     ? groups
     : groups.filter((group) => group[0]?.staffKey === state.visibleStaffKey);
-  return (visibleStaffLimitActive ? selected.slice(0, 2) : selected).flat();
+  return selected.flat();
 }
 
 function allocateAppointmentsByLane(appointments, layout) {
@@ -623,11 +617,15 @@ function renderSlotManager() {
     return;
   }
   const staffGroups = groupLanesByStaff(lanes);
+  const staffOrder = groupLanesByStaff(state.laneLayout).map((group) => group.key);
   els.appointmentList.innerHTML = `
     <div class="staff-schedule" style="--lane-count:${lanes.length}">
       <div class="staff-schedule-head" aria-hidden="true">
         <span></span>
-        ${staffGroups.map((group, index) => `<strong style="grid-column:${group.start + 2} / span ${group.lanes.length}"><span class="staff-avatar">${index + 1}</span>${escapeHtml(group.name)}</strong>`).join("")}
+        ${staffGroups.map((group) => {
+          const staffNumber = Math.max(1, staffOrder.indexOf(group.key) + 1);
+          return `<strong style="grid-column:${group.start + 2} / span ${group.lanes.length}"><span class="staff-avatar">${staffNumber}</span>M${staffNumber}</strong>`;
+        }).join("")}
       </div>
       ${renderOutlookSchedule(slots, lanes)}
     </div>
@@ -1790,7 +1788,7 @@ function createDefaultLaneLayout() {
   return Array.from({ length: laneCount }, (_, index) => ({
     ...createLaneDefinition(String.fromCharCode(97 + index), index + 1),
     staffKey: `staff-${Math.floor(index / 2) + 1}`,
-    staffName: `Mitarbeiter ${Math.floor(index / 2) + 1}`,
+    staffName: `M${Math.floor(index / 2) + 1}`,
     staffId: `demo-staff-${Math.floor(index / 2) + 1}`,
   }));
 }
