@@ -15,6 +15,7 @@ const SERVICE_ORDER = new Map(DEFAULT_SERVICES.map((service, index) => [service.
 const DEFAULT_OPEN_MINUTES = 10 * 60;
 const DEFAULT_CLOSE_MINUTES = 19 * 60;
 const SLOT_STEP = 30;
+const ADMIN_SLOT_HEIGHT = 58;
 const DATE_RANGE_DAYS = 21;
 const APPOINTMENT_PAGE_SIZE = 500;
 const LIVE_REFRESH_MS = 20 * 1000;
@@ -706,7 +707,7 @@ function renderOutlookSchedule(slots, lanes) {
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const showNow = els.adminDateInput?.value === toDateInputValue(now)
     && nowMinutes >= state.daySettings.openMinutes && nowMinutes <= state.daySettings.closeMinutes;
-  const nowTop = ((nowMinutes - state.daySettings.openMinutes) / SLOT_STEP) * 42;
+  const nowTop = ((nowMinutes - state.daySettings.openMinutes) / SLOT_STEP) * ADMIN_SLOT_HEIGHT;
   return `
     <div class="staff-schedule-body outlook-calendar" style="--calendar-rows:${rowCount}">
       ${gridRows}
@@ -750,6 +751,7 @@ function renderCalendarEvent(item, lane, laneIndex, kind, rowCount, lanes) {
   const rowSpan = Math.max(1, Math.min(rowCount - startRow + 1, Math.ceil((visibleEnd - item.startMinutes) / SLOT_STEP)));
   const service = item.serviceId ? findService(item.serviceId) : null;
   const customerName = kind === "online" ? (item.name || t("admin.unnamedCustomer")) : "";
+  const detail = kind === "online" ? customerName : (item.note || "");
   const fullLabel = service ? getServiceName(service) : t("admin.blockedSlot");
   const label = service ? getServiceAbbrev(service) : fullLabel;
   const color = service?.slotColor || "#c98f86";
@@ -764,8 +766,10 @@ function renderCalendarEvent(item, lane, laneIndex, kind, rowCount, lanes) {
     >
       <button class="calendar-event-copy event-main" type="button" data-event-detail="${escapeAttribute(item.id || item.scheduleEntryId || "")}" data-event-kind="${kind}">
         <strong>${escapeHtml(label)}</strong>
-        <span class="event-meta"><span class="event-time">${escapeHtml(formatMinutes(item.startMinutes))}-${escapeHtml(formatMinutes(item.endMinutes))}</span>${kind === "online" ? `<span class="online-label">Online</span>` : ""}</span>
+        <span class="event-detail">${detail ? escapeHtml(detail) : "&nbsp;"}</span>
+        <span class="event-time">${escapeHtml(formatMinutes(item.startMinutes))}-${escapeHtml(formatMinutes(item.endMinutes))}</span>
       </button>
+      ${kind === "online" ? `<span class="online-label">Online</span>` : ""}
       ${menu}
     </article>
   `;
@@ -847,7 +851,7 @@ function renderLogAppointment(appointment) {
       <div class="log-actions">${isCancelled || !canCancel ? "" : `<button class="cancel-log" type="button" data-log-cancel="${appointment.id}" aria-label="Buchung stornieren"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg><span>Stornieren</span></button>`}</div>
       <div class="log-copy">
         <div class="log-primary"><strong>${escapeHtml(appointment.name || t("admin.unnamedCustomer"))}</strong>${appointment.phone ? `<span class="log-phone">${escapeHtml(appointment.phone)}</span>` : ""}</div>
-        <span>${escapeHtml(service.name)} · ${escapeHtml(appointment.date)} · ${escapeHtml(formatMinutes(appointment.startMinutes))}</span>
+        <span>${escapeHtml(getServiceAbbrev(service))} · ${escapeHtml(appointment.date)} · ${escapeHtml(formatMinutes(appointment.startMinutes))}</span>
       </div>
     </article>
   `;
@@ -1182,7 +1186,7 @@ function formatServiceCategory(category) {
 function updateManualServiceOptions() {
   if (!els.bookingService || !els.bookingCategory) return;
   const services = state.services.filter((service) => service.isActive && service.category === els.bookingCategory.value);
-  els.bookingService.innerHTML = services.map((service) => `<option value="${escapeAttribute(service.id)}">${escapeHtml(`${service.name} · ${service.duration} Min.`)}</option>`).join("");
+  els.bookingService.innerHTML = services.map((service) => `<option value="${escapeAttribute(service.id)}">${escapeHtml(`${getServiceAbbrev(service)} · ${service.duration} Min.`)}</option>`).join("");
   updateManualBookingTimes();
 }
 
