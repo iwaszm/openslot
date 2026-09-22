@@ -85,10 +85,10 @@
     "zh": "为柏林而建",
     "ko": "베를린을 위해"
   },
-  "Dein Können im Fokus.": {
-    "en": "Focus on your craft.",
-    "zh": "专注你的手艺。",
-    "ko": "본업에 집중하세요."
+  "Dein Können im Fokus": {
+    "en": "Focus on your craft",
+    "zh": "专注你的手艺",
+    "ko": "본업에 집중하세요"
   },
   "Der Kalender im Griff.": {
     "en": "Keep your calendar in hand.",
@@ -355,10 +355,10 @@
     "zh": "认真对待数据。",
     "ko": "데이터는 신중하게."
   },
-  "Leichtgewichtig.": {
-    "en": "Lightweight.",
-    "zh": "轻量。",
-    "ko": "가볍게."
+  "Leichtgewichtig": {
+    "en": "Lightweight",
+    "zh": "轻量",
+    "ko": "가볍게"
   },
   "Keine App-Installation. Kein Softwarepaket für Aufgaben, die du gar nicht brauchst. Einfach die Buchung im Browser öffnen.": {
     "en": "No app to install. No software suite full of features you don't need. Just open the booking page in your browser.",
@@ -370,20 +370,20 @@
     "zh": "浏览器即可使用",
     "ko": "앱 대신 브라우저"
   },
-  "Geschützt.": {
-    "en": "Protected.",
-    "zh": "安全保护。",
-    "ko": "안전하게."
+  "Geschützt": {
+    "en": "Protected",
+    "zh": "安全保护",
+    "ko": "안전하게"
   },
   "Cloudflare Turnstile hilft, automatisierte Buchungen abzuwehren. Die Prüfung erfolgt auch auf dem Server, bevor ein Termin angelegt wird.": {
     "en": "Cloudflare Turnstile helps prevent automated bookings. Verification also takes place on the server before an appointment is created.",
     "zh": "Cloudflare Turnstile 帮助防范自动化预约。创建预约前，服务器也会进行验证。",
     "ko": "Cloudflare Turnstile은 자동화된 예약을 방지하는 데 도움을 줍니다. 예약을 생성하기 전에 서버에서도 검증합니다."
   },
-  "In Europa.": {
-    "en": "In Europe.",
-    "zh": "位于欧洲。",
-    "ko": "유럽에."
+  "In Europa": {
+    "en": "In Europe",
+    "zh": "位于欧洲",
+    "ko": "유럽에"
   },
   "Die Buchungsdaten werden in einer europäischen Datenbank gespeichert. Jeder Betrieb hat seinen eigenen Bereich für seine Termine.": {
     "en": "Booking data is stored in a European database. Each business has its own area for appointments.",
@@ -395,10 +395,10 @@
     "zh": "欧洲数据库",
     "ko": "유럽 데이터베이스"
   },
-  "Gut zu wissen.": {
-    "en": "Good to know.",
-    "zh": "常见问题。",
-    "ko": "자주 묻는 질문."
+  "Gut zu wissen": {
+    "en": "Good to know",
+    "zh": "常见问题",
+    "ko": "자주 묻는 질문"
   },
   "Für wen ist OpenSlotBerlin gedacht?": {
     "en": "Who is OpenSlotBerlin for?",
@@ -471,6 +471,58 @@
     "ko": "OpenSlotBerlin: 베를린 소규모 매장을 위한 가벼운 온라인 예약 관리. 온라인 예약, 이메일 확인, Cloudflare Turnstile 및 유럽 데이터베이스를 제공합니다."
   }
 };
+  Object.assign(translations, {
+    "Buchen links": { en: "Book on the left", zh: "左边预约", ko: "왼쪽에서 예약하고" },
+    "Direkt rechts sehen": { en: "See it on the right", zh: "右边实时查看", ko: "오른쪽에서 바로 확인하세요" },
+    "Teste beide Seiten von OpenSlotBerlin. Alles bleibt in diesem Browser – es werden keine Daten versendet.": { en: "Try both sides of OpenSlotBerlin. Everything stays in this browser – no data is sent.", zh: "体验 OpenSlotBerlin 的顾客端和管理端。所有操作仅保留在此浏览器中，不会发送任何数据。", ko: "OpenSlotBerlin의 양쪽 화면을 체험해 보세요. 모든 내용은 이 브라우저에만 남으며 데이터는 전송되지 않습니다." },
+    "Live-Demo · ohne Supabase": { en: "Live demo · no Supabase", zh: "实时演示 · 不连接 Supabase", ko: "라이브 데모 · Supabase 미사용" },
+    "Kundenansicht": { en: "Customer view", zh: "顾客页面", ko: "고객 화면" },
+    "Termin buchen": { en: "Book an appointment", zh: "预约时间", ko: "예약하기" },
+    "Mitarbeiter": { en: "Team member", zh: "员工", ko: "담당자" },
+    "Service": { en: "Service", zh: "服务项目", ko: "서비스" },
+    "Datum": { en: "Date", zh: "日期", ko: "날짜" },
+    "Freie Uhrzeiten": { en: "Available times", zh: "可预约时间", ko: "예약 가능한 시간" },
+    "Name": { en: "Name", zh: "姓名", ko: "이름" },
+    "optional": { en: "optional", zh: "选填", ko: "선택 사항" },
+    "z. B. Maria": { en: "e.g. Maria", zh: "例如 Maria", ko: "예: Maria" },
+    "Termin bestätigen": { en: "Confirm appointment", zh: "确认预约", ko: "예약 확정" },
+    "Verwaltung": { en: "Management", zh: "管理页面", ko: "관리 화면" },
+    "Tagesplan": { en: "Daily schedule", zh: "当日日程", ko: "일일 일정" },
+    "+ Termin": { en: "+ Appointment", zh: "+ 添加预约", ko: "+ 예약 추가" },
+    "Tag auswählen": { en: "Select day", zh: "选择日期", ko: "날짜 선택" },
+    "Beginn": { en: "Start", zh: "开始时间", ko: "시작" },
+    "Walk-in / Name": { en: "Walk-in / name", zh: "到店顾客 / 姓名", ko: "방문 고객 / 이름" },
+    "Abbrechen": { en: "Cancel", zh: "取消", ko: "취소" },
+    "Speichern": { en: "Save", zh: "保存", ko: "저장" },
+    "Termine": { en: "appointments", zh: "个预约", ko: "건의 예약" },
+    "Demo zurücksetzen": { en: "Reset demo", zh: "重置演示", ko: "데모 초기화" },
+    "Damenhaarschnitt": { en: "Women's haircut", zh: "女士剪发", ko: "여성 커트" },
+    "Herrenhaarschnitt": { en: "Men's haircut", zh: "男士剪发", ko: "남성 커트" },
+    "Dauerwelle": { en: "Perm", zh: "烫发", ko: "펌" },
+    "Keine Termine an diesem Tag.": { en: "No appointments on this day.", zh: "当天暂无预约。", ko: "이 날에는 예약이 없습니다." },
+    "Keine Zeit frei": { en: "No time available", zh: "没有空闲时间", ko: "예약 가능한 시간 없음" },
+    "Dieser Termin ist gerade nicht mehr frei. Bitte wähle eine andere Uhrzeit.": { en: "This appointment is no longer available. Please choose another time.", zh: "该时段已被占用，请选择其他时间。", ko: "이 시간은 더 이상 예약할 수 없습니다. 다른 시간을 선택해 주세요." },
+    "Termin bestätigt – rechts ist er bereits im Tagesplan sichtbar.": { en: "Appointment confirmed – it is already visible in the schedule on the right.", zh: "预约已确认，右侧日程中已实时显示。", ko: "예약이 확정되었습니다. 오른쪽 일정에 바로 표시됩니다." },
+    "Für diese Auswahl ist keine Zeit frei.": { en: "No time is available for this selection.", zh: "当前选择没有可用时间。", ko: "선택한 조건에 예약 가능한 시간이 없습니다." },
+    "Termin wurde hinzugefügt.": { en: "Appointment added.", zh: "预约已添加。", ko: "예약이 추가되었습니다." },
+    "Demo-Gast": { en: "Demo guest", zh: "演示顾客", ko: "데모 고객" },
+    "Für die interaktive Demo bitte JavaScript aktivieren.": { en: "Please enable JavaScript for the interactive demo.", zh: "请启用 JavaScript 以使用交互演示。", ko: "인터랙티브 데모를 사용하려면 JavaScript를 활성화해 주세요." }
+  });
+  Object.assign(translations, {
+    "Interaktive Live-Demo": { en: "Interactive live demo", zh: "交互式实时演示", ko: "인터랙티브 라이브 데모" },
+    "Freie Zeiten auswählen und ohne Registrierung buchen.": { en: "Choose an available time and book without registering.", zh: "选择空闲时间，无须注册即可预约。", ko: "빈 시간을 선택하고 회원가입 없이 예약하세요." },
+    "Nach der Bestätigung erscheint der Termin sofort rechts.": { en: "Once confirmed, the appointment appears immediately on the right.", zh: "确认后，预约会立即显示在右侧。", ko: "확정하면 예약이 오른쪽에 즉시 표시됩니다." },
+    "+ Termin fügt Telefon- und Laufkundschaft hinzu.": { en: "+ Appointment adds phone and walk-in bookings.", zh: "+ 添加预约可录入电话和到店预约。", ko: "+ 예약으로 전화 및 방문 예약을 추가합니다." },
+    "Zwei parallele Termine pro Mitarbeiter – inklusive Löschen.": { en: "Two parallel appointments per team member – with deletion.", zh: "每位员工支持两个重叠预约，并可删除。", ko: "직원별 동시 예약 2건을 지원하며 삭제할 수 있습니다." },
+    "Löschen": { en: "Delete", zh: "删除", ko: "삭제" },
+    "Aktionen": { en: "Actions", zh: "操作", ko: "작업" }
+  });
+  Object.assign(translations, {
+    "Was deine Kundschaft sieht": { en: "What your customers see", zh: "你的顾客看到的", ko: "고객에게 보이는 화면" },
+    "Was du siehst": { en: "What you see", zh: "你看到的", ko: "사장님이 보는 화면" },
+    "Was kostet OpenSlotBerlin?": { en: "How much does OpenSlotBerlin cost?", zh: "OpenSlotBerlin 如何收费？", ko: "OpenSlotBerlin의 비용은 얼마인가요?" },
+    "OpenSlotBerlin ist ein persönliches Interessenprojekt. Die Teilnahme ist derzeit kostenlos. Freiwillige Spenden zur Unterstützung des Projekts sind willkommen.": { en: "OpenSlotBerlin is a personal interest project. Joining is currently free, and voluntary donations to support the project are welcome.", zh: "OpenSlotBerlin 是一个个人兴趣项目，目前可以免费加入，也欢迎通过自愿捐赠支持项目。", ko: "OpenSlotBerlin은 개인 관심 프로젝트입니다. 현재 무료로 참여할 수 있으며 프로젝트를 위한 자발적인 후원도 환영합니다." }
+  });
   const storageKey = "openslot.home.language";
   let saved;
   try { saved = localStorage.getItem(storageKey); } catch {}
@@ -487,8 +539,8 @@
     if (translations[original.trim()]) bindings.push({ node, original });
   }
   const attributes = [];
-  document.querySelectorAll("[aria-label], [alt], meta[name=description]").forEach(node => {
-    for (const name of ["aria-label", "alt", "content"]) {
+  document.querySelectorAll("[aria-label], [alt], [placeholder], meta[name=description]").forEach(node => {
+    for (const name of ["aria-label", "alt", "placeholder", "content"]) {
       const original = node.getAttribute(name);
       if (translations[original]) attributes.push({ node, name, original });
     }

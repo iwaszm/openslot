@@ -27,6 +27,8 @@ for (const file of [
   "admin.js",
   "confirm-dialog.js",
   "i18n.js",
+  "robots.txt",
+  "sitemap.xml",
 ]) {
   copyFile(file);
 }
