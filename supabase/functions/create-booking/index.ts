@@ -10,6 +10,7 @@ type BookingRequest = {
   name?: string;
   phone?: string;
   email?: string;
+  staff_key?: string | null;
   turnstile_token?: string;
 };
 
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    const { data, error } = await supabase.rpc("create_public_booking", {
+    const { data, error } = await supabase.rpc("create_public_booking_for_staff", {
       p_salon_slug: payload.salon_slug,
       p_service_id: payload.service_id,
       p_appointment_date: payload.appointment_date,
@@ -51,6 +52,7 @@ Deno.serve(async (req) => {
       p_name: payload.name,
       p_phone: payload.phone,
       p_email: payload.email,
+      p_staff_key: payload.staff_key || null,
     });
 
     if (error) throw error;
@@ -172,6 +174,7 @@ function validatePayload(payload: BookingRequest) {
   if (!payload.name || payload.name.trim().length < 2 || payload.name.trim().length > 50) return "Invalid name";
   if (!payload.phone || payload.phone.trim().length < 3 || payload.phone.trim().length > 50) return "Invalid phone";
   if (!payload.email || payload.email.trim().length > 50 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payload.email.trim())) return "Invalid email";
+  if (payload.staff_key && !/^[a-z0-9-]{1,50}$/.test(payload.staff_key)) return "Invalid staff_key";
   if (!payload.turnstile_token) return "Missing Turnstile token";
   return "";
 }

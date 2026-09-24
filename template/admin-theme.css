@@ -86,7 +86,7 @@ body.preview-admin { margin: 0; background: #fff; color: #191b19; font-family: A
 .staff-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .staff-columns.single-staff { grid-template-columns: minmax(0, 1fr); }
 .time-labels, .staff-timeline { position: relative; }
-.time-labels { border-right: 1px solid #d9ded6; }
+.time-labels { border-right: 1px solid #d9ded6; border-bottom: 1px solid #d9ded6; }
 .hour-label { position: absolute; right: 9px; transform: translateY(-50%); color: #66716b; font-size: 11px; font-variant-numeric: tabular-nums; background: #fff; padding: 0 2px; z-index: 1; }
 .hour-label:first-child { transform: translateY(0); }
 .staff-timeline { border-left: 1px solid #d9ded6; background: #fff; border-bottom: 1px solid #d9ded6; }
@@ -231,6 +231,9 @@ body.preview-admin { margin: 0; background: #fff; color: #191b19; font-family: A
   .toast-symbol svg { width: 13px; height: 13px; }
   .toast-close { width: 22px; height: 22px; }
   .toast-close svg { width: 13px; height: 13px; }
+}
+@media (orientation: portrait) and (max-width: 700px) {
+  .preview-header nav a { display: none; }
 }
 @media (max-width: 380px) {
   .preview-login span { display: none; }

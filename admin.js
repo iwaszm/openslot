@@ -79,6 +79,7 @@ let dateOptionsRefreshSequence = 0;
 let toastTimeout = null;
 
 const t = (key, values) => window.OpenSlotI18n?.t(key, values) || key;
+const getAdminLocale = () => ({ zh: "zh-CN", en: "en-GB", de: "de-DE" })[window.OpenSlotI18n?.language] || "de-DE";
 const getServiceName = (service) => service.name;
 const confirmMessages = {
   cancelAppointment: "Diesen Termin wirklich stornieren?",
@@ -140,6 +141,51 @@ const els = {
   toastClose: document.querySelector("#toastClose"),
 };
 
+function translateStaticAdminUi() {
+  const setText = (selector, key) => {
+    const node = document.querySelector(selector);
+    if (node) node.textContent = t(key);
+  };
+  const setLeadingText = (selector, key) => {
+    const node = document.querySelector(selector);
+    const textNode = node?.firstChild;
+    if (textNode?.nodeType === Node.TEXT_NODE) textNode.nodeValue = t(key);
+  };
+  const setLabel = (selector, key) => {
+    const node = document.querySelector(selector);
+    if (!node) return;
+    const value = t(key);
+    node.setAttribute("aria-label", value);
+    if (node.hasAttribute("title")) node.setAttribute("title", value);
+  };
+  setText("#upcomingLogTitle", "admin.bookingLog");
+  setText("#adminOfflineNotice", "admin.offline");
+  setText("#adminSyncNotice", "admin.syncFailed");
+  setText("#bookingDialogTitle", "admin.addAppointment");
+  setText("#ownerLoginForm .login-button", "admin.loginShort");
+  setText("#availabilityPanel > strong", "admin.availability");
+  setLeadingText("label[for='availabilityStaff']", "admin.employee");
+  setText("#timeBlockToggle", "admin.blockTime");
+  setLeadingText("label:has(#timeBlockStart)", "admin.from");
+  setLeadingText("label:has(#timeBlockEnd)", "admin.until");
+  setText("#timeBlockAction", "admin.block");
+  setLeadingText("label:has(#bookingEmployee)", "admin.employee");
+  setLeadingText("label:has(#bookingCategory)", "admin.category");
+  setLeadingText("label:has(#bookingService)", "admin.service");
+  setLeadingText("label:has(#bookingStart)", "admin.begin");
+  setLeadingText("label:has(#bookingNote)", "admin.note");
+  document.querySelector("#bookingNote")?.setAttribute("placeholder", t("admin.optional"));
+  setText("#manualBookingForm .text-button", "admin.cancel");
+  setText("#manualBookingForm .solid-button", "admin.saveAppointment");
+  setLabel("#availabilityToggle", "admin.manageAvailability");
+  setLabel("#addBookingButton", "admin.addAppointment");
+  setLabel("#ownerLogoutButton", "admin.logout");
+  setLabel("#pushToggleButton", "admin.enableNotifications");
+  setLabel("#logCollapseButton", "admin.collapseLog");
+  setLabel("#toastClose", "admin.close");
+  document.querySelectorAll("[data-close-admin-dialog]").forEach((button) => button.setAttribute("aria-label", t("admin.close")));
+}
+
 function setAdminMessage(message) {
   if (els.adminMessage) els.adminMessage.textContent = "";
   if (message) showToast(message, /fehl|失败|nicht|error/i.test(message) ? "error" : "success");
@@ -157,6 +203,7 @@ function showToast(message, tone = "success") {
 init();
 
 async function init() {
+  translateStaticAdminUi();
   if (els.adminDateInput) {
     els.adminDateInput.value = toDateInputValue(new Date());
     els.adminDateInput.min = toDateInputValue(new Date());
@@ -267,6 +314,7 @@ function bindEvents() {
     }
   });
   window.addEventListener("openslot:language-change", () => {
+    translateStaticAdminUi();
     render();
   });
 }
@@ -529,7 +577,7 @@ function renderDateStrip() {
   if (!els.adminDateStrip || state.dateOptions.length === 0) return;
   const selectedDate = new Date(`${els.adminDateInput.value}T00:00:00`);
   if (els.calendarMonth) {
-    els.calendarMonth.textContent = new Intl.DateTimeFormat("de-DE", { month: "long" }).format(selectedDate);
+    els.calendarMonth.textContent = new Intl.DateTimeFormat(getAdminLocale(), { month: "long" }).format(selectedDate);
   }
   const selectedIndex = Math.max(0, state.dateOptions.findIndex((option) => option.date === els.adminDateInput.value));
   if (selectedIndex < state.datePageStart || selectedIndex >= state.datePageStart + 7) {
@@ -659,7 +707,7 @@ function renderSlotManager() {
         <span></span>
         ${staffGroups.map((group) => {
           const staffNumber = Math.max(1, staffOrder.indexOf(group.key) + 1);
-          return `<strong style="grid-column:${group.start + 2} / span ${group.lanes.length}"><span class="staff-avatar">${staffNumber}</span>Mitarbeiter ${staffNumber}</strong>`;
+          return `<strong style="grid-column:${group.start + 2} / span ${group.lanes.length}"><span class="staff-avatar">${staffNumber}</span>${escapeHtml(group.name)}</strong>`;
         }).join("")}
       </div>
       ${renderOutlookSchedule(slots, lanes)}
@@ -688,7 +736,7 @@ function renderSlotManager() {
 function formatAdminDaySummary(value, count) {
   const date = new Date(`${value}T00:00:00`);
   const month = new Intl.DateTimeFormat("en-US", { month: "short" }).format(date).toUpperCase();
-  const weekday = new Intl.DateTimeFormat("de-DE", { weekday: "short" }).format(date).replace(/\.$/, "");
+  const weekday = new Intl.DateTimeFormat(getAdminLocale(), { weekday: "short" }).format(date).replace(/\.$/, "");
   return `${month}, ${String(date.getDate()).padStart(2, "0")}, ${weekday}. (${count})`;
 }
 
@@ -1365,7 +1413,7 @@ function renderAvailabilityStaffOptions() {
     state.visibleStaffKey = "all";
   }
   els.availabilityStaff.innerHTML = [
-    '<option value="all">Alle Mitarbeiter</option>',
+    `<option value="all">${escapeHtml(t("admin.allEmployees"))}</option>`,
     ...groups.map((group) => `<option value="${escapeAttribute(group.key)}">${escapeHtml(group.name)}</option>`),
   ].join("");
   els.availabilityStaff.value = state.visibleStaffKey;

@@ -53,6 +53,7 @@ const state = {
   selectedServiceId: requiresServiceSelection() ? "" : DEFAULT_SERVICES[0].id,
   selectedGender: requiresServiceSelection() ? "" : DEFAULT_SERVICES[0].gender,
   selectedSlot: "",
+  selectedStaffKey: "any",
   storageStatusKey: "common.detecting",
   formMessageRenderer: null,
 };
@@ -148,6 +149,11 @@ function bindEvents() {
       render();
     });
   }
+  window.addEventListener("openslot:employee-change", (event) => {
+    state.selectedStaffKey = event.detail?.staffKey || "any";
+    state.selectedSlot = "";
+    render();
+  });
   els.customerName.addEventListener("input", () => {
     els.customerName.setCustomValidity("");
   });
@@ -603,6 +609,7 @@ async function handleSubmit(event) {
     startMinutes,
     endMinutes: startMinutes + service.duration,
     occupiedMinutes: getServiceOccupiedMinutes(service, startMinutes),
+    staffKey: state.selectedStaffKey,
     status: "confirmed",
   };
 
@@ -741,6 +748,7 @@ function createSupabaseRepository(client) {
           name: appointment.name,
           phone: appointment.phone,
           email: appointment.email,
+          staff_key: appointment.staffKey === "any" ? null : appointment.staffKey,
           turnstile_token: appointment.turnstileToken,
         },
       });
@@ -946,7 +954,10 @@ function hasOverlap(candidate, ranges) {
 }
 
 function findAvailableLane(candidate, schedule) {
-  const staffKeys = [...new Set(state.laneLayout.map((lane) => lane.staffKey))];
+  const allStaffKeys = [...new Set(state.laneLayout.map((lane) => lane.staffKey))];
+  const staffKeys = state.selectedStaffKey === "any"
+    ? allStaffKeys
+    : allStaffKeys.filter((staffKey) => staffKey === state.selectedStaffKey);
   for (const staffKey of staffKeys) {
     const staffLanes = state.laneLayout.filter((lane) => lane.staffKey === staffKey);
     const laneKeys = new Set(staffLanes.map((lane) => lane.laneKey));
@@ -987,12 +998,13 @@ function allocateLocalAppointmentLanes(appointments) {
 }
 
 function createDefaultLaneLayout() {
-  const laneKeys = ["a", "b"];
+  const isDemoSalon = getCurrentSalonSlug() === "demo";
+  const laneKeys = isDemoSalon ? ["a", "b", "c", "d"] : ["a", "b"];
   return laneKeys.map((laneKey, index) => ({
     laneKey,
-    laneSortOrder: index + 1,
-    staffKey: "default",
-    staffSortOrder: 1,
+    laneSortOrder: (index % 2) + 1,
+    staffKey: index < 2 ? "default" : "tony",
+    staffSortOrder: index < 2 ? 1 : 2,
   }));
 }
 

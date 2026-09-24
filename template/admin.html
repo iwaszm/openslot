@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" data-language-source="system">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,8 +11,8 @@
   <header class="preview-header">
     <h1>Berlin Hair Salon</h1>
     <nav aria-label="Hauptnavigation">
-      <a href="./index.html">Zur Buchung</a>
-      <button class="icon-button header-tool" type="button" aria-label="Weitere Funktionen (demnächst)" title="Weitere Funktionen (demnächst)" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.1l2-1.5-2-3.4-2.3.9a7 7 0 0 0-1.9-1.1L14.3 3h-4.1l-.4 2.8a7 7 0 0 0-1.9 1.1L5.6 6l-2 3.4 2 1.5a7 7 0 0 0 0 2.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 1.9 1.1l.4 2.8h4.1l.4-2.8a7 7 0 0 0 1.9-1.1l2.3.9 2-3.4-2-1.5A7 7 0 0 0 19 12Z"/></svg></button>
+      <a href="./index.html" data-i18n="nav.backCustomer">Zur Buchung</a>
+      <button class="icon-button header-tool" type="button" aria-label="Weitere Funktionen (demnächst)" title="Weitere Funktionen (demnächst)" data-i18n-aria-label="admin.moreComing" data-i18n-title="admin.moreComing" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.1l2-1.5-2-3.4-2.3.9a7 7 0 0 0-1.9-1.1L14.3 3h-4.1l-.4 2.8a7 7 0 0 0-1.9 1.1L5.6 6l-2 3.4 2 1.5a7 7 0 0 0 0 2.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 1.9 1.1l.4 2.8h4.1l.4-2.8a7 7 0 0 0 1.9-1.1l2.3.9 2-3.4-2-1.5A7 7 0 0 0 19 12Z"/></svg></button>
       <div class="preview-login" aria-label="Angemeldet als Demo-Inhaber">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
         <span>Demo-Inhaber</span>
@@ -20,27 +20,27 @@
     </nav>
   </header>
   <main class="preview-main">
-    <section class="schedule-section" aria-label="Tagesplan">
+    <section class="schedule-section" aria-label="Tagesplan" data-i18n-aria-label="admin.schedule">
       <div class="schedule-toolbar">
         <div class="day-navigation">
           <div class="day-nav-controls">
-            <button id="todayButton" class="today-button" type="button" aria-pressed="true">Heute</button>
-            <button id="previousDay" class="icon-button" type="button" aria-label="Vorherige Woche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
-            <button id="nextDay" class="icon-button" type="button" aria-label="Nächster Montag"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button id="todayButton" class="today-button" type="button" aria-pressed="true" data-i18n="date.today">Heute</button>
+            <button id="previousDay" class="icon-button" type="button" aria-label="Vorherige Woche" data-i18n-aria-label="admin.previousWeek"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+            <button id="nextDay" class="icon-button" type="button" aria-label="Nächster Montag" data-i18n-aria-label="admin.nextMonday"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
           </div>
           <span id="calendarMonth" class="calendar-month" aria-live="polite"></span>
-          <div id="dayStrip" class="mini-day-strip" role="group" aria-label="Tage auswählen"></div>
+          <div id="dayStrip" class="mini-day-strip" role="group" aria-label="Tage auswählen" data-i18n-aria-label="admin.chooseDays"></div>
         </div>
         <div class="availability-shell">
-          <button id="availabilityToggle" class="icon-button settings-button" type="button" aria-label="Verfügbarkeit verwalten" aria-controls="availabilityPanel" aria-expanded="false" title="Verfügbarkeit verwalten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+          <button id="availabilityToggle" class="icon-button settings-button" type="button" aria-label="Verfügbarkeit verwalten" aria-controls="availabilityPanel" aria-expanded="false" title="Verfügbarkeit verwalten" data-i18n-aria-label="admin.manageAvailability" data-i18n-title="admin.manageAvailability"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
           <div id="availabilityPanel" class="availability-panel" hidden>
-            <strong>Verfügbarkeit</strong>
-            <label class="availability-staff-label" for="availabilityStaff">Mitarbeiter<select id="availabilityStaff"></select></label>
+            <strong data-i18n="admin.availability">Verfügbarkeit</strong>
+            <label class="availability-staff-label" for="availabilityStaff"><span data-i18n="admin.employee">Mitarbeiter</span><select id="availabilityStaff"></select></label>
             <button id="dayBlockButton" class="availability-option" type="button"></button>
-            <button id="timeBlockToggle" class="availability-option" type="button" aria-controls="timeBlockFields" aria-expanded="false">Uhrzeit blockieren</button>
+            <button id="timeBlockToggle" class="availability-option" type="button" aria-controls="timeBlockFields" aria-expanded="false" data-i18n="admin.blockTime">Uhrzeit blockieren</button>
             <div id="timeBlockFields" class="time-block-fields" hidden>
-              <div class="time-selects"><label>Von<select id="timeBlockStart"></select></label><label>Bis<select id="timeBlockEnd"></select></label></div>
-              <button id="timeBlockAction" class="time-block-submit" type="button">Blockieren</button>
+              <div class="time-selects"><label><span data-i18n="admin.from">Von</span><select id="timeBlockStart"></select></label><label><span data-i18n="admin.until">Bis</span><select id="timeBlockEnd"></select></label></div>
+              <button id="timeBlockAction" class="time-block-submit" type="button" data-i18n="admin.block">Blockieren</button>
               <p id="timeBlockHint" role="status"></p>
             </div>
             <div id="existingTimeBlocks" class="existing-time-blocks"></div>
@@ -49,27 +49,27 @@
       </div>
       <div class="staff-toolbar">
         <div id="daySummary" class="day-summary" aria-live="polite"></div>
-        <button id="addBookingButton" class="add-booking" type="button" aria-label="Termin hinzufügen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Termin hinzufügen</span></button>
+        <button id="addBookingButton" class="add-booking" type="button" aria-label="Termin hinzufügen" data-i18n-aria-label="admin.addAppointment"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="admin.addAppointment">Termin hinzufügen</span></button>
       </div>
-      <div class="schedule-scroll"><div id="scheduleBoard" class="schedule-board" aria-label="Termine nach Uhrzeit und Mitarbeitenden"></div></div>
+      <div class="schedule-scroll"><div id="scheduleBoard" class="schedule-board" aria-label="Termine nach Uhrzeit und Mitarbeitenden" data-i18n-aria-label="admin.scheduleByStaff"></div></div>
     </section>
     <section class="booking-log" aria-labelledby="bookingLogHeading">
-      <div class="section-heading"><h2 id="bookingLogHeading">Buchungslog</h2><span id="logCount"></span></div>
+      <div class="section-heading"><h2 id="bookingLogHeading" data-i18n="admin.bookingLog">Buchungslog</h2><span id="logCount"></span></div>
       <div id="bookingLogList" class="booking-log-list"></div>
     </section>
   </main>
   <dialog id="bookingDialog" class="preview-dialog" aria-labelledby="bookingDialogTitle">
     <form id="manualBookingForm">
-      <div class="dialog-heading"><h2 id="bookingDialogTitle">Termin hinzufügen</h2><button class="icon-button dialog-close" type="button" data-close-dialog aria-label="Schließen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <div class="dialog-heading"><h2 id="bookingDialogTitle" data-i18n="admin.addAppointment">Termin hinzufügen</h2><button class="icon-button dialog-close" type="button" data-close-dialog aria-label="Schließen" data-i18n-aria-label="admin.close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       <div class="form-fields">
-        <label>Mitarbeiter<select id="bookingEmployee" required></select></label>
-        <label>Kategorie<select id="bookingCategory" required></select></label>
-        <label>Service<select id="bookingService" required></select></label>
-        <label>Beginn<select id="bookingStart" required></select></label>
-        <label class="wide-field">Notiz<textarea id="bookingNote" rows="3" maxlength="120" placeholder="Optional"></textarea></label>
+        <label><span data-i18n="admin.employee">Mitarbeiter</span><select id="bookingEmployee" required></select></label>
+        <label><span data-i18n="admin.category">Kategorie</span><select id="bookingCategory" required></select></label>
+        <label><span data-i18n="admin.service">Service</span><select id="bookingService" required></select></label>
+        <label><span data-i18n="admin.begin">Beginn</span><select id="bookingStart" required></select></label>
+        <label class="wide-field"><span data-i18n="admin.note">Notiz</span><textarea id="bookingNote" rows="3" maxlength="120" placeholder="Optional" data-i18n-placeholder="admin.optional"></textarea></label>
       </div>
       <p id="bookingFormMessage" class="dialog-message" role="alert"></p>
-      <div class="dialog-actions"><button type="button" class="text-button" data-close-dialog>Abbrechen</button><button type="submit" class="solid-button">Termin speichern</button></div>
+      <div class="dialog-actions"><button type="button" class="text-button" data-close-dialog data-i18n="admin.cancel">Abbrechen</button><button type="submit" class="solid-button" data-i18n="admin.saveAppointment">Termin speichern</button></div>
     </form>
   </dialog>
   <dialog id="detailDialog" class="preview-dialog detail-dialog" aria-labelledby="detailTitle">
@@ -86,6 +86,7 @@
     <span id="toastMessage" class="toast-message"></span>
     <button id="toastClose" class="icon-button toast-close" type="button" aria-label="Hinweis schließen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
+  <script src="../i18n.js"></script>
   <script src="./demo-data.js"></script>
   <script src="./admin-preview.js"></script>
 </body>

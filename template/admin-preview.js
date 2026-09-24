@@ -1,4 +1,10 @@
 (() => {
+  const t = (key, values) => window.OpenSlotI18n?.t(key, values) || key;
+  const locale = ({ zh: "zh-CN", en: "en-GB", de: "de-DE" })[window.OpenSlotI18n?.language] || "de-DE";
+  document.querySelector(".header-tool")?.setAttribute("aria-label", t("admin.moreComing"));
+  document.querySelector(".header-tool")?.setAttribute("title", t("admin.moreComing"));
+  document.getElementById("availabilityToggle")?.setAttribute("aria-label", t("admin.manageAvailability"));
+  document.getElementById("availabilityToggle")?.setAttribute("title", t("admin.manageAvailability"));
   const namespace = window.OPENSLOT_LOCAL_STORAGE_NAMESPACE || "openslot.template.preview.v1";
   const onlineKey = `${namespace}.appointments`;
   const manualKey = `${namespace}.preview-manual-appointments`;
@@ -6,7 +12,7 @@
   const staffDayBlocksKey = `${namespace}.staff-day-blocks`;
   const timeBlocksKey = `${namespace}.time-blocks`;
   const seedKey = `${namespace}.preview-manual-seed`;
-  const staff = ["Mitarbeiter 1", "Mitarbeiter 2"];
+  const staff = [1, 2].map((number) => t("admin.employeeNumber", { number }));
   const categories = { cut: "Haarschnitt", color: "Farbe", care: "Pflege & Styling", shape: "Umformung" };
   const fallbackServices = [
     { id: "damen_haarschnitt", name: "Damen Haarschnitt", category: "cut", duration: 60, bookedSlots: [1, 2] },
@@ -161,7 +167,7 @@
     const date = new Date();
     const day = date.getDate();
     date.setDate(1);
-    date.setMonth(date.getMonth() + 1);
+    date.setMonth(date.getMonth() + 2);
     const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
     date.setDate(Math.min(day, lastDay));
     return dateValue(date);
@@ -199,10 +205,10 @@
     const events = dayEvents();
     const visibleEvents = events.filter((item) => viewStaff == null || item.staffIndex === viewStaff);
     document.getElementById("availabilityToggle").classList.toggle("is-filtered", viewStaff != null);
-    const weekday = `${new Intl.DateTimeFormat("de-DE", { weekday: "short" }).format(date).replace(/\.$/, "")}.`;
+    const weekday = `${new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date).replace(/\.$/, "")}.`;
     const month = new Intl.DateTimeFormat("en-US", { month: "short" }).format(date).toUpperCase();
     document.getElementById("daySummary").textContent = `${month}, ${pad(date.getDate())}, ${weekday} (${visibleEvents.length})`;
-    document.getElementById("calendarMonth").textContent = new Intl.DateTimeFormat("de-DE", { month: "long" }).format(date);
+    document.getElementById("calendarMonth").textContent = new Intl.DateTimeFormat(locale, { month: "long" }).format(date);
     const todayButton = document.getElementById("todayButton");
     todayButton.classList.toggle("is-active", selectedDate === currentDay);
     todayButton.setAttribute("aria-pressed", String(selectedDate === currentDay));
@@ -218,8 +224,8 @@
       const blocked = isDayBlocked(value);
       const holiday = berlinHoliday(value);
       const closed = isDefaultClosed(value);
-      const weekdayShort = new Intl.DateTimeFormat("de-DE", { weekday: "short" }).format(day).replace(/\.$/, "");
-      const label = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long" }).format(day);
+      const weekdayShort = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(day).replace(/\.$/, "");
+      const label = new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long" }).format(day);
       return `<button class="mini-day ${value === selectedDate ? "selected" : ""} ${blocked ? "blocked" : ""}" type="button" data-day="${value}" aria-label="${escapeHtml(label)}${outOfRange ? ": außerhalb des Buchungszeitraums" : `: ${status.count} Termine${holiday ? `, ${holiday}` : ""}${blocked ? ", blockiert" : ""}`}" aria-pressed="${value === selectedDate}" ${outOfRange ? "disabled" : ""}><span class="day-weekday">${escapeHtml(weekdayShort)}</span><strong>${pad(day.getDate())}</strong>${closed || blocked || outOfRange ? "" : `<span class="day-status-bar"><span style="width:${status.percent}%"></span></span>`}</button>`;
     }).join("");
     const layout = layoutFor(events);
@@ -369,7 +375,7 @@
     const item = dayEvents().find((entry) => String(entry.id) === id);
     if (!item) return;
     const service = findService(item.serviceId);
-    const dateLabel = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(parseDate(item.date));
+    const dateLabel = new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(parseDate(item.date));
     const fields = [
       ["Datum", dateLabel],
       ["Uhrzeit", `${time(item.startMinutes)}–${time(item.endMinutes)}`],
@@ -392,7 +398,7 @@
     confirmDialog.showModal();
   }
 
-  fill(document.getElementById("availabilityStaff"), [["all", "Alle Mitarbeiter"], ...staff.map((name, index) => [index, name])]);
+  fill(document.getElementById("availabilityStaff"), [["all", t("admin.allEmployees")], ...staff.map((name, index) => [index, name])]);
   document.getElementById("todayButton").addEventListener("click", () => { visibleStartDate = dateValue(new Date()); selectedDate = visibleStartDate; closeAvailability(); render(); });
   document.getElementById("previousDay").addEventListener("click", () => { const today = dateValue(new Date()); if (visibleStartDate <= today) return; const previous = shiftDate(visibleStartDate, -7); visibleStartDate = previous <= today ? today : previous; selectedDate = visibleStartDate; closeAvailability(); render(); });
   document.getElementById("nextDay").addEventListener("click", () => { const next = nextMonday(visibleStartDate); if (next > lastSelectableDate()) return; visibleStartDate = next; selectedDate = visibleStartDate; closeAvailability(); render(); });

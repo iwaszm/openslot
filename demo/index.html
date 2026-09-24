@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="../styles.css?v=20260915-customer-languages-2" />
     <link rel="stylesheet" href="../booking-theme.css?v=20260924-shared-1" />
   </head>
-  <body class="booking-themed" style='--salon-cover-image: url("./feature.jpg");'>
+  <body class="booking-themed" style='--salon-cover-image: url("../demo/feature.jpg");'>
     <main class="customer-page">
       <div class="customer-layout">
         <section id="book" class="booking-section" aria-labelledby="booking-title">
@@ -17,6 +17,13 @@
               <legend class="section-title" data-i18n="booking.serviceLegend">Dienstleistungen</legend>
               <div id="serviceCategoryTabs" class="service-category-tabs" role="tablist" aria-label="Dienstleistungskategorien"></div>
               <div class="service-grid" id="serviceOptions"></div>
+              <div class="employee-picker" aria-label="Mitarbeiter wählen" hidden>
+                <div class="employee-options" role="radiogroup" aria-label="Mitarbeiter">
+                  <button class="employee-option" type="button" role="radio" aria-checked="true" data-employee="any"><span>Ohne Mitarbeiterwahl</span></button>
+                  <button class="employee-option" type="button" role="radio" aria-checked="false" data-employee="default"><span>Linda</span></button>
+                  <button class="employee-option" type="button" role="radio" aria-checked="false" data-employee="tony"><span>Tony</span></button>
+                </div>
+              </div>
             </fieldset>
 
             <fieldset>

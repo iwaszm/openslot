@@ -75,13 +75,7 @@
 
   function syncEmployees() {
     const checked = services.querySelector('input[name="service"]:checked');
-    const category = checked?.closest(".service-group")?.dataset.serviceCategory || "";
     employeePicker.hidden = !checked;
-    const tonyAllowed = category === "cut" || category === "care";
-    const tony = employeeOptions.find((option) => option.dataset.employee === "tony");
-    tony.hidden = !tonyAllowed;
-    tony.disabled = !tonyAllowed;
-    if (!tonyAllowed && activeEmployee === "tony") selectEmployee("any");
 
     const copy = employeeCopy();
     employeePicker.setAttribute("aria-label", copy.label);
@@ -93,6 +87,7 @@
   function selectEmployee(employee) {
     activeEmployee = employee;
     employeeOptions.forEach((option) => option.setAttribute("aria-checked", String(option.dataset.employee === employee)));
+    window.dispatchEvent(new CustomEvent("openslot:employee-change", { detail: { staffKey: employee } }));
   }
 
   employeeOptions.forEach((button) => {

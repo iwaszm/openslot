@@ -6,8 +6,11 @@
   const result = document.querySelector("#bookingResult");
   const close = document.querySelector("#bookingToastClose");
   const form = document.querySelector("#bookingForm");
+  const employeePicker = document.querySelector(".employee-picker");
+  const employeeOptions = [...document.querySelectorAll(".employee-option")];
   const languageMenu = document.querySelector(".language-menu");
   let activeCategory = "";
+  let activeEmployee = "any";
   let dismissTimer;
 
   function syncCategories() {
@@ -59,6 +62,35 @@
     });
   }
 
+  function employeeCopy() {
+    const language = window.OpenSlotI18n?.language || document.documentElement.lang || "de";
+    if (language === "zh") return { label: "员工", any: "不指定员工", language: "选择语言" };
+    if (language === "en") return { label: "Team member", any: "No employee preference", language: "Choose language" };
+    return { label: "Mitarbeiter", any: "Ohne Mitarbeiterwahl", language: "Sprache wählen" };
+  }
+
+  function syncEmployees() {
+    if (!employeePicker || employeeOptions.length === 0) return;
+    const checked = services.querySelector('input[name="service"]:checked');
+    employeePicker.hidden = !checked;
+    const copy = employeeCopy();
+    employeePicker.setAttribute("aria-label", copy.label);
+    employeePicker.querySelector('[role="radiogroup"]')?.setAttribute("aria-label", copy.label);
+    employeeOptions.find((option) => option.dataset.employee === "any")?.querySelector("span")?.replaceChildren(copy.any);
+    languageMenu.querySelector("summary")?.setAttribute("aria-label", copy.language);
+  }
+
+  function selectEmployee(employee) {
+    activeEmployee = employee;
+    employeeOptions.forEach((option) => option.setAttribute("aria-checked", String(option.dataset.employee === employee)));
+    window.dispatchEvent(new CustomEvent("openslot:employee-change", { detail: { staffKey: employee } }));
+  }
+
+  employeeOptions.forEach((button) => button.addEventListener("click", () => selectEmployee(button.dataset.employee || "any")));
+  services.addEventListener("click", () => queueMicrotask(syncEmployees));
+  services.addEventListener("change", syncEmployees);
+  window.addEventListener("openslot:language-change", () => queueMicrotask(syncEmployees));
+
   function syncToast() {
     const hasResult = !result.hidden && Boolean(result.textContent.trim());
     const hasMessage = Boolean(message.textContent.trim());
@@ -81,6 +113,7 @@
   });
 
   new MutationObserver(syncCategories).observe(services, { childList: true });
+  new MutationObserver(syncEmployees).observe(services, { childList: true, subtree: true, attributes: true, attributeFilter: ["checked"] });
   new MutationObserver(syncToast).observe(message, { childList: true, characterData: true, subtree: true });
   new MutationObserver(syncToast).observe(result, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
   close.addEventListener("click", () => { toast.hidden = true; });
@@ -92,5 +125,6 @@
   });
 
   syncCategories();
+  syncEmployees();
   syncToast();
 })();
