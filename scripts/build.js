@@ -105,11 +105,11 @@ function stampCustomerAssetUrls() {
     const file = path.join(dist, salon, "index.html");
     const html = fs.readFileSync(file, "utf8");
     let count = 0;
-    const updated = html.replace(/((?:src)="\.\.\/customer\.js)(?:\?v=[^"]+)?"/g, (_match, asset) => {
+    const updated = html.replace(/((?:src|href)="\.\.\/(?:customer\.js|booking-theme\.css|booking-theme\.js))(?:\?v=[^"]+)?"/g, (_match, asset) => {
       count += 1;
       return `${asset}?v=${buildId}"`;
     });
-    if (count !== 1) throw new Error(`Expected one customer.js asset in ${file}, found ${count}`);
+    if (count !== 3) throw new Error(`Expected three booking assets in ${file}, found ${count}`);
     fs.writeFileSync(file, updated, "utf8");
   }
 }

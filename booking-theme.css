@@ -669,7 +669,16 @@
 }
 
 .booking-themed .turnstile-field {
-  display: none;
+  align-items: center;
+  display: flex;
+  justify-content: flex-start;
+  margin: 8px 0 6px calc(var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px));
+  min-height: 65px;
+  width: calc(100% - ((var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px)) * 2));
+}
+
+.booking-themed .primary-action {
+  margin-top: 0;
 }
 
 @media (min-width: 741px) and (orientation: landscape) {

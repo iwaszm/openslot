@@ -1156,8 +1156,8 @@ async function scrollDateStrip(direction) {
   const isPortraitPager = window.matchMedia("(orientation: portrait) and (max-width: 1180px)").matches;
   const pageSize = isPortraitPager ? Math.min(7, buttons.length) : getVisibleDateCount(dateRow, buttons);
   const currentIndex = getDateRowStartIndex(dateRow, buttons);
-  const currentPageStart = Math.floor(currentIndex / pageSize) * pageSize;
-  const targetIndex = Math.max(0, Math.min(currentPageStart + (direction * pageSize), buttons.length - pageSize));
+  const targetIndex = getCalendarWeekStartIndex(buttons, currentIndex, direction, pageSize);
+  if (targetIndex === currentIndex) return;
 
   const firstSelectable = buttons.slice(targetIndex, targetIndex + pageSize).find((button) => !button.disabled);
   if (firstSelectable && firstSelectable.dataset.date !== els.dateInput.value) {
@@ -1169,6 +1169,22 @@ async function scrollDateStrip(direction) {
   }
 
   if (dateRow) scrollDateRowToIndex(dateRow, targetIndex);
+}
+
+function getCalendarWeekStartIndex(buttons, currentIndex, direction, pageSize) {
+  const lastFullPageStart = Math.max(0, buttons.length - pageSize);
+  const startIndex = Math.min(currentIndex, lastFullPageStart);
+  const isMonday = (button) => new Date(`${button.dataset.date}T00:00:00`).getDay() === 1;
+
+  if (direction > 0) {
+    const nextMonday = buttons.findIndex((button, index) => index > startIndex && index <= lastFullPageStart && isMonday(button));
+    return nextMonday >= 0 ? nextMonday : startIndex;
+  }
+
+  for (let index = startIndex - 1; index >= 0; index -= 1) {
+    if (isMonday(buttons[index])) return index;
+  }
+  return 0;
 }
 
 function getVisibleDateCount(dateRow, buttons) {
