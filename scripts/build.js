@@ -23,6 +23,8 @@ for (const file of [
   "home.js",
   "home-i18n.js",
   "styles.css",
+  "booking-theme.css",
+  "booking-theme.js",
   "customer.js",
   "admin.js",
   "confirm-dialog.js",
