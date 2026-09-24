@@ -750,6 +750,16 @@ function createSupabaseRepository(client) {
     },
     async getDaySettings(date) {
       const salon = await salonPromise;
+      const { data: effectiveData, error: effectiveError } = await client.rpc("get_effective_day_settings", {
+        p_salon_slug: salon.slug,
+        p_setting_date: date,
+      });
+      if (!effectiveError) {
+        const row = Array.isArray(effectiveData) ? effectiveData[0] : effectiveData;
+        if (row) return fromSupabaseDaySettings(row);
+      } else if (!["42883", "PGRST202"].includes(effectiveError.code)) {
+        throw effectiveError;
+      }
       const { data, error } = await client
         .from("shop_day_settings")
         .select("setting_date, open_time, close_time, is_blocked_day")
@@ -822,7 +832,9 @@ function createLocalRepository() {
       return t("customer.localNoEmail");
     },
     async getDaySettings(date) {
-      return normalizeDaySettings(loadLocalSettings()[date] || createDefaultDaySettings(date));
+      const defaults = createDefaultDaySettings(date);
+      const saved = loadLocalSettings()[date];
+      return saved ? normalizeDaySettings({ ...defaults, ...saved, hasManualOverride: true }) : defaults;
     },
     async listBlockedSlots(date) {
       return loadLocalBlocks().filter((block) => block.date === date);
@@ -1035,7 +1047,42 @@ function formatServicePrice(service) {
 }
 
 function createDefaultDaySettings(date) {
-  return normalizeDaySettings({ date, openMinutes: DEFAULT_OPEN_MINUTES, closeMinutes: DEFAULT_CLOSE_MINUTES, isBlockedDay: false });
+  const holidayName = getBerlinHolidayName(date);
+  return normalizeDaySettings({
+    date,
+    openMinutes: DEFAULT_OPEN_MINUTES,
+    closeMinutes: DEFAULT_CLOSE_MINUTES,
+    isBlockedDay: Boolean(holidayName),
+    holidayName,
+    isPublicHoliday: Boolean(holidayName),
+    hasManualOverride: false,
+  });
+}
+
+function getBerlinHolidayName(value) {
+  const date = new Date(`${value}T12:00:00`);
+  const fixed = { "01-01": "Neujahr", "03-08": "Internationaler Frauentag", "05-01": "Tag der Arbeit", "10-03": "Tag der Deutschen Einheit", "12-25": "1. Weihnachtstag", "12-26": "2. Weihnachtstag" };
+  if (fixed[value.slice(5)]) return fixed[value.slice(5)];
+  const year = date.getFullYear();
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const easter = new Date(year, Math.floor((h + l - 7 * m + 114) / 31) - 1, ((h + l - 7 * m + 114) % 31) + 1, 12);
+  for (const [offset, name] of [[-2, "Karfreitag"], [1, "Ostermontag"], [39, "Christi Himmelfahrt"], [50, "Pfingstmontag"]]) {
+    const holiday = new Date(easter);
+    holiday.setDate(holiday.getDate() + offset);
+    if (toDateInputValue(holiday) === value) return name;
+  }
+  return "";
 }
 
 function normalizeDaySettings(settings) {
@@ -1201,6 +1248,9 @@ function fromSupabaseDaySettings(row) {
     openMinutes: parseTime(row.open_time.slice(0, 5)),
     closeMinutes: parseTime(row.close_time.slice(0, 5)),
     isBlockedDay: row.is_blocked_day,
+    holidayName: row.holiday_name || "",
+    isPublicHoliday: Boolean(row.is_public_holiday),
+    hasManualOverride: Boolean(row.has_manual_override),
   };
 }
 

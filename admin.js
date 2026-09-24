@@ -16,7 +16,6 @@ const DEFAULT_OPEN_MINUTES = 10 * 60;
 const DEFAULT_CLOSE_MINUTES = 19 * 60;
 const SLOT_STEP = 30;
 const ADMIN_SLOT_HEIGHT = 58;
-const DATE_RANGE_DAYS = 21;
 const APPOINTMENT_PAGE_SIZE = 500;
 const LIVE_REFRESH_MS = 20 * 1000;
 const DATE_OPTIONS_REFRESH_MS = 10 * 60 * 1000;
@@ -161,6 +160,7 @@ async function init() {
   if (els.adminDateInput) {
     els.adminDateInput.value = toDateInputValue(new Date());
     els.adminDateInput.min = toDateInputValue(new Date());
+    els.adminDateInput.max = buildDateRange().at(-1);
   }
   state.repository = createRepository();
   bindEvents();
@@ -196,6 +196,7 @@ async function refreshLiveData() {
     if (rolledOver) {
       els.adminDateInput.value = today;
       els.adminDateInput.min = today;
+      els.adminDateInput.max = buildDateRange().at(-1);
     }
     const previousLog = JSON.stringify(state.upcomingAppointments);
     const [dayOk, logOk] = await Promise.all([
@@ -220,7 +221,12 @@ async function refreshLiveData() {
 function bindEvents() {
   els.ownerLoginForm?.addEventListener("submit", handleOwnerLogin);
   els.ownerLogoutButton?.addEventListener("click", handleOwnerLogout);
-  els.adminDateInput?.addEventListener("change", refreshDayData);
+  els.adminDateInput?.addEventListener("change", async () => {
+    const selectedIndex = state.dateOptions.findIndex((option) => option.date === els.adminDateInput.value);
+    if (selectedIndex >= 0) state.datePageStart = getCalendarPageStart(selectedIndex);
+    await refreshDateOptions();
+    await refreshDayData();
+  });
   els.adminDatePrevButton?.addEventListener("click", () => changeDatePage(-1));
   els.adminDateNextButton?.addEventListener("click", () => changeDatePage(1));
   els.todayButton?.addEventListener("click", selectToday);
@@ -366,9 +372,12 @@ async function refreshDateOptions({ keepOnError = false } = {}) {
   if (!els.adminDateInput || !els.adminDateStrip) return;
   if (!state.isOwner && state.repository.authSupported) return;
   const dates = buildDateRange();
+  const existing = new Map(state.dateOptions.map((option) => [option.date, option]));
+  const visibleDates = dates.slice(state.datePageStart, state.datePageStart + 7);
+  const requestedDates = [...new Set([...visibleDates, els.adminDateInput.value])].filter((date) => dates.includes(date));
   const requestId = ++dateOptionsRefreshSequence;
   try {
-    const summaries = await Promise.all(dates.map(async (date) => {
+    const summaries = await Promise.all(requestedDates.map(async (date) => {
       const [appointments, daySettings, manualSchedule, timeBlocks] = await Promise.all([
         state.repository.listAppointments(date),
         state.repository.getDaySettings(date),
@@ -388,11 +397,14 @@ async function refreshDateOptions({ keepOnError = false } = {}) {
         totalSlotCount: countDaySlots(daySettings),
         blockedCount: manualSchedule.blockedSlots.filter((item) => !item.serviceId).length,
         isBlockedDay: daySettings.isBlockedDay,
+        holidayName: daySettings.holidayName || "",
+        isPublicHoliday: Boolean(daySettings.isPublicHoliday),
         isBusinessDay: isScheduledBusinessDay(date),
       };
     }));
     if (requestId !== dateOptionsRefreshSequence || (!state.isOwner && state.repository.authSupported)) return true;
-    state.dateOptions = summaries;
+    const loaded = new Map(summaries.map((option) => [option.date, option]));
+    state.dateOptions = dates.map((date) => loaded.get(date) || existing.get(date) || createEmptyDateOption(date));
     lastDateOptionsRefresh = Date.now();
   } catch (error) {
     if (requestId !== dateOptionsRefreshSequence) return true;
@@ -400,17 +412,24 @@ async function refreshDateOptions({ keepOnError = false } = {}) {
       console.warn("Calendar refresh failed:", error);
       return false;
     }
-    state.dateOptions = dates.map((date) => ({
-      date,
-      occupiedSlotCount: 0,
-      totalSlotCount: countDaySlots(createDefaultDaySettings(date)),
-      blockedCount: 0,
-      isBlockedDay: false,
-      isBusinessDay: isScheduledBusinessDay(date),
-    }));
+    state.dateOptions = dates.map((date) => existing.get(date) || createEmptyDateOption(date));
   }
   renderDateStrip();
   return true;
+}
+
+function createEmptyDateOption(date) {
+  const settings = createDefaultDaySettings(date);
+  return {
+    date,
+    occupiedSlotCount: 0,
+    totalSlotCount: countDaySlots(settings),
+    blockedCount: 0,
+    isBlockedDay: settings.isBlockedDay,
+    holidayName: settings.holidayName || "",
+    isPublicHoliday: Boolean(settings.isPublicHoliday),
+    isBusinessDay: isScheduledBusinessDay(date),
+  };
 }
 
 async function refreshDayData({ onlyIfChanged = false } = {}) {
@@ -514,7 +533,7 @@ function renderDateStrip() {
   }
   const selectedIndex = Math.max(0, state.dateOptions.findIndex((option) => option.date === els.adminDateInput.value));
   if (selectedIndex < state.datePageStart || selectedIndex >= state.datePageStart + 7) {
-    state.datePageStart = Math.floor(selectedIndex / 7) * 7;
+    state.datePageStart = getCalendarPageStart(selectedIndex);
   }
   const visibleOptions = state.dateOptions.slice(state.datePageStart, state.datePageStart + 7);
   els.adminDateStrip.className = `mini-day-strip ${state.datePageStart === 0 ? "today-page" : "future-page"}`;
@@ -526,10 +545,10 @@ function renderDateStrip() {
     const isSelectable = weeklyRule.openMinutes !== null;
     const percent = option.totalSlotCount ? Math.min(100, Math.round(option.occupiedSlotCount / option.totalSlotCount * 100)) : 0;
     return `
-      <button class="mini-day ${isSelected ? "selected" : ""}" type="button" data-date="${option.date}" aria-pressed="${isSelected}" ${isSelectable ? "" : "disabled"}>
+      <button class="mini-day ${isSelected ? "selected" : ""} ${option.isBlockedDay ? "blocked" : ""}" type="button" data-date="${option.date}" aria-pressed="${isSelected}" ${option.holidayName ? `title="${escapeAttribute(option.holidayName)}"` : ""} ${isSelectable ? "" : "disabled"}>
         <span class="date-weekday">${escapeHtml(label.weekday)}</span>
         <strong>${escapeHtml(label.day)}</strong>
-        ${isSelectable ? `<span class="day-status-bar" aria-hidden="true"><span style="width:${percent}%"></span></span>` : ""}
+        ${isSelectable && !option.isBlockedDay ? `<span class="day-status-bar" aria-hidden="true"><span style="width:${percent}%"></span></span>` : ""}
       </button>
     `;
   }).join("");
@@ -547,13 +566,27 @@ function renderDateStrip() {
   });
 }
 
+function getCalendarPageStart(selectedIndex) {
+  if (selectedIndex <= 0) return 0;
+  const firstMondayIndex = state.dateOptions.findIndex((option, index) => (
+    index > 0 && new Date(`${option.date}T00:00:00`).getDay() === 1
+  ));
+  if (firstMondayIndex < 0 || selectedIndex < firstMondayIndex) return 0;
+  return firstMondayIndex + Math.floor((selectedIndex - firstMondayIndex) / 7) * 7;
+}
+
 async function changeDatePage(direction) {
-  const nextStart = Math.max(0, Math.min(state.dateOptions.length - 1, state.datePageStart + direction * 7));
+  const current = state.dateOptions[state.datePageStart]?.date || toDateInputValue(new Date());
+  const targetDate = direction > 0
+    ? nextMondayDate(current)
+    : previousCalendarPageDate(current);
+  const nextStart = Math.max(0, state.dateOptions.findIndex((option) => option.date === targetDate));
   if (nextStart === state.datePageStart) return;
   state.datePageStart = nextStart;
   const target = state.dateOptions[nextStart];
   if (target) {
     els.adminDateInput.value = target.date;
+    await refreshDateOptions();
     await refreshDayData();
   }
 }
@@ -562,6 +595,7 @@ async function selectToday() {
   const today = toDateInputValue(new Date());
   state.datePageStart = 0;
   els.adminDateInput.value = today;
+  await refreshDateOptions();
   await refreshDayData();
 }
 
@@ -703,6 +737,7 @@ function renderOutlookSchedule(slots, lanes) {
     ...lane.manual.map((item) => renderCalendarEvent(item, lane, laneIndex, item.serviceId ? "manual" : "blocked", rowCount, lanes)),
   ].join("")).join("");
   const timeBlockEvents = state.timeBlocks.map((block) => renderCalendarTimeBlock(block, rowCount)).join("");
+  const dayBlockEvent = state.daySettings.isBlockedDay ? renderCalendarDayBlock(rowCount) : "";
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const showNow = els.adminDateInput?.value === toDateInputValue(now)
@@ -712,10 +747,21 @@ function renderOutlookSchedule(slots, lanes) {
     <div class="staff-schedule-body outlook-calendar" style="--calendar-rows:${rowCount}">
       ${gridRows}
       <div class="calendar-grid-end" aria-hidden="true"></div>
+      ${dayBlockEvent}
       ${eventBlocks}
       ${timeBlockEvents}
       ${showNow ? `<div class="now-line" style="top:${nowTop}px" aria-hidden="true"></div>` : ""}
     </div>
+  `;
+}
+
+function renderCalendarDayBlock(rowCount) {
+  const detail = state.daySettings.holidayName || t("admin.dayBlockedEmpty");
+  return `
+    <article class="calendar-time-block calendar-day-block" style="grid-column:2 / -1;grid-row:1 / span ${rowCount}" aria-label="${escapeAttribute(`Tag blockiert: ${detail}`)}">
+      <strong>Tag blockiert</strong>
+      <span>${escapeHtml(detail)}</span>
+    </article>
   `;
 }
 
@@ -1199,7 +1245,7 @@ function updateManualBookingTimes() {
   const service = findService(els.bookingService?.value);
   const lanes = getSelectedStaffLanes();
   const starts = [];
-  for (let minute = state.daySettings.openMinutes; minute + service.duration <= state.daySettings.closeMinutes; minute += SLOT_STEP) {
+  for (let minute = state.daySettings.openMinutes; minute < state.daySettings.closeMinutes; minute += SLOT_STEP) {
     if (state.timeBlocks.some((block) => minute < block.endMinutes && minute + service.duration > block.startMinutes)) continue;
     if (lanes.some((lane) => canPlaceManualService(service, minute, lane.storageKey))) starts.push(minute);
   }
@@ -1635,6 +1681,16 @@ function createSupabaseRepository(client) {
     },
     async getDaySettings(date) {
       const salon = await salonPromise;
+      const { data: effectiveData, error: effectiveError } = await client.rpc("get_effective_day_settings", {
+        p_salon_slug: salon.slug,
+        p_setting_date: date,
+      });
+      if (!effectiveError) {
+        const row = Array.isArray(effectiveData) ? effectiveData[0] : effectiveData;
+        if (row) return fromSupabaseDaySettings(row);
+      } else if (!["42883", "PGRST202"].includes(effectiveError.code)) {
+        throw effectiveError;
+      }
       const { data, error } = await client
         .from("shop_day_settings")
         .select("setting_date, open_time, close_time, is_blocked_day")
@@ -1860,7 +1916,11 @@ function createLocalRepository() {
     async sendBookingEmail() {
       return "预约已取消。本地演示版不会发送邮件。";
     },
-    async getDaySettings(date) { return loadLocalSettings()[date] || createDefaultDaySettings(date); },
+    async getDaySettings(date) {
+      const defaults = createDefaultDaySettings(date);
+      const saved = loadLocalSettings()[date];
+      return saved ? { ...defaults, ...saved, hasManualOverride: true } : defaults;
+    },
     async listTimeBlocks(date) {
       if (isLaneDemo()) return previewTimeBlocksByDate.get(date) || [];
       return JSON.parse(localStorage.getItem(TIME_BLOCKS_KEY) || "[]").filter((block) => block.date === date);
@@ -1964,7 +2024,6 @@ function createLocalRepository() {
 }
 
 function buildAdminSlots() {
-  if (state.daySettings.isBlockedDay) return [];
   const activeAppointments = state.appointments
     .filter((appointment) => appointment.status !== "cancelled")
     .sort((a, b) => a.startMinutes - b.startMinutes || b.endMinutes - a.endMinutes);
@@ -2301,10 +2360,11 @@ function getOccupiedRanges(item) {
 
 function createDefaultDaySettings(date) {
   const weeklyRule = getWeeklyRule(new Date(`${date}T00:00:00`));
+  const holidayName = getBerlinHolidayName(date);
   if (weeklyRule.openMinutes === null) {
-    return { date, openMinutes: DEFAULT_OPEN_MINUTES, closeMinutes: DEFAULT_CLOSE_MINUTES, isBlockedDay: true };
+    return { date, openMinutes: DEFAULT_OPEN_MINUTES, closeMinutes: DEFAULT_CLOSE_MINUTES, isBlockedDay: true, holidayName, isPublicHoliday: Boolean(holidayName), hasManualOverride: false };
   }
-  return { date, openMinutes: weeklyRule.openMinutes, closeMinutes: weeklyRule.closeMinutes, isBlockedDay: false };
+  return { date, openMinutes: weeklyRule.openMinutes, closeMinutes: weeklyRule.closeMinutes, isBlockedDay: Boolean(holidayName), holidayName, isPublicHoliday: Boolean(holidayName), hasManualOverride: false };
 }
 
 function isBusinessDay(settings) {
@@ -2314,7 +2374,13 @@ function isBusinessDay(settings) {
 
 function buildDateRange() {
   const today = new Date(`${toDateInputValue(new Date())}T00:00:00`);
-  return Array.from({ length: DATE_RANGE_DAYS }, (_, index) => {
+  const last = new Date(today);
+  const originalDay = last.getDate();
+  last.setDate(1);
+  last.setMonth(last.getMonth() + 2);
+  last.setDate(Math.min(originalDay, new Date(last.getFullYear(), last.getMonth() + 1, 0).getDate()));
+  const dayCount = Math.floor((last - today) / 86400000) + 1;
+  return Array.from({ length: dayCount }, (_, index) => {
     const date = new Date(today);
     date.setDate(today.getDate() + index);
     return toDateInputValue(date);
@@ -2354,6 +2420,54 @@ function formatSelectedDateTitle(dateValue, slotCount = "") {
   const locale = lang === "zh" ? "zh-CN" : lang === "de" ? "de-DE" : "en-US";
   const weekday = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date).replace(".", "");
   return `am ${dateValue} ${weekday}${slotCount ? ` (${slotCount})` : ""}`;
+}
+
+function nextMondayDate(value) {
+  const date = new Date(`${value}T00:00:00`);
+  date.setDate(date.getDate() + ((8 - date.getDay()) % 7 || 7));
+  return toDateInputValue(date);
+}
+
+function previousCalendarPageDate(value) {
+  const today = toDateInputValue(new Date());
+  const date = new Date(`${value}T00:00:00`);
+  date.setDate(date.getDate() - 7);
+  return date < new Date(`${today}T00:00:00`) ? today : toDateInputValue(date);
+}
+
+function getBerlinHolidayName(value) {
+  const date = new Date(`${value}T12:00:00`);
+  const fixed = {
+    "01-01": "Neujahr",
+    "03-08": "Internationaler Frauentag",
+    "05-01": "Tag der Arbeit",
+    "10-03": "Tag der Deutschen Einheit",
+    "12-25": "1. Weihnachtstag",
+    "12-26": "2. Weihnachtstag",
+  };
+  if (fixed[value.slice(5)]) return fixed[value.slice(5)];
+  const year = date.getFullYear();
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  const easter = new Date(year, month - 1, day, 12);
+  for (const [offset, name] of [[-2, "Karfreitag"], [1, "Ostermontag"], [39, "Christi Himmelfahrt"], [50, "Pfingstmontag"]]) {
+    const holiday = new Date(easter);
+    holiday.setDate(holiday.getDate() + offset);
+    if (toDateInputValue(holiday) === value) return name;
+  }
+  return "";
 }
 
 async function scrollDateStrip(direction) {
@@ -2474,7 +2588,15 @@ function timeValueToMinutes(value) {
 }
 
 function fromSupabaseDaySettings(row) {
-  return { date: row.setting_date, openMinutes: parseTime(row.open_time.slice(0, 5)), closeMinutes: parseTime(row.close_time.slice(0, 5)), isBlockedDay: row.is_blocked_day };
+  return {
+    date: row.setting_date,
+    openMinutes: parseTime(row.open_time.slice(0, 5)),
+    closeMinutes: parseTime(row.close_time.slice(0, 5)),
+    isBlockedDay: row.is_blocked_day,
+    holidayName: row.holiday_name || "",
+    isPublicHoliday: Boolean(row.is_public_holiday),
+    hasManualOverride: Boolean(row.has_manual_override),
+  };
 }
 
 function fromSupabaseTimeBlock(row) {
