@@ -73,7 +73,7 @@ The first path segment is used as the salon slug. The frontend loads the matchin
 
 ### UI theme sandbox
 
-The `template/` pages mirror the current Li Yong booking and admin markup but do not load `config.js`, Supabase, or Cloudflare Turnstile. They use an isolated localStorage namespace and synthetic data from `template/demo-data.js`, so UI experiments do not modify Lisa, Li Yong, or production data.
+The `template/` pages mirror the current demo booking and admin markup but do not load `config.js`, Supabase, or Cloudflare Turnstile. They use an isolated localStorage namespace and synthetic data from `template/demo-data.js`, so UI experiments do not modify live salon or production data.
 
 ```text
 http://127.0.0.1:5173/template/index.html

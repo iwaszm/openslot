@@ -35,7 +35,7 @@ for (const file of [
   copyFile(file);
 }
 
-for (const dir of ["assets", "datenschutz", "stornierung", "lisa", "liyong"]) {
+for (const dir of ["assets", "datenschutz", "stornierung", "lisa", "demo"]) {
   copyDir(dir);
 }
 replaceTurnstileSiteKeys(dist);
@@ -63,8 +63,10 @@ writeFile(
   "_redirects",
   `/lisa /lisa/index.html 200
 /lisa/admin /lisa/admin/index.html 200
-/liyong /liyong/index.html 200
-/liyong/admin /liyong/admin/index.html 200
+/demo /demo/index.html 200
+/demo/admin /demo/admin/index.html 200
+/liyong /demo 301
+/liyong/admin /demo/admin 301
 /stornierung /stornierung/index.html 200
 `,
 );
@@ -86,7 +88,7 @@ function writeFile(relativePath, content) {
 }
 
 function stampAdminAssetUrls() {
-  for (const salon of ["lisa", "liyong"]) {
+  for (const salon of ["lisa", "demo"]) {
     const file = path.join(dist, salon, "admin", "index.html");
     const html = fs.readFileSync(file, "utf8");
     let count = 0;
@@ -101,7 +103,7 @@ function stampAdminAssetUrls() {
 }
 
 function stampCustomerAssetUrls() {
-  for (const salon of ["lisa", "liyong"]) {
+  for (const salon of ["lisa", "demo"]) {
     const file = path.join(dist, salon, "index.html");
     const html = fs.readFileSync(file, "utf8");
     let count = 0;

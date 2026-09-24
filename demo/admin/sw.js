@@ -1,4 +1,4 @@
-const OFFLINE_CACHE = "liyong-admin-offline-v1";
+const OFFLINE_CACHE = "demo-admin-offline-v1";
 const OFFLINE_URL = new URL("./offline.html", self.registration.scope).href;
 
 self.addEventListener("install", (event) => {
@@ -7,7 +7,7 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("liyong-admin-offline-") && key !== OFFLINE_CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()),
+    caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("demo-admin-offline-") && key !== OFFLINE_CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()),
   );
 });
 

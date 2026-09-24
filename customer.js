@@ -1251,7 +1251,7 @@ function fromSupabaseService(row) {
 }
 
 function stripSalonPrefix(id) {
-  return String(id || "").replace(/^(lisa|liyong)_/, "");
+  return String(id || "").replace(/^(lisa|demo)_/, "");
 }
 
 function fromSupabaseAppointment(row) {

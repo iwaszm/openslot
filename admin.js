@@ -1845,13 +1845,17 @@ function createDefaultLaneLayout() {
   const laneCount = Number.isInteger(configuredLaneCount)
     && configuredLaneCount > 0
     ? Math.max(2, Math.min(configuredLaneCount, 26))
-    : (getCurrentSalonSlug() === "liyong" ? 2 : 4);
-  return Array.from({ length: laneCount }, (_, index) => ({
-    ...createLaneDefinition(String.fromCharCode(97 + index), index + 1),
-    staffKey: `staff-${Math.floor(index / 2) + 1}`,
-    staffName: `M${Math.floor(index / 2) + 1}`,
-    staffId: `demo-staff-${Math.floor(index / 2) + 1}`,
-  }));
+    : 4;
+  const isDemoSalon = getCurrentSalonSlug() === "demo";
+  return Array.from({ length: laneCount }, (_, index) => {
+    const staffIndex = Math.floor(index / 2);
+    return {
+      ...createLaneDefinition(String.fromCharCode(97 + index), index + 1),
+      staffKey: isDemoSalon ? ["default", "tony"][staffIndex] : `staff-${staffIndex + 1}`,
+      staffName: isDemoSalon ? (["Linda", "Tony"][staffIndex] || `M${staffIndex + 1}`) : `M${staffIndex + 1}`,
+      staffId: `demo-staff-${staffIndex + 1}`,
+    };
+  });
 }
 
 function normalizeLaneLayout(rows) {
@@ -2539,7 +2543,7 @@ function fromSupabaseService(row) {
 }
 
 function stripSalonPrefix(id) {
-  return String(id || "").replace(/^(lisa|liyong)_/, "");
+  return String(id || "").replace(/^(lisa|demo)_/, "");
 }
 
 function fromSupabaseAppointment(row) {
