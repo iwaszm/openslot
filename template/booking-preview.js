@@ -6,7 +6,11 @@
   const result = document.querySelector("#bookingResult");
   const close = document.querySelector("#bookingToastClose");
   const form = document.querySelector("#bookingForm");
+  const employeePicker = document.querySelector(".employee-picker");
+  const employeeOptions = [...document.querySelectorAll(".employee-option")];
+  const languageMenu = document.querySelector(".language-menu");
   let activeCategory = "";
+  let activeEmployee = "any";
   let dismissTimer;
 
   function syncCategories() {
@@ -18,7 +22,8 @@
     }
 
     const labels = groups.map((group) => group.querySelector("h3")?.textContent.trim() || group.getAttribute("aria-label"));
-    if (!labels.includes(activeCategory)) activeCategory = labels[0];
+    const categories = groups.map((group) => group.dataset.serviceCategory || "");
+    if (!labels.includes(activeCategory)) activeCategory = labels[0] || "";
     tabs.hidden = false;
     tabs.replaceChildren(...labels.map((label, index) => {
       const button = document.createElement("button");
@@ -27,6 +32,7 @@
       button.id = `service-category-tab-${index}`;
       button.setAttribute("role", "tab");
       button.setAttribute("aria-controls", `service-category-panel-${index}`);
+      button.dataset.serviceCategory = categories[index];
       const text = document.createElement("span");
       text.textContent = label;
       button.append(text);
@@ -46,20 +52,64 @@
   }
 
   function selectCategory(label) {
+    const selectedGroup = [...services.querySelectorAll(".service-group")]
+      .find((group) => (group.querySelector("h3")?.textContent.trim() || group.getAttribute("aria-label")) === label);
+    if (!selectedGroup) return;
     activeCategory = label;
     const buttons = [...tabs.querySelectorAll('[role="tab"]')];
     const groups = [...services.querySelectorAll(".service-group")];
     buttons.forEach((button, index) => {
-      const selected = button.textContent === label;
+      const selected = button.textContent === label && !button.hidden;
       button.setAttribute("aria-selected", String(selected));
       button.tabIndex = selected ? 0 : -1;
       groups[index].hidden = !selected;
     });
   }
 
+  function employeeCopy() {
+    const language = window.OpenSlotI18n?.language || document.documentElement.lang || "de";
+    if (language === "zh") return { label: "员工", any: "不指定员工", language: "选择语言" };
+    if (language === "en") return { label: "Team member", any: "No employee preference", language: "Choose language" };
+    return { label: "Mitarbeiter", any: "Ohne Mitarbeiterwahl", language: "Sprache wählen" };
+  }
+
+  function syncEmployees() {
+    const checked = services.querySelector('input[name="service"]:checked');
+    const category = checked?.closest(".service-group")?.dataset.serviceCategory || "";
+    employeePicker.hidden = !checked;
+    const tonyAllowed = category === "cut" || category === "care";
+    const tony = employeeOptions.find((option) => option.dataset.employee === "tony");
+    tony.hidden = !tonyAllowed;
+    tony.disabled = !tonyAllowed;
+    if (!tonyAllowed && activeEmployee === "tony") selectEmployee("any");
+
+    const copy = employeeCopy();
+    employeePicker.setAttribute("aria-label", copy.label);
+    employeePicker.querySelector('[role="radiogroup"]').setAttribute("aria-label", copy.label);
+    employeeOptions.find((option) => option.dataset.employee === "any").querySelector("span").textContent = copy.any;
+    languageMenu.querySelector("summary").setAttribute("aria-label", copy.language);
+  }
+
+  function selectEmployee(employee) {
+    activeEmployee = employee;
+    employeeOptions.forEach((option) => option.setAttribute("aria-checked", String(option.dataset.employee === employee)));
+  }
+
+  employeeOptions.forEach((button) => {
+    button.addEventListener("click", () => {
+      const employee = button.dataset.employee;
+      if (employee === activeEmployee) return;
+      selectEmployee(employee);
+    });
+  });
+
+  services.addEventListener("click", () => queueMicrotask(syncEmployees));
+  services.addEventListener("change", syncEmployees);
+  window.addEventListener("openslot:language-change", () => queueMicrotask(syncEmployees));
+
   tabs.addEventListener("keydown", (event) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    const buttons = [...tabs.querySelectorAll('[role="tab"]')];
+    const buttons = [...tabs.querySelectorAll('[role="tab"]:not([hidden])')];
     if (!buttons.length) return;
     event.preventDefault();
     const current = buttons.findIndex((button) => button.getAttribute("aria-selected") === "true");
@@ -70,7 +120,16 @@
   });
 
   new MutationObserver(syncCategories).observe(services, { childList: true });
+  new MutationObserver(syncEmployees).observe(services, { childList: true, subtree: true, attributes: true, attributeFilter: ["checked"] });
   syncCategories();
+  syncEmployees();
+
+  document.addEventListener("click", (event) => {
+    if (languageMenu.open && !languageMenu.contains(event.target)) languageMenu.open = false;
+  });
+  languageMenu.querySelectorAll("[data-language-option]").forEach((button) => {
+    button.addEventListener("click", () => { languageMenu.open = false; });
+  });
 
   function syncToast() {
     const hasResult = !result.hidden && Boolean(result.textContent.trim());

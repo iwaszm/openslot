@@ -12,7 +12,7 @@
   --type-small: 12px;
   --theme-ink: #191b19;
   --theme-paper: #ffffff;
-  --theme-lime: #faa495;
+  --theme-lime: #fbc8bf;
   --theme-muted: #5d625d;
   --theme-line: #d9ded6;
   --theme-soft: #f2f4f0;
@@ -140,6 +140,7 @@
 }
 
 .theme-preview .customer-booking .service-card strong {
+  font-size: var(--type-small) !important;
   font-weight: 700;
   justify-self: start;
   line-height: 1.25;
@@ -164,6 +165,47 @@
   overflow-x: auto;
   border-bottom: 1px solid var(--theme-line);
   scrollbar-width: none;
+}
+
+.theme-preview .employee-picker {
+  align-items: baseline;
+  display: flex;
+  margin: 12px var(--booking-side-inset, 42px) 2px;
+  padding-left: 6px;
+}
+
+.theme-preview .employee-picker[hidden],
+.theme-preview .employee-option[hidden] {
+  display: none;
+}
+
+.theme-preview .employee-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+
+.theme-preview .employee-option {
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--theme-muted);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.theme-preview .employee-option span {
+  font-size: var(--type-small) !important;
+}
+
+.theme-preview .employee-option[aria-checked="true"] {
+  color: var(--theme-ink);
+}
+
+.theme-preview .employee-option[aria-checked="true"] span {
+  box-shadow: inset 0 -0.66em var(--theme-lime);
 }
 
 .theme-preview .service-category-tabs[hidden] {
@@ -243,7 +285,8 @@
   border-radius: 0;
   background: transparent;
   color: inherit;
-  height: 30px;
+  height: auto;
+  line-height: 1.2;
   min-width: 18px;
   width: fit-content;
 }
@@ -311,6 +354,24 @@
 
 .theme-preview .slot-button.selected span {
   box-shadow: inset 0 -0.66em var(--theme-lime);
+}
+
+.theme-preview .slot-button.unavailable,
+.theme-preview .slot-button.unavailable:disabled {
+  border: 0;
+  border-bottom: 1px solid var(--theme-line);
+  border-radius: 0;
+  background: transparent;
+  color: #a5aaa4;
+  cursor: not-allowed;
+  margin-right: 1px;
+  opacity: 0.62;
+}
+
+.theme-preview .slot-button.unavailable span {
+  font-size: var(--type-small) !important;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
 }
 
 .theme-preview .empty-state {
@@ -483,30 +544,74 @@
   position: relative;
 }
 
-.theme-preview .language-switcher {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  gap: 4px;
+.theme-preview .language-menu {
   position: absolute;
   right: 12px;
   top: 12px;
-  z-index: 1;
+  z-index: 3;
+}
+
+.theme-preview .language-menu summary {
+  align-items: center;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  height: 36px;
+  justify-content: center;
+  list-style: none;
+  width: 36px;
+}
+
+.theme-preview .language-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.theme-preview .language-menu summary svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+  fill: none;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 18px;
+}
+
+.theme-preview .language-menu summary:focus-visible {
+  outline: 2px solid var(--theme-lime);
+  outline-offset: 2px;
+}
+
+.theme-preview .language-switcher {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(25, 27, 25, 0.14);
+  border-radius: 0;
+  box-shadow: 0 8px 24px rgba(25, 27, 25, 0.14);
+  display: flex;
+  padding: 4px;
+  position: absolute;
+  right: 0;
+  top: 42px;
+  width: max-content;
 }
 
 .theme-preview .language-option {
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #ffffff;
+  color: var(--theme-muted);
   font-size: var(--type-small) !important;
+  min-width: 42px;
+  padding: 8px 10px;
   position: relative;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  text-align: center;
+  white-space: nowrap;
 }
 
 .theme-preview .language-option[aria-pressed="true"] {
   background: transparent;
-  color: #ffffff;
+  color: var(--theme-ink);
   box-shadow: none;
 }
 
@@ -515,8 +620,8 @@
 }
 
 .theme-preview .language-option:hover {
-  background: transparent;
-  color: #ffffff;
+  background: var(--theme-soft);
+  color: var(--theme-ink);
 }
 
 .theme-preview .salon-heading {
@@ -524,14 +629,16 @@
 }
 
 .theme-preview .contact-list {
-  gap: 8px;
+  gap: 0;
 }
 
 .theme-preview .contact-list li {
   align-items: center;
   border: 0;
-  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-columns: 18px minmax(0, 1fr);
   gap: 10px;
+  min-height: 38px;
+  padding: 5px 0;
 }
 
 .theme-preview .contact-icon {
@@ -567,7 +674,8 @@
 
 @media (min-width: 741px) and (orientation: landscape) {
   .theme-preview .service-category-tabs,
-  .theme-preview .customer-booking .service-grid {
+  .theme-preview .customer-booking .service-grid,
+  .theme-preview .employee-picker {
     margin-left: calc(var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px));
     width: calc(100% - ((var(--booking-side-inset, 42px) + var(--booking-form-inset, 42px)) * 2));
   }
@@ -598,8 +706,8 @@
   }
 
   .theme-preview .customer-booking .service-card small {
-    max-width: 104px;
-    white-space: normal;
+    max-width: none;
+    white-space: nowrap;
   }
 
   .theme-preview .service-category-tabs {

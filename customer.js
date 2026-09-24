@@ -50,8 +50,8 @@ const state = {
   salon: null,
   laneLayout: createDefaultLaneLayout(),
   dateOptions: [],
-  selectedServiceId: DEFAULT_SERVICES[0].id,
-  selectedGender: DEFAULT_SERVICES[0].gender,
+  selectedServiceId: window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : DEFAULT_SERVICES[0].id,
+  selectedGender: window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : DEFAULT_SERVICES[0].gender,
   selectedSlot: "",
   storageStatusKey: "common.detecting",
   formMessageRenderer: null,
@@ -190,7 +190,9 @@ async function refreshServices() {
   try {
     state.services = await state.repository.listServices();
     const selected = state.services.find((service) => service.id === state.selectedServiceId);
-    if (!selected?.isActive) state.selectedServiceId = activeServices()[0]?.id || "";
+    if (!selected?.isActive) {
+      state.selectedServiceId = window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : activeServices()[0]?.id || "";
+    }
   } catch (error) {
     state.services = DEFAULT_SERVICES;
     setFormMessage(() => t("customer.servicesLoadFailed"));
@@ -365,7 +367,7 @@ function renderServices() {
       <button class="service-nav-button" type="button" data-service-scroll="-1" aria-label="${t("customer.previousServices")}">‹</button>
       <div class="service-carousel" aria-label="${t("booking.serviceLegend")}">
         ${serviceGroups.map((group) => `
-          <section class="service-group" aria-label="${escapeHtml(group.label)}">
+          <section class="service-group" data-service-category="${escapeHtml(group.category)}" aria-label="${escapeHtml(group.label)}">
             <h3>${escapeHtml(group.label)}</h3>
             <div class="service-group-grid">
               ${group.services.map((service) => {
@@ -496,8 +498,10 @@ function renderSlots() {
   }
 
   const allSlots = buildSlots(els.dateInput.value, service);
-  const availableSlots = allSlots.filter((slot) => slot.available);
-  if (availableSlots.length === 0) {
+  const visibleSlots = window.OPENSLOT_TEMPLATE_SHOW_UNAVAILABLE
+    ? allSlots
+    : allSlots.filter((slot) => slot.available);
+  if (visibleSlots.length === 0) {
     els.slotGrid.innerHTML = `<div class="empty-state compact-empty">${getNoSlotMessage(allSlots)}</div>`;
     renderSelectedSummaries();
     return;
@@ -505,13 +509,14 @@ function renderSlots() {
 
   els.slotGrid.innerHTML = `
     <div class="slot-row">
-      ${availableSlots.map((slot) => {
+      ${visibleSlots.map((slot) => {
     const classes = [
       "slot-button",
-      "available",
+      slot.available ? "available" : "unavailable",
       slot.time === state.selectedSlot ? "selected" : "",
     ].filter(Boolean).join(" ");
-    return `<button type="button" class="${classes}" data-slot="${slot.time}" title="${t("booking.slotFree")}"><span>${slot.time}</span></button>`;
+    const title = slot.available ? t("booking.slotFree") : slot.reason;
+    return `<button type="button" class="${classes}" data-slot="${slot.time}" title="${escapeHtml(title)}" ${slot.available ? "" : "disabled"}><span>${slot.time}</span></button>`;
       }).join("")}
     </div>
   `;
@@ -618,8 +623,8 @@ async function handleSubmit(event) {
     els.bookingForm.reset();
     els.dateInput.value = selectedDate;
     state.selectedSlot = "";
-    state.selectedServiceId = activeServices()[0]?.id || "";
-    state.selectedGender = "male";
+    state.selectedServiceId = window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : activeServices()[0]?.id || "";
+    state.selectedGender = window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : "male";
     els.genderInput.value = state.selectedGender;
     resetTurnstile();
     const mailMessage = await state.repository.sendBookingEmail(bookingId, "created");
