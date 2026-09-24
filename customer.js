@@ -50,8 +50,8 @@ const state = {
   salon: null,
   laneLayout: createDefaultLaneLayout(),
   dateOptions: [],
-  selectedServiceId: window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : DEFAULT_SERVICES[0].id,
-  selectedGender: window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : DEFAULT_SERVICES[0].gender,
+  selectedServiceId: requiresServiceSelection() ? "" : DEFAULT_SERVICES[0].id,
+  selectedGender: requiresServiceSelection() ? "" : DEFAULT_SERVICES[0].gender,
   selectedSlot: "",
   storageStatusKey: "common.detecting",
   formMessageRenderer: null,
@@ -140,7 +140,7 @@ function bindEvents() {
     event.preventDefault();
     selectServiceInput(serviceInput);
   });
-  if (window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION) {
+  if (requiresServiceSelection()) {
     window.addEventListener("openslot:clear-service-selection", () => {
       state.selectedServiceId = "";
       state.selectedSlot = "";
@@ -186,12 +186,20 @@ function createRepository() {
   return createSupabaseRepository(client);
 }
 
+function requiresServiceSelection() {
+  return Boolean(window.OPENSLOT_REQUIRE_SERVICE_SELECTION || window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION);
+}
+
+function shouldShowUnavailableSlots() {
+  return Boolean(window.OPENSLOT_SHOW_UNAVAILABLE_SLOTS || window.OPENSLOT_TEMPLATE_SHOW_UNAVAILABLE);
+}
+
 async function refreshServices() {
   try {
     state.services = await state.repository.listServices();
     const selected = state.services.find((service) => service.id === state.selectedServiceId);
     if (!selected?.isActive) {
-      state.selectedServiceId = window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : activeServices()[0]?.id || "";
+      state.selectedServiceId = requiresServiceSelection() ? "" : activeServices()[0]?.id || "";
     }
   } catch (error) {
     state.services = DEFAULT_SERVICES;
@@ -373,7 +381,7 @@ function renderServices() {
               ${group.services.map((service) => {
         const serviceGender = service.gender === "male" ? "male" : "female";
         const checked = service.id === state.selectedServiceId;
-        const fallbackChecked = !window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION && !state.selectedServiceId && service.id === services[0]?.id;
+        const fallbackChecked = !requiresServiceSelection() && !state.selectedServiceId && service.id === services[0]?.id;
         return `
           <label class="service-card">
             <input type="radio" name="service" value="${service.id}" data-gender="${serviceGender}" ${checked || fallbackChecked ? "checked" : ""} />
@@ -493,12 +501,12 @@ function renderDateStrip() {
 function renderSlots() {
   const service = getSelectedService();
   if (!service) {
-    els.slotGrid.innerHTML = window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : `<div class="empty-state compact-empty">${t("customer.noServices")}</div>`;
+    els.slotGrid.innerHTML = requiresServiceSelection() ? "" : `<div class="empty-state compact-empty">${t("customer.noServices")}</div>`;
     return;
   }
 
   const allSlots = buildSlots(els.dateInput.value, service);
-  const visibleSlots = window.OPENSLOT_TEMPLATE_SHOW_UNAVAILABLE
+  const visibleSlots = shouldShowUnavailableSlots()
     ? allSlots
     : allSlots.filter((slot) => slot.available);
   if (visibleSlots.length === 0) {
@@ -623,8 +631,8 @@ async function handleSubmit(event) {
     els.bookingForm.reset();
     els.dateInput.value = selectedDate;
     state.selectedSlot = "";
-    state.selectedServiceId = window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : activeServices()[0]?.id || "";
-    state.selectedGender = window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION ? "" : "male";
+    state.selectedServiceId = requiresServiceSelection() ? "" : activeServices()[0]?.id || "";
+    state.selectedGender = requiresServiceSelection() ? "" : "male";
     els.genderInput.value = state.selectedGender;
     resetTurnstile();
     const mailMessage = await state.repository.sendBookingEmail(bookingId, "created");
@@ -911,7 +919,7 @@ function validateBookingSlot(appointment) {
 }
 
 function getSelectedService() {
-  if (window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION && !state.selectedServiceId) return null;
+  if (requiresServiceSelection() && !state.selectedServiceId) return null;
   return state.services.find((service) => service.id === state.selectedServiceId) || activeServices()[0];
 }
 
