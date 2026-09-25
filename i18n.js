@@ -1,5 +1,4 @@
-const OPENSLOT_LANGUAGE_KEY = "openslot.language";
-const OPENSLOT_LANGUAGE_DEFAULTED_KEY = "openslot.language.defaulted.de.v1";
+const OPENSLOT_LANGUAGE_KEY = "openslot.language.preference.v2";
 const OPENSLOT_DEFAULT_LANGUAGE = "de";
 
 const OPENSLOT_TRANSLATIONS = {
@@ -656,19 +655,12 @@ const OPENSLOT_TRANSLATIONS = {
 function getStoredLanguage() {
   const lockedLanguage = document.documentElement.dataset.languageLock;
   if (lockedLanguage && OPENSLOT_TRANSLATIONS[lockedLanguage]) return lockedLanguage;
-  if (document.documentElement.dataset.languageSource === "system") {
-    const systemLanguage = (navigator.language || "de").slice(0, 2).toLowerCase();
-    return OPENSLOT_TRANSLATIONS[systemLanguage] ? systemLanguage : OPENSLOT_DEFAULT_LANGUAGE;
-  }
-  if (!localStorage.getItem(OPENSLOT_LANGUAGE_DEFAULTED_KEY)) {
-    localStorage.setItem(OPENSLOT_LANGUAGE_KEY, OPENSLOT_DEFAULT_LANGUAGE);
-    localStorage.setItem(OPENSLOT_LANGUAGE_DEFAULTED_KEY, "1");
-    return OPENSLOT_DEFAULT_LANGUAGE;
-  }
   const stored = localStorage.getItem(OPENSLOT_LANGUAGE_KEY);
   if (OPENSLOT_TRANSLATIONS[stored]) return stored;
-  const browser = (navigator.language || "zh").slice(0, 2).toLowerCase();
-  return OPENSLOT_TRANSLATIONS[browser] ? browser : OPENSLOT_DEFAULT_LANGUAGE;
+  const systemLanguage = (navigator.languages || [navigator.language || OPENSLOT_DEFAULT_LANGUAGE])
+    .map((value) => String(value).toLowerCase().split("-")[0])
+    .find((value) => OPENSLOT_TRANSLATIONS[value]);
+  return systemLanguage || OPENSLOT_DEFAULT_LANGUAGE;
 }
 
 function translate(key, values = {}) {
