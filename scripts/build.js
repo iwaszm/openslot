@@ -18,10 +18,6 @@ fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 
 for (const file of [
-  "index.html",
-  "home.css",
-  "home.js",
-  "home-i18n.js",
   "styles.css",
   "booking-theme.css",
   "booking-theme.js",
@@ -35,9 +31,14 @@ for (const file of [
   copyFile(file);
 }
 
+for (const file of ["index.html", "home.css", "home.js", "home-i18n.js", "site.webmanifest"]) {
+  copyFile(path.join("home", file), file);
+}
+
 for (const dir of ["assets", "datenschutz", "stornierung", "lisa", "demo"]) {
   copyDir(dir);
 }
+copyDir(path.join("home", "assets"), path.join("assets", "home"));
 replaceTurnstileSiteKeys(dist);
 stampAdminAssetUrls();
 stampCustomerAssetUrls();
@@ -71,12 +72,14 @@ writeFile(
 `,
 );
 
-function copyFile(relativePath) {
-  fs.copyFileSync(path.join(root, relativePath), path.join(dist, relativePath));
+function copyFile(relativePath, outputPath = relativePath) {
+  const target = path.join(dist, outputPath);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.copyFileSync(path.join(root, relativePath), target);
 }
 
-function copyDir(relativePath) {
-  fs.cpSync(path.join(root, relativePath), path.join(dist, relativePath), {
+function copyDir(relativePath, outputPath = relativePath) {
+  fs.cpSync(path.join(root, relativePath), path.join(dist, outputPath), {
     recursive: true,
   });
 }

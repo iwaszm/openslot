@@ -18,7 +18,7 @@ OpenSlot is a lightweight appointment booking website for salon-style service bu
 
 The frontend is a static HTML/CSS/JavaScript site deployed with Cloudflare Pages. Runtime configuration is generated during the Cloudflare build from environment variables, so the local `config.js` file is not committed.
 
-The root URL serves the brand homepage (`index.html`, `home.css`, `home.js`). Its images, font, and icons are self-hosted in `assets/home/`. The homepage demo runs entirely in memory and does not connect to Supabase or send emails. Existing `/{salon-slug}/` and `/{salon-slug}/admin/` routes remain separate.
+The brand homepage source is contained in `home/`. During the Cloudflare build it is published at the root URL, with its assets under `/assets/home/`. The homepage demo runs entirely in memory and does not connect to Supabase or send emails. Existing `/{salon-slug}/` and `/{salon-slug}/admin/` routes remain separate.
 
 Supabase provides:
 
@@ -35,6 +35,7 @@ Resend is used for transactional customer emails.
 ```text
 /
 ├─ archive/             Archived customer self-management page
+├─ home/                Brand homepage, interactive demo, and assets
 ├─ docs/                Architecture and security notes
 ├─ scripts/build.js     Cloudflare Pages build script
 ├─ supabase/            SQL migrations and Edge Functions
@@ -47,7 +48,7 @@ Resend is used for transactional customer emails.
 
 ## Local Development
 
-Copy `config.example.js` to `config.js` and fill in your Supabase project URL and anon public key:
+For direct development of the booking and admin pages, copy `config.example.js` to `config.js` and fill in your Supabase project URL and anon public key:
 
 ```js
 window.OPENSLOT_SUPABASE = {
@@ -56,10 +57,13 @@ window.OPENSLOT_SUPABASE = {
 };
 ```
 
-Run a local static server:
+To preview the complete Cloudflare Pages output, provide the build variables, build the site, and serve `dist/`:
 
 ```powershell
-python -m http.server 5173
+$env:OPENSLOT_SUPABASE_URL="https://your-project.supabase.co"
+$env:OPENSLOT_SUPABASE_ANON_KEY="your-anon-public-key"
+npm run build
+python -m http.server 5173 --directory dist
 ```
 
 Open a salon route:
