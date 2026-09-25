@@ -271,8 +271,11 @@ function bindEvents() {
   els.adminDateInput?.addEventListener("change", async () => {
     const selectedIndex = state.dateOptions.findIndex((option) => option.date === els.adminDateInput.value);
     if (selectedIndex >= 0) state.datePageStart = getCalendarPageStart(selectedIndex);
-    await refreshDateOptions();
-    await refreshDayData();
+    renderDateStrip();
+    await Promise.all([
+      refreshDateOptions(),
+      refreshDayData({ showLoading: true }),
+    ]);
   });
   els.adminDatePrevButton?.addEventListener("click", () => changeDatePage(-1));
   els.adminDateNextButton?.addEventListener("click", () => changeDatePage(1));
@@ -480,18 +483,22 @@ function createEmptyDateOption(date) {
   };
 }
 
-async function refreshDayData({ onlyIfChanged = false } = {}) {
+async function refreshDayData({ onlyIfChanged = false, showLoading = false } = {}) {
   if (!els.adminDateInput || !els.appointmentList) return;
   if (!state.isOwner && state.repository.authSupported) return;
   const requestId = ++dayRefreshSequence;
+  if (showLoading) setDayLoading(true);
   try {
     const date = els.adminDateInput.value;
-    const [appointments, daySettings, manualSchedule, timeBlocks] = await Promise.all([
-      state.repository.listAppointments(date),
-      state.repository.getDaySettings(date),
-      loadManualSchedule(date),
-      state.repository.listTimeBlocks(date),
-    ]);
+    const snapshot = await state.repository.getDaySnapshot?.(date);
+    const [appointments, daySettings, manualSchedule, timeBlocks] = snapshot
+      ? [snapshot.appointments, snapshot.daySettings, snapshot.manualSchedule, snapshot.timeBlocks]
+      : await Promise.all([
+        state.repository.listAppointments(date),
+        state.repository.getDaySettings(date),
+        loadManualSchedule(date),
+        state.repository.listTimeBlocks(date),
+      ]);
     if (requestId !== dayRefreshSequence || date !== els.adminDateInput.value
       || (!state.isOwner && state.repository.authSupported)) return true;
     const changed = pendingDayRender || !onlyIfChanged || JSON.stringify([
@@ -525,8 +532,16 @@ async function refreshDayData({ onlyIfChanged = false } = {}) {
     setAdminMessage(`读取后台数据失败：${error.message}`);
     console.warn("Schedule refresh failed:", error);
     return false;
+  } finally {
+    if (showLoading && requestId === dayRefreshSequence) setDayLoading(false);
   }
   return true;
+}
+
+function setDayLoading(isLoading) {
+  const container = els.appointmentList?.closest(".schedule-scroll");
+  container?.classList.toggle("is-loading", isLoading);
+  els.appointmentList?.setAttribute("aria-busy", String(isLoading));
 }
 
 async function refreshUpcomingLog({ onlyIfChanged = false } = {}) {
@@ -609,7 +624,8 @@ function renderDateStrip() {
     button.addEventListener("click", async () => {
       if (button.dataset.date === els.adminDateInput.value) return;
       els.adminDateInput.value = button.dataset.date;
-      await refreshDayData();
+      renderDateStrip();
+      await refreshDayData({ showLoading: true });
     });
   });
 }
@@ -634,8 +650,11 @@ async function changeDatePage(direction) {
   const target = state.dateOptions[nextStart];
   if (target) {
     els.adminDateInput.value = target.date;
-    await refreshDateOptions();
-    await refreshDayData();
+    renderDateStrip();
+    await Promise.all([
+      refreshDateOptions(),
+      refreshDayData({ showLoading: true }),
+    ]);
   }
 }
 
@@ -643,8 +662,11 @@ async function selectToday() {
   const today = toDateInputValue(new Date());
   state.datePageStart = 0;
   els.adminDateInput.value = today;
-  await refreshDateOptions();
-  await refreshDayData();
+  renderDateStrip();
+  await Promise.all([
+    refreshDateOptions(),
+    refreshDayData({ showLoading: true }),
+  ]);
 }
 
 function getScheduleLanes(activeAppointments) {
@@ -1624,6 +1646,23 @@ function createSupabaseRepository(client) {
       if (error) throw error;
       return (data || []).map(fromSupabaseScheduleEntry);
     },
+    async getDaySnapshot(date) {
+      const salon = await salonPromise;
+      const { data, error } = await client.rpc("get_admin_day_snapshot", {
+        p_salon_slug: salon.slug,
+        p_schedule_date: date,
+      });
+      if (error && ["42883", "PGRST202"].includes(error.code)) return null;
+      if (error) throw error;
+      if (!data?.day_settings?.setting_date) return null;
+      const entries = (data.manual_schedule_entries || []).map(fromSupabaseScheduleEntry);
+      return {
+        appointments: (data.appointments || []).map(fromSupabaseAppointment),
+        daySettings: fromSupabaseDaySettings(data.day_settings),
+        manualSchedule: { ...splitManualScheduleEntries(entries), isUnified: true },
+        timeBlocks: (data.time_blocks || []).map(fromSupabaseTimeBlock),
+      };
+    },
     async createManualScheduleEntry(entry) {
       const salon = await salonPromise;
       const { data, error } = await client.rpc("create_admin_schedule_entry", {
@@ -1953,6 +1992,7 @@ function createLocalRepository() {
     async listServices() { return loadLocalServices(); },
     async listLaneLayout() { return createDefaultLaneLayout(); },
     async listManualScheduleEntries() { return null; },
+    async getDaySnapshot() { return null; },
     async createManualScheduleEntry() { throw new Error("Unified schedule entries are unavailable in local mode"); },
     async deleteManualScheduleEntry() { throw new Error("Unified schedule entries are unavailable in local mode"); },
     async listAppointments(date) {

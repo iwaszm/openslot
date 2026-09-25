@@ -169,7 +169,12 @@ body.production-admin { margin: 0; background: #fff; color: #191b19; font-family
 .staff-toolbar { display: flex; justify-content: space-between; align-items: center; min-height: 43px; padding-bottom: 7px; border-bottom: 1px solid #d9ded6; }
 .day-summary { font-size: 12px; color: #4d5550; }
 .add-booking, .solid-button { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid #191b19; background: #191b19; color: #fff; font-size: 13px; font-weight: 700; }
-.schedule-scroll { width: calc(100% + 12px); margin-left: -12px; overflow-x: auto; }
+.schedule-scroll { position: relative; width: calc(100% + 12px); margin-left: -12px; overflow-x: auto; }
+.schedule-scroll::before { content: ""; position: absolute; top: 0; left: 0; z-index: 60; width: 0; height: 2px; background: #191b19; opacity: 0; pointer-events: none; }
+.schedule-scroll.is-loading::before { width: 38%; opacity: 1; animation: schedule-loading 900ms ease-in-out infinite alternate; }
+.schedule-scroll.is-loading .schedule-board { opacity: .58; }
+@keyframes schedule-loading { from { transform: translateX(0); } to { transform: translateX(160%); } }
+@media (prefers-reduced-motion: reduce) { .schedule-scroll.is-loading::before { width: 100%; animation: none; } }
 .schedule-board { min-width: 0; }
 .staff-schedule { --slot-height: 58px; display: grid; grid-template-columns: 43px repeat(var(--lane-count),minmax(76px,1fr)); }
 .staff-schedule-head, .staff-schedule-body { display: grid; grid-column: 1/-1; grid-template-columns: 43px repeat(var(--lane-count),minmax(76px,1fr)); }
