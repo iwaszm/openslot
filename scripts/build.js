@@ -36,7 +36,7 @@ for (const file of ["index.html", "home.css", "home.js", "home-i18n.js", "site.w
 }
 copyFile(path.join("home", "assets", "icons", "favicon.ico"), "favicon.ico");
 
-for (const dir of ["assets", "datenschutz", "stornierung", "lisa", "demo"]) {
+for (const dir of ["datenschutz", "stornierung", "lisa", "demo"]) {
   copyDir(dir);
 }
 copyDir(path.join("home", "assets"), path.join("assets", "home"));
