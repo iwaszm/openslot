@@ -395,6 +395,9 @@ async function loadManualSchedule(date) {
   if (Array.isArray(unifiedEntries)) {
     return { ...splitManualScheduleEntries(unifiedEntries), isUnified: true };
   }
+  if (state.repository.authSupported) {
+    throw new Error("Unified schedule entries are unavailable");
+  }
   const [blockedSlots, overflowSlots, flexibleSlots] = await Promise.all([
     state.repository.listBlockedSlots(date),
     state.repository.listStaffSlots(date, "overflow"),
@@ -1812,73 +1815,6 @@ function createSupabaseRepository(client) {
       const { error } = await client.rpc("delete_admin_time_block", { p_block_id: blockId });
       if (error) throw error;
     },
-    async listBlockedSlots(date) {
-      const salon = await salonPromise;
-      const { data, error } = await client
-        .from("blocked_slots")
-        .select("id, block_date, start_time, end_time, reason, service_id, service_start_time, occupied_slots")
-        .eq("salon_id", salon.id)
-        .eq("block_date", date)
-        .order("start_time", { ascending: true });
-      if (error) throw error;
-      return (data || []).map(fromSupabaseBlockedSlot);
-    },
-    async listStaffSlots(date, staffKey) {
-      const salon = await salonPromise;
-      const { data, error } = await client
-        .from("staff_slot_overrides")
-        .select("slot_date, start_time, service_id, service_start_time, is_open")
-        .eq("salon_id", salon.id)
-        .eq("staff_key", staffKey)
-        .eq("slot_date", date)
-        .order("start_time", { ascending: true });
-      if (error) return loadLocalStaffSlots(date, staffKey);
-      return (data || []).map((row) => ({
-        date: row.slot_date,
-        startMinutes: parseTime(row.start_time.slice(0, 5)),
-        serviceId: row.service_id || null,
-        serviceStartMinutes: row.service_start_time ? parseTime(row.service_start_time.slice(0, 5)) : null,
-        isOpen: row.is_open !== false,
-      }));
-    },
-    async saveStaffSlot(slot, staffKey) {
-      const salon = await salonPromise;
-      const { error } = await client.from("staff_slot_overrides").upsert({
-        salon_id: salon.id,
-        staff_key: staffKey,
-        slot_date: slot.date,
-        start_time: `${formatMinutes(slot.startMinutes)}:00`,
-        service_id: slot.serviceId,
-        service_start_time: Number.isFinite(slot.serviceStartMinutes) ? `${formatMinutes(slot.serviceStartMinutes)}:00` : null,
-        is_open: slot.isOpen !== false,
-      }, { onConflict: "salon_id,staff_key,slot_date,start_time" });
-      if (error) saveLocalStaffSlot(slot, staffKey);
-    },
-    async deleteStaffSlot(date, staffKey, startMinutes) {
-      const salon = await salonPromise;
-      const { error } = await client.from("staff_slot_overrides")
-        .delete()
-        .eq("salon_id", salon.id)
-        .eq("staff_key", staffKey)
-        .eq("slot_date", date)
-        .eq("start_time", `${formatMinutes(startMinutes)}:00`);
-      if (error) deleteLocalStaffSlot(date, staffKey, startMinutes);
-    },
-    async createBlockedSlot(block) {
-      const salon = await salonPromise;
-      const { error } = await client.rpc("create_admin_block", {
-        p_salon_id: salon.id,
-        p_block_date: block.date,
-        p_start_time: `${formatMinutes(block.startMinutes)}:00`,
-        p_service_id: block.serviceId,
-      });
-      if (error) throw error;
-    },
-    async deleteBlockedSlot(blockId) {
-      const salon = await salonPromise;
-      const { error } = await client.from("blocked_slots").delete().eq("id", blockId).eq("salon_id", salon.id);
-      if (error) throw error;
-    },
     async saveDaySettings(settings) {
       const salon = await salonPromise;
       const { error } = await client
@@ -2697,19 +2633,6 @@ function fromSupabaseTimeBlock(row) {
     date: row.block_date,
     startMinutes: parseTime(String(row.start_time).slice(0, 5)),
     endMinutes: parseTime(String(row.end_time).slice(0, 5)),
-  };
-}
-
-function fromSupabaseBlockedSlot(row) {
-  return {
-    id: row.id,
-    date: row.block_date,
-    startMinutes: parseTime(row.start_time.slice(0, 5)),
-    endMinutes: parseTime(row.end_time.slice(0, 5)),
-    occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
-    serviceId: row.service_id || null,
-    serviceStartMinutes: row.service_start_time ? parseTime(row.service_start_time.slice(0, 5)) : parseTime(row.start_time.slice(0, 5)),
-    reason: row.reason || "",
   };
 }
 

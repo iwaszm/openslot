@@ -43,12 +43,12 @@ const LEGACY_SERVICE_IDS = new Set(["haircut", "color", "perm"]);
 const state = {
   appointments: [],
   scheduleRecords: [],
-  blockedSlots: [],
   daySettings: createDefaultDaySettings(toDateInputValue(new Date())),
   repository: null,
   services: DEFAULT_SERVICES,
   salon: null,
   laneLayout: createDefaultLaneLayout(),
+  staffServiceKeys: null,
   dateOptions: [],
   selectedServiceId: requiresServiceSelection() ? "" : DEFAULT_SERVICES[0].id,
   selectedGender: requiresServiceSelection() ? "" : DEFAULT_SERVICES[0].gender,
@@ -119,6 +119,7 @@ async function init() {
   bindEvents();
   await refreshServices();
   await refreshLaneLayout();
+  await refreshStaffServices();
   await refreshDateOptions();
   await refreshDayData();
 }
@@ -151,7 +152,11 @@ function bindEvents() {
   }
   window.addEventListener("openslot:employee-change", (event) => {
     state.selectedStaffKey = event.detail?.staffKey || "any";
+    if (!activeServices().some((service) => service.id === state.selectedServiceId)) {
+      state.selectedServiceId = requiresServiceSelection() ? "" : activeServices()[0]?.id || "";
+    }
     state.selectedSlot = "";
+    renderServices();
     render();
   });
   els.customerName.addEventListener("input", () => {
@@ -223,6 +228,18 @@ async function refreshLaneLayout() {
   }
 }
 
+async function refreshStaffServices() {
+  try {
+    const assignments = await state.repository.listStaffServices?.();
+    state.staffServiceKeys = Array.isArray(assignments)
+      ? new Set(assignments.map((item) => `${item.staffKey}:${item.serviceId}`))
+      : null;
+  } catch (_error) {
+    state.staffServiceKeys = null;
+  }
+  renderServices();
+}
+
 async function refreshDateOptions() {
   const dates = buildDateRange(els.dateInput.value);
   try {
@@ -254,15 +271,13 @@ async function refreshDayData(options = {}) {
   const { shouldRender = true } = options;
   try {
     const date = els.dateInput.value;
-    const [appointments, daySettings, blockedSlots, scheduleRecords] = await Promise.all([
+    const [appointments, daySettings, scheduleRecords] = await Promise.all([
       state.repository.listAppointments(date),
       state.repository.getDaySettings(date),
-      state.repository.listBlockedSlots(date),
       state.repository.listSchedule(date),
     ]);
     state.appointments = appointments;
     state.daySettings = daySettings;
-    state.blockedSlots = blockedSlots;
     state.scheduleRecords = scheduleRecords;
   } catch (error) {
     setFormMessage(() => t("customer.scheduleLoadFailed"));
@@ -703,6 +718,17 @@ function createSupabaseRepository(client) {
         staffSortOrder: Number(row.salon_staff?.sort_order || 0),
       }));
     },
+    async listStaffServices() {
+      const salon = await salonPromise;
+      const { data, error } = await client.rpc("get_public_staff_services", {
+        p_salon_slug: salon.slug,
+      });
+      if (error) throw error;
+      return (data || []).map((row) => ({
+        staffKey: row.staff_key,
+        serviceId: row.service_id,
+      }));
+    },
     async listAppointments(date) {
       const salon = await salonPromise;
       const { data, error } = await client.rpc("get_public_occupied_slots", {
@@ -727,7 +753,7 @@ function createSupabaseRepository(client) {
       return (data || []).map((row, index) => ({
         id: row.record_id || `schedule-${index}`,
         date,
-        staffKey: row.staff_key || "default",
+        staffKey: row.record_kind === "time_block" ? null : (row.staff_key || "default"),
         laneKey: row.lane_key || null,
         startMinutes: timeValueToMinutes(row.covered_start),
         endMinutes: timeValueToMinutes(row.covered_end),
@@ -785,17 +811,6 @@ function createSupabaseRepository(client) {
       if (error) throw error;
       return data ? normalizeDaySettings(fromSupabaseDaySettings(data)) : createDefaultDaySettings(date);
     },
-    async listBlockedSlots(date) {
-      const salon = await salonPromise;
-      const { data, error } = await client
-        .from("blocked_slots")
-        .select("id, block_date, start_time, end_time, reason, occupied_slots")
-        .eq("salon_id", salon.id)
-        .eq("block_date", date)
-        .order("start_time", { ascending: true });
-      if (error) throw error;
-      return (data || []).map(fromSupabaseBlockedSlot);
-    },
   };
 }
 
@@ -826,6 +841,7 @@ function createLocalRepository() {
       return loadLocalServices().filter((service) => service.isActive);
     },
     async listLaneLayout() { return createDefaultLaneLayout(); },
+    async listStaffServices() { return null; },
     async listAppointments(date) {
       return loadLocalAppointments().filter((appointment) => appointment.date === date);
     },
@@ -851,9 +867,6 @@ function createLocalRepository() {
       const defaults = createDefaultDaySettings(date);
       const saved = loadLocalSettings()[date];
       return saved ? normalizeDaySettings({ ...defaults, ...saved, hasManualOverride: true }) : defaults;
-    },
-    async listBlockedSlots(date) {
-      return loadLocalBlocks().filter((block) => block.date === date);
     },
   };
 }
@@ -881,15 +894,15 @@ function buildSlots(date, service) {
   for (let start = state.daySettings.openMinutes; start + service.duration <= state.daySettings.closeMinutes; start += SLOT_STEP) {
     const candidate = {
       date,
+      serviceId: service.id,
       startMinutes: start,
       endMinutes: start + service.duration,
       occupiedMinutes: getServiceOccupiedMinutes(service, start),
     };
     const isPast = isPastSlot(date, start);
     const schedule = state.scheduleRecords.length > 0 ? state.scheduleRecords : state.appointments;
-    const ownerBlocked = hasOverlap(candidate, state.blockedSlots);
     const laneUnavailable = !findAvailableLane(candidate, schedule);
-    const reason = getSlotReason({ isPast, ownerBlocked, laneUnavailable });
+    const reason = getSlotReason({ isPast, laneUnavailable });
     slots.push({
       time: formatMinutes(start),
       available: !reason,
@@ -900,9 +913,8 @@ function buildSlots(date, service) {
   return slots;
 }
 
-function getSlotReason({ isPast, ownerBlocked, laneUnavailable }) {
+function getSlotReason({ isPast, laneUnavailable }) {
   if (isPast) return t("customer.slotPast");
-  if (ownerBlocked) return t("customer.slotBlocked");
   if (laneUnavailable) return t("customer.slotOccupied");
   return "";
 }
@@ -921,7 +933,6 @@ function validateBookingSlot(appointment) {
   if (state.daySettings.isBlockedDay) return t("customer.dayUnavailable");
   if (appointment.startMinutes < state.daySettings.openMinutes || appointment.endMinutes > state.daySettings.closeMinutes) return t("customer.timeOutsideHours");
   const schedule = state.scheduleRecords.length > 0 ? state.scheduleRecords : state.appointments;
-  if (hasOverlap(appointment, state.blockedSlots)) return t("customer.timeBlocked");
   if (!findAvailableLane(appointment, schedule)) return t("customer.noCompleteLane");
   return "";
 }
@@ -933,9 +944,18 @@ function getSelectedService() {
 
 function activeServices() {
   return state.services
-    .filter((service) => service.isActive)
+    .filter((service) => service.isActive && serviceIsAvailableForSelection(service.id))
     .slice()
     .sort((a, b) => (getServiceSortIndex(a.id) - getServiceSortIndex(b.id)) || a.name.localeCompare(b.name));
+}
+
+function serviceIsAvailableForSelection(serviceId) {
+  if (!state.staffServiceKeys) return true;
+  const staffKeys = [...new Set(state.laneLayout.map((lane) => lane.staffKey))];
+  const candidates = state.selectedStaffKey === "any"
+    ? staffKeys
+    : staffKeys.filter((staffKey) => staffKey === state.selectedStaffKey);
+  return candidates.some((staffKey) => state.staffServiceKeys.has(`${staffKey}:${serviceId}`));
 }
 
 function getServiceSortIndex(id) {
@@ -954,17 +974,29 @@ function hasOverlap(candidate, ranges) {
 }
 
 function findAvailableLane(candidate, schedule) {
+  const globalBlocks = schedule.filter((item) => !item.staffKey && !item.laneKey);
+  if (globalBlocks.some((block) => (
+    candidate.startMinutes < block.endMinutes && candidate.endMinutes > block.startMinutes
+  ))) return null;
   const allStaffKeys = [...new Set(state.laneLayout.map((lane) => lane.staffKey))];
   const staffKeys = state.selectedStaffKey === "any"
     ? allStaffKeys
     : allStaffKeys.filter((staffKey) => staffKey === state.selectedStaffKey);
   for (const staffKey of staffKeys) {
+    if (candidate.serviceId && state.staffServiceKeys
+      && !state.staffServiceKeys.has(`${staffKey}:${candidate.serviceId}`)) continue;
     const staffLanes = state.laneLayout.filter((lane) => lane.staffKey === staffKey);
     const laneKeys = new Set(staffLanes.map((lane) => lane.laneKey));
     const staffSchedule = schedule.filter((item) => (
       item.status !== "cancelled" && laneKeys.has(item.laneKey)
     ));
-    if (!hasOverlap(candidate, staffSchedule)) return staffLanes[0]?.laneKey || null;
+    if (hasOverlap(candidate, staffSchedule)) continue;
+    const availableLane = staffLanes.find((lane) => !staffSchedule.some((item) => (
+      item.laneKey === lane.laneKey
+      && candidate.startMinutes < item.endMinutes
+      && candidate.endMinutes > item.startMinutes
+    )));
+    if (availableLane) return availableLane.laneKey;
   }
   return null;
 }
@@ -1287,17 +1319,6 @@ function fromSupabaseDaySettings(row) {
     holidayName: row.holiday_name || "",
     isPublicHoliday: Boolean(row.is_public_holiday),
     hasManualOverride: Boolean(row.has_manual_override),
-  };
-}
-
-function fromSupabaseBlockedSlot(row) {
-  return {
-    id: row.id,
-    date: row.block_date,
-    startMinutes: parseTime(row.start_time.slice(0, 5)),
-    endMinutes: parseTime(row.end_time.slice(0, 5)),
-    occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
-    reason: row.reason || "",
   };
 }
 
