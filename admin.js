@@ -1690,14 +1690,14 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       let { data, error } = await client
         .from("appointments")
-        .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers(name, phone, email, gender)")
+        .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)")
         .eq("salon_id", salon.id)
         .eq("appointment_date", date)
         .order("start_time", { ascending: true });
       if (error?.code === "42703") {
         ({ data, error } = await client
           .from("appointments")
-          .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, status, customers(name, phone, email, gender)")
+          .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)")
           .eq("salon_id", salon.id)
           .eq("appointment_date", date)
           .order("start_time", { ascending: true }));
@@ -1713,8 +1713,8 @@ function createSupabaseRepository(client) {
 
       while (true) {
         const columns = includeLane
-          ? "id, service_id, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers(name, phone, email, gender)"
-          : "id, service_id, appointment_date, start_time, end_time, occupied_slots, status, customers(name, phone, email, gender)";
+          ? "id, service_id, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)"
+          : "id, service_id, appointment_date, start_time, end_time, occupied_slots, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)";
         const { data, error } = await client
           .from("appointments")
           .select(columns)

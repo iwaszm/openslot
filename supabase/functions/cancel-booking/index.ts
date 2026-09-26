@@ -78,7 +78,7 @@ function readEnv() {
 async function loadBooking(supabase: ReturnType<typeof createClient>, token: string): Promise<BookingRow | null> {
   const { data, error } = await supabase
     .from("appointments")
-    .select("id, appointment_date, start_time, end_time, status, cancellation_token, services(name), customers(name, email), salons(slug, name, phone)")
+    .select("id, appointment_date, start_time, end_time, status, cancellation_token, services:services!appointments_service_salon_fkey(name), customers:customers!appointments_customer_salon_fkey(name, email), salons(slug, name, phone)")
     .eq("cancellation_token", token)
     .maybeSingle();
   if (error) throw error;
