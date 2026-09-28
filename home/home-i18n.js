@@ -37,7 +37,7 @@
   },
   "Dein Kiez. Deine Termine.": {
     "en": "Your neighbourhood. Your appointments.",
-    "zh": "你的街区，你的预约。",
+    "zh": "你的街区，你的预约",
     "ko": "우리 동네, 우리의 예약."
   },
   "Die leichte Online-Terminverwaltung für kleine Berliner Betriebe. Weniger organisieren. Mehr Zeit für dein Handwerk.": {
@@ -47,7 +47,7 @@
   },
   "Buchung ausprobieren": {
     "en": "Try booking",
-    "zh": "体验预约",
+    "zh": "试试看",
     "ko": "예약 체험하기"
   },
   "Für die kleinen Läden, die Berlin groß machen.": {
@@ -75,6 +75,11 @@
     "zh": "日常管理更轻松",
     "ko": "간편한 일상 관리"
   },
+  "Weniger Terminausfälle": {
+    "en": "Fewer no-shows",
+    "zh": "减少顾客爽约",
+    "ko": "예약 부도 줄이기"
+  },
   "Datenbank in Europa": {
     "en": "Database in Europe",
     "zh": "数据库位于欧洲",
@@ -92,7 +97,7 @@
   },
   "Der Kalender im Griff.": {
     "en": "Keep your calendar in hand.",
-    "zh": "预约安排尽在掌握。",
+    "zh": "预约安排尽在掌握",
     "ko": "일정은 한눈에."
   },
   "Ob Salon, Studio oder Beratung: Deine Kundschaft findet einen freien Termin. Du behältst den Überblick.": {
@@ -107,7 +112,7 @@
   },
   "Ein Link. Ein Termin.": {
     "en": "One link. One appointment.",
-    "zh": "一个链接，完成预约。",
+    "zh": "一个链接，完成预约",
     "ko": "링크 하나로 예약 완료."
   },
   "Leistung wählen, freie Zeit finden, buchen. Direkt im Browser, ohne ein Kundenkonto anzulegen.": {
@@ -122,7 +127,7 @@
   },
   "Alles in der Mail.": {
     "en": "All in your inbox.",
-    "zh": "详情尽在邮件中。",
+    "zh": "详情尽在邮件中",
     "ko": "이메일 한 통에 모두."
   },
   "Die Bestätigung landet im Postfach. Mit den Termindetails und einem Link zum Stornieren.": {
@@ -137,7 +142,7 @@
   },
   "Dein Tag steht.": {
     "en": "Your day, organised.",
-    "zh": "一天安排，清晰有序。",
+    "zh": "一天安排，清晰有序",
     "ko": "하루 일정이 깔끔하게."
   },
   "Termine einsehen, Zeiten freigeben und Pausen blockieren. An einem Ort für deinen Betrieb.": {
@@ -347,12 +352,12 @@
   },
   "Klein im Aufwand.": {
     "en": "Less effort.",
-    "zh": "轻量省心。",
+    "zh": "轻量省心",
     "ko": "관리 부담은 줄이고."
   },
   "Bewusst bei den Daten.": {
     "en": "Careful with data.",
-    "zh": "认真对待数据。",
+    "zh": "认真对待数据",
     "ko": "데이터는 신중하게."
   },
   "Leichtgewichtig": {
@@ -442,12 +447,12 @@
   },
   "Mehr Kiez.": {
     "en": "More neighbourhood.",
-    "zh": "多些街区生活。",
+    "zh": "多些街区生活",
     "ko": "동네에 더 집중하고."
   },
   "Weniger Kalenderchaos.": {
     "en": "Less calendar chaos.",
-    "zh": "少些日程烦恼。",
+    "zh": "少些日程烦恼",
     "ko": "복잡한 일정 관리는 줄이세요."
   },
   "Jetzt Kontakt aufnehmen": {
@@ -462,7 +467,7 @@
   },
   "OpenSlotBerlin | Dein Kiez. Deine Termine.": {
     "en": "OpenSlotBerlin | Your neighbourhood. Your appointments.",
-    "zh": "OpenSlotBerlin | 你的街区，你的预约。",
+    "zh": "OpenSlotBerlin | 你的街区，你的预约",
     "ko": "OpenSlotBerlin | 우리 동네, 우리의 예약."
   },
   "OpenSlotBerlin: leichte Online-Terminverwaltung für kleine Berliner Betriebe. Mit Online-Buchung, E-Mail-Bestätigung, Cloudflare Turnstile und Datenbank in Europa.": {
@@ -472,8 +477,8 @@
   }
 };
   Object.assign(translations, {
-    "Buchen links": { en: "Book on the left", zh: "左边预约", ko: "왼쪽에서 예약하고" },
-    "Direkt rechts sehen": { en: "See it on the right", zh: "右边实时查看", ko: "오른쪽에서 바로 확인하세요" },
+    "Buchen links": { en: "Booking and admin", zh: "预约和后台", ko: "예약과 관리 화면을" },
+    "Direkt rechts sehen": { en: "See updates live", zh: "实时查看", ko: "실시간으로 확인하세요" },
     "Teste beide Seiten von OpenSlotBerlin. Alles bleibt in diesem Browser – es werden keine Daten versendet.": { en: "Try both sides of OpenSlotBerlin. Everything stays in this browser – no data is sent.", zh: "体验 OpenSlotBerlin 的顾客端和管理端。所有操作仅保留在此浏览器中，不会发送任何数据。", ko: "OpenSlotBerlin의 양쪽 화면을 체험해 보세요. 모든 내용은 이 브라우저에만 남으며 데이터는 전송되지 않습니다." },
     "Live-Demo · ohne Supabase": { en: "Live demo · no Supabase", zh: "实时演示 · 不连接 Supabase", ko: "라이브 데모 · Supabase 미사용" },
     "Kundenansicht": { en: "Customer view", zh: "顾客页面", ko: "고객 화면" },
@@ -511,17 +516,19 @@
   Object.assign(translations, {
     "Interaktive Live-Demo": { en: "Interactive live demo", zh: "交互式实时演示", ko: "인터랙티브 라이브 데모" },
     "Freie Zeiten auswählen und ohne Registrierung buchen.": { en: "Choose an available time and book without registering.", zh: "选择空闲时间，无须注册即可预约。", ko: "빈 시간을 선택하고 회원가입 없이 예약하세요." },
-    "Nach der Bestätigung erscheint der Termin sofort rechts.": { en: "Once confirmed, the appointment appears immediately on the right.", zh: "确认后，预约会立即显示在右侧。", ko: "확정하면 예약이 오른쪽에 즉시 표시됩니다." },
+    "Im echten Betrieb erhält deine Kundschaft jetzt die Bestätigung per E-Mail.": { en: "In real use, your customer now receives a confirmation email.", zh: "真实场景下，顾客会收到确认邮件。", ko: "실제 운영에서는 고객에게 확인 이메일이 전송됩니다." },
     "+ Termin fügt Telefon- und Laufkundschaft hinzu.": { en: "+ Appointment adds phone and walk-in bookings.", zh: "+ 添加预约可录入电话和到店预约。", ko: "+ 예약으로 전화 및 방문 예약을 추가합니다." },
     "Zwei parallele Termine pro Mitarbeiter – inklusive Löschen.": { en: "Two parallel appointments per team member – with deletion.", zh: "每位员工支持两个重叠预约，并可删除。", ko: "직원별 동시 예약 2건을 지원하며 삭제할 수 있습니다." },
     "Löschen": { en: "Delete", zh: "删除", ko: "삭제" },
-    "Aktionen": { en: "Actions", zh: "操作", ko: "작업" }
+    "Aktionen": { en: "Actions", zh: "操作", ko: "작업" },
+    "Urlaub": { en: "Day off", zh: "休假", ko: "휴무" }
   });
   Object.assign(translations, {
     "Was deine Kundschaft sieht": { en: "What your customers see", zh: "你的顾客看到的", ko: "고객에게 보이는 화면" },
     "Was du siehst": { en: "What you see", zh: "你看到的", ko: "사장님이 보는 화면" },
     "Was kostet OpenSlotBerlin?": { en: "How much does OpenSlotBerlin cost?", zh: "OpenSlotBerlin 如何收费？", ko: "OpenSlotBerlin의 비용은 얼마인가요?" },
-    "OpenSlotBerlin ist ein persönliches Interessenprojekt. Die Teilnahme ist derzeit kostenlos. Freiwillige Spenden zur Unterstützung des Projekts sind willkommen.": { en: "OpenSlotBerlin is a personal interest project. Joining is currently free, and voluntary donations to support the project are welcome.", zh: "OpenSlotBerlin 是一个个人兴趣项目，目前可以免费加入，也欢迎通过自愿捐赠支持项目。", ko: "OpenSlotBerlin은 개인 관심 프로젝트입니다. 현재 무료로 참여할 수 있으며 프로젝트를 위한 자발적인 후원도 환영합니다." }
+    "OpenSlotBerlin ist ein persönliches Interessenprojekt. Die Teilnahme ist derzeit kostenlos. Freiwillige Unterstützung des Projekts ist willkommen.": { en: "OpenSlotBerlin is a personal interest project. Joining is currently free, and voluntary support for the project is welcome.", zh: "OpenSlotBerlin 是一个个人兴趣项目，目前可以免费加入，也欢迎自愿支持项目。", ko: "OpenSlotBerlin은 개인 관심 프로젝트입니다. 현재 무료로 참여할 수 있으며 자발적인 후원도 환영합니다." },
+    "Unterstütze uns": { en: "Support us", zh: "支持我们", ko: "후원하기" }
   });
   const storageKey = "openslot.home.language";
   let saved;

@@ -1,6 +1,6 @@
 (() => {
   const language = window.homeLanguage;
-  const employees = [{ id: "lisa", name: "Lisa", avatar: "👩🏻" }, { id: "tony", name: "Tony", avatar: "👨🏻" }];
+  const employees = [{ id: "lisa", name: "Linda", avatar: "👩🏻" }, { id: "tony", name: "Tony", avatar: "👨🏻" }];
   const services = [
     { id: "women", name: "Damenhaarschnitt", duration: 60, price: 50, slots: 2, color: "#b7d4ef" },
     { id: "men", name: "Herrenhaarschnitt", duration: 30, price: 30, slots: 1, color: "#c8dfb5" },
@@ -11,6 +11,7 @@
     return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
   });
   const dates = createDates();
+  const daysOff = [{ date: dates[2].key, employee: "tony", label: "Urlaub" }];
   let appointments = seedAppointments();
   let customerSelection = { employee: "lisa", service: "women", date: dates[0].key, time: null };
   let adminDate = dates[0].key;
@@ -63,6 +64,7 @@
     return `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
   }
   function isAvailable(date, employee, time, slots, capacity = 1) {
+    if (daysOff.some(dayOff => dayOff.date === date && dayOff.employee === employee)) return false;
     const start = times.indexOf(time);
     if (start < 0 || start + slots > times.length) return false;
     return Array.from({ length: slots }, (_, offset) => start + offset).every(slotIndex => {
@@ -134,6 +136,16 @@
     times.forEach((time, row) => {
       const label = document.createElement("span"); label.className = "demo-calendar-time"; label.style.gridRow = String(row + 2); label.textContent = time; calendar.append(label);
       employees.forEach((employee, column) => { const cell = document.createElement("span"); cell.className = "demo-calendar-cell"; cell.style.gridRow = String(row + 2); cell.style.gridColumn = String(column + 2); calendar.append(cell); });
+    });
+    daysOff.filter(dayOff => dayOff.date === adminDate).forEach(dayOff => {
+      const block = document.createElement("div");
+      block.className = "demo-calendar-event demo-calendar-day-off lane-full";
+      block.style.gridColumn = String(employees.findIndex(employee => employee.id === dayOff.employee) + 2);
+      block.style.gridRow = `2 / span ${times.length}`;
+      const strong = document.createElement("strong");
+      strong.textContent = language.t(dayOff.label);
+      block.append(strong);
+      calendar.append(block);
     });
     const dayAppointments = appointments.filter(item => item.date === adminDate).sort((a, b) => a.time.localeCompare(b.time) || a.id - b.id);
     const laneEnds = Object.fromEntries(employees.map(employee => [employee.id, [-1, -1]]));
