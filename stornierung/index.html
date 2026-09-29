@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
     <title>Stornierung | OpenSlot</title>
     <link rel="icon" href="/favicon.ico?v=20260925" sizes="any" />
     <link rel="icon" href="../assets/home/icons/site-icon.svg?v=20260925" type="image/svg+xml" />
@@ -14,9 +15,14 @@
       <section class="cancellation-result" aria-labelledby="resultTitle">
         <h1 id="resultTitle">Stornierung</h1>
         <p id="resultMessage">Die Anfrage wird verarbeitet.</p>
+        <form id="confirmationForm" method="post" hidden>
+          <input id="confirmationToken" type="hidden" name="token" />
+          <button class="primary-action" type="submit">Termin stornieren</button>
+        </form>
         <a id="salonLink" href="/">Zurück zur Startseite</a>
       </section>
     </main>
+    <script src="../config.js"></script>
     <script src="./result.js?v=20260914-cancellation-result-1"></script>
   </body>
 </html>

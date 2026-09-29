@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       if (booking.status === "cancelled") {
         return redirectToResult(publicBaseUrl, "already-cancelled", booking.salons?.slug);
       }
-      return renderConfirmation(token, booking);
+      return redirectToConfirmation(publicBaseUrl, token);
     }
 
     if (req.method !== "POST") {
@@ -109,53 +109,13 @@ function redirectToResult(publicBaseUrl: string, result: string, salonSlug = "")
   return Response.redirect(destination.toString(), 303);
 }
 
-function renderConfirmation(token: string, booking: BookingRow) {
-  const service = escapeHtml(booking.services?.name || "Termin");
-  const salon = escapeHtml(booking.salons?.name || "den Salon");
-  const date = escapeHtml(formatGermanDate(booking.appointment_date));
-  const time = escapeHtml(`${formatBerlinTime(booking.start_time)}-${formatBerlinTime(booking.end_time)}`);
-  const phone = booking.salons?.phone || "";
-  const phoneMarkup = phone
-    ? `<p>Bei Fragen erreichen Sie ${salon} telefonisch unter ${escapeHtml(phone)}.</p>`
-    : "";
-  return new Response(`<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Termin stornieren</title><style>body{font-family:Arial,sans-serif;margin:0;background:#f7f3ee;color:#1d1a16}main{max-width:640px;margin:0 auto;padding:48px 20px}section{background:#fff;border:1px solid #e3d8cc;border-radius:8px;padding:28px}h1{font-size:28px;line-height:1.2;margin:0 0 18px}p,dd{line-height:1.6}dl{display:grid;grid-template-columns:100px 1fr;gap:8px 16px;margin:24px 0}dt{font-weight:700;color:#6f675d}dd{margin:0}button{background:#1d1a16;border:0;color:#fff;cursor:pointer;font:inherit;padding:12px 16px}</style></head><body><main><section><h1>Termin stornieren</h1><p>Möchten Sie diesen Termin wirklich stornieren?</p><dl><dt>Service</dt><dd>${service}</dd><dt>Datum</dt><dd>${date}</dd><dt>Uhrzeit</dt><dd>${time}</dd></dl><form method="post"><input type="hidden" name="token" value="${escapeHtml(token)}"><button type="submit">Termin stornieren</button></form>${phoneMarkup}</section></main></body></html>`, {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store, max-age=0",
-      "Referrer-Policy": "no-referrer",
-      "X-Robots-Tag": "noindex, nofollow",
-    },
-  });
+function redirectToConfirmation(publicBaseUrl: string, token: string) {
+  const destination = new URL(`${publicBaseUrl}/stornierung/`);
+  destination.searchParams.set("confirm", "1");
+  destination.searchParams.set("token", token);
+  return Response.redirect(destination.toString(), 303);
 }
 
 function isCancellationToken(value: string) {
   return /^[0-9a-f]{48}$/i.test(value);
-}
-
-function formatBerlinTime(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Europe/Berlin",
-  }).format(new Date(value));
-}
-
-function formatGermanDate(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "2-digit",
-    timeZone: "Europe/Berlin",
-  }).format(new Date(`${value}T12:00:00+01:00`));
-}
-
-function escapeHtml(value: unknown) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
