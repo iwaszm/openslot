@@ -140,6 +140,7 @@ async function sendOnce(options: {
       subject: buildSubject(options.booking, options.event),
       html: buildHtml(options.booking, options.event, options.supabaseUrl),
       text: buildText(options.booking, options.event, options.supabaseUrl),
+      attachments: options.event === "created" ? [buildCalendarAttachment(options.booking)] : undefined,
     }),
   });
 
@@ -315,4 +316,51 @@ function escapeHtml(value: unknown) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function buildCalendarAttachment(booking: BookingRow) {
+  const salon = booking.salons!;
+  const service = booking.services!;
+  const start = toIcsUtc(booking.start_time);
+  const end = toIcsUtc(booking.end_time);
+  const content = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//OpenSlot Berlin//Booking//DE",
+    "CALSCALE:GREGORIAN",
+    "METHOD:REQUEST",
+    "BEGIN:VEVENT",
+    `UID:${booking.id}@openslotberlin.de`,
+    `DTSTAMP:${toIcsUtc(new Date().toISOString())}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${escapeIcs(`Termin bei ${salon.name}`)}`,
+    `LOCATION:${escapeIcs(salon.address || "")}`,
+    `DESCRIPTION:${escapeIcs(`${service.name}\\n${salon.phone || ""}`)}`,
+    "STATUS:CONFIRMED",
+    "END:VEVENT",
+    "END:VCALENDAR",
+    "",
+  ].join("\r\n");
+
+  return {
+    filename: "Termin.ics",
+    content: base64Utf8(content),
+    content_type: "text/calendar; charset=utf-8; method=REQUEST",
+  };
+}
+
+function toIcsUtc(value: string) {
+  return new Date(value).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function escapeIcs(value: string) {
+  return value.replaceAll("\\", "\\\\").replaceAll(";", "\\;").replaceAll(",", "\\,").replace(/\r?\n/g, "\\n");
+}
+
+function base64Utf8(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
