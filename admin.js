@@ -324,9 +324,11 @@ function bindEvents() {
 
 function createRepository() {
   const config = window.OPENSLOT_SUPABASE || {};
-  const isLocalPreview = new URLSearchParams(window.location.search).has("demo");
+  const forcedLocal = window.OPENSLOT_RUNTIME?.dataSource === "local";
+  const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+  const isLocalPreview = isLocalHost && new URLSearchParams(window.location.search).has("demo");
   const hasSupabase = !isLocalPreview && Boolean(window.supabase && config.url && config.anonKey);
-  if (!hasSupabase) {
+  if (forcedLocal || !hasSupabase) {
     state.isOwner = true;
     return createLocalRepository();
   }

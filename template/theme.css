@@ -1,1 +1,45 @@
-/* Template-only experiment layer. Keep shared booking visuals in ../booking-theme.css. */
+/* Template-only theme presets shared by booking, admin, and settings. */
+:root,
+:root[data-shop-theme="lime"] {
+  --shop-accent: #dfff2f;
+  --shop-accent-hover: #c8eb18;
+  --shop-accent-deep: #596c00;
+  --shop-page: #ffffff;
+  --shop-field: #fcfdf8;
+  --shop-hover: #f4facf;
+  --shop-selected: #e8f89a;
+  --shop-blocked: #f0f1ed;
+  --shop-blocked-strong: #e1e4da;
+  --shop-blocked-ink: #58604f;
+  --shop-line: #dfe2da;
+}
+
+:root[data-shop-theme="pink"] {
+  --shop-accent: #ff7cb8;
+  --shop-accent-hover: #ee5fa3;
+  --shop-accent-deep: #92204f;
+  --shop-page: #ffffff;
+  --shop-field: #fffafd;
+  --shop-hover: #fff0f6;
+  --shop-selected: #ffd8e9;
+  --shop-blocked: #f3eff1;
+  --shop-blocked-strong: #e7dce1;
+  --shop-blocked-ink: #65565d;
+  --shop-line: #eadde3;
+}
+
+:root[data-shop-theme="glacier"] {
+  --shop-accent: #67cbef;
+  --shop-accent-hover: #45b7df;
+  --shop-accent-deep: #155f79;
+  --shop-page: #ffffff;
+  --shop-field: #f8fcfd;
+  --shop-hover: #eaf7fb;
+  --shop-selected: #d2eef8;
+  --shop-blocked: #edf1f2;
+  --shop-blocked-strong: #dce5e8;
+  --shop-blocked-ink: #4e6067;
+  --shop-line: #dae5e8;
+}
+
+::selection { background: var(--shop-accent); color: #191b19; }

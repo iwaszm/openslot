@@ -3,23 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
   <title>Berlin Hair Salon · Tagesplan</title>
-  <link rel="stylesheet" href="./theme.css">
-  <link rel="stylesheet" href="./admin-theme.css">
+  <link rel="stylesheet" href="./theme.css?v=20261002-theme-palettes2">
+  <link rel="stylesheet" href="./admin-theme.css?v=20261002-staff-filter1">
 </head>
 <body class="theme-preview preview-admin">
   <header class="preview-header">
-    <h1>Berlin Hair Salon</h1>
+    <h1 id="adminShopName">Berlin Hair Salon</h1>
     <nav aria-label="Hauptnavigation">
       <a href="./index.html" data-i18n="nav.backCustomer">Zur Buchung</a>
-      <button class="icon-button header-tool" type="button" aria-label="Weitere Funktionen (demnächst)" title="Weitere Funktionen (demnächst)" data-i18n-aria-label="admin.moreComing" data-i18n-title="admin.moreComing" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.1l2-1.5-2-3.4-2.3.9a7 7 0 0 0-1.9-1.1L14.3 3h-4.1l-.4 2.8a7 7 0 0 0-1.9 1.1L5.6 6l-2 3.4 2 1.5a7 7 0 0 0 0 2.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 1.9 1.1l.4 2.8h4.1l.4-2.8a7 7 0 0 0 1.9-1.1l2.3.9 2-3.4-2-1.5A7 7 0 0 0 19 12Z"/></svg></button>
-      <div class="preview-login" aria-label="Angemeldet als Demo-Inhaber">
+      <a id="settingsLink" class="icon-button header-tool settings-link" href="./settings.html" aria-label="Einstellungen" title="Einstellungen" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.1l2-1.5-2-3.4-2.3.9a7 7 0 0 0-1.9-1.1L14.3 3h-4.1l-.4 2.8a7 7 0 0 0-1.9 1.1L5.6 6l-2 3.4 2 1.5a7 7 0 0 0 0 2.2l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 1.9 1.1l.4 2.8h4.1l.4-2.8a7 7 0 0 0 1.9-1.1l2.3.9 2-3.4-2-1.5A7 7 0 0 0 19 12Z"/></svg></a>
+      <form id="previewLoginForm" class="preview-login role-login" aria-label="Demo-Anmeldung">
+        <label for="previewAccount">Konto</label>
+        <select id="previewAccount" name="account"></select>
+        <input id="previewPassword" name="password" type="password" value="demo1234" aria-label="Passwort" autocomplete="current-password" required>
+        <button type="submit">Anmelden</button>
+      </form>
+      <div id="previewSession" class="preview-login preview-session" aria-live="polite" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
-        <span>Demo-Inhaber</span>
+        <span id="previewSessionLabel"></span>
+        <button id="previewLogout" class="preview-logout" type="button">Abmelden</button>
       </div>
     </nav>
   </header>
-  <main class="preview-main">
+  <main id="previewMain" class="preview-main" hidden>
     <section class="schedule-section" aria-label="Tagesplan" data-i18n-aria-label="admin.schedule">
       <div class="schedule-toolbar">
         <div class="day-navigation">
@@ -35,6 +43,12 @@
           <button id="availabilityToggle" class="icon-button settings-button" type="button" aria-label="Verfügbarkeit verwalten" aria-controls="availabilityPanel" aria-expanded="false" title="Verfügbarkeit verwalten" data-i18n-aria-label="admin.manageAvailability" data-i18n-title="admin.manageAvailability"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
           <div id="availabilityPanel" class="availability-panel" hidden>
             <strong data-i18n="admin.availability">Verfügbarkeit</strong>
+            <fieldset class="staff-visibility-settings">
+              <legend>Ansicht</legend>
+              <label class="staff-visibility-all"><input id="showAllStaff" type="checkbox" checked><span>Alle Mitarbeiter</span></label>
+              <div id="visibleStaffOptions" class="staff-visibility-options"></div>
+              <small id="staffVisibilityHint"></small>
+            </fieldset>
             <label class="availability-staff-label" for="availabilityStaff"><span data-i18n="admin.employee">Mitarbeiter</span><select id="availabilityStaff"></select></label>
             <button id="dayBlockButton" class="availability-option" type="button"></button>
             <button id="timeBlockToggle" class="availability-option" type="button" aria-controls="timeBlockFields" aria-expanded="false" data-i18n="admin.blockTime">Uhrzeit blockieren</button>
@@ -75,6 +89,9 @@
   <dialog id="detailDialog" class="preview-dialog detail-dialog" aria-labelledby="detailTitle">
     <div class="dialog-heading"><h2 id="detailTitle"></h2><button class="icon-button dialog-close" type="button" data-close-dialog aria-label="Schließen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
     <dl id="detailList" class="detail-list"></dl>
+    <div id="detailActions" class="detail-actions" hidden>
+      <button id="detailDelete" class="detail-delete" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg><span>Termin löschen</span></button>
+    </div>
   </dialog>
   <dialog id="confirmDialog" class="preview-dialog confirm-dialog" aria-labelledby="confirmTitle">
     <div class="dialog-heading"><h2 id="confirmTitle"></h2><button class="icon-button dialog-close" type="button" data-close-dialog aria-label="Schließen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
@@ -86,8 +103,11 @@
     <span id="toastMessage" class="toast-message"></span>
     <button id="toastClose" class="icon-button toast-close" type="button" aria-label="Hinweis schließen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
+  <script src="./local-config.js?v=20260927-hours1"></script>
+  <script src="./local-repository.js?v=20261002-facial-staff1"></script>
+  <script src="./local-auth-repository.js?v=20261002-staff3-login1"></script>
   <script src="../i18n.js"></script>
   <script src="./demo-data.js"></script>
-  <script src="./admin-preview.js"></script>
+  <script src="./admin-preview.js?v=20261002-staff-filter1"></script>
 </body>
 </html>

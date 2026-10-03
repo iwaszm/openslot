@@ -1,6 +1,9 @@
 (() => {
-  const namespace = "openslot.template.preview.v1";
-  window.OPENSLOT_LOCAL_STORAGE_NAMESPACE = namespace;
+  const runtime = window.OPENSLOT_RUNTIME;
+  if (runtime?.environment !== "template" || runtime?.dataSource !== "local") {
+    throw new Error("Template data may only run through the isolated local runtime.");
+  }
+  const namespace = runtime.namespace;
   window.OPENSLOT_DEMO_LANE_COUNT = 2;
 
   if (new URLSearchParams(window.location.search).has("reset")) {

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Berlin Hair Salon · Einstellungen</title>
+  <link rel="stylesheet" href="./theme.css?v=20261002-theme-palettes2">
+  <link rel="stylesheet" href="./settings-theme.css?v=20261002-catalog-order1">
+</head>
+<body class="theme-preview settings-page">
+  <main id="settingsMain" hidden>
+    <div class="settings-utility">
+      <a class="settings-back" href="./admin.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>Zur Verwaltung</span></a>
+    </div>
+    <nav class="settings-tabs" aria-label="Einstellungsbereiche">
+      <button id="settingsTabPrevious" class="settings-tab-arrow" type="button" aria-label="Vorheriger Einstellungsbereich"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+      <button class="active" type="button" data-settings-tab="account" aria-current="page">Mein Konto</button>
+      <button type="button" data-settings-tab="staff">Mitarbeiter</button>
+      <button type="button" data-settings-tab="services">Services</button>
+      <button type="button" data-settings-tab="hours">Öffnungszeiten</button>
+      <button type="button" data-settings-tab="profile">Shop</button>
+      <button id="settingsTabNext" class="settings-tab-arrow" type="button" aria-label="Nächster Einstellungsbereich"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+    </nav>
+    <section id="accountSettings" class="settings-section titleless-section" aria-label="Mein Konto">
+      <div class="account-settings-layout">
+        <section class="service-editor account-editor" aria-labelledby="accountDataTitle">
+          <div class="editor-heading"><h3 id="accountDataTitle">Kontodaten</h3></div>
+          <dl class="account-data-list">
+            <div class="wide"><dt>E-Mail</dt><dd id="accountEmail"></dd></div>
+            <div><dt>Rolle</dt><dd id="accountRole"></dd></div>
+            <div><dt>Mitarbeiterbereich</dt><dd id="accountStaff"></dd></div>
+          </dl>
+        </section>
+        <form id="accountPasswordForm" class="service-editor account-editor">
+          <div class="editor-heading"><h3>Passwort ändern</h3></div>
+          <div class="editor-grid password-grid">
+            <label class="wide">Aktuelles Passwort<input id="currentPassword" type="password" minlength="8" required autocomplete="current-password"></label>
+            <label>Neues Passwort<input id="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+            <label>Neues Passwort bestätigen<input id="confirmPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+          </div>
+          <div class="editor-actions"><span></span><button type="button" id="resetPasswordForm">Leeren</button><button class="primary-command" type="submit">Passwort ändern</button></div>
+        </form>
+      </div>
+    </section>
+    <section id="profileSettings" class="settings-section owner-settings titleless-section" aria-label="Shop" hidden>
+      <form id="profileSettingsForm" class="profile-editor">
+        <div class="editor-heading"><h3>Shopprofil</h3></div>
+        <div class="editor-grid profile-grid">
+          <label class="wide">Name<input id="profileName" maxlength="80" required></label>
+          <label class="wide">Adresse<input id="profileAddress" maxlength="120" required></label>
+          <label>Telefon<input id="profilePhone" type="tel" maxlength="30" required></label>
+          <fieldset class="theme-picker wide"><legend>Thema</legend><div class="theme-options"><label><input type="radio" name="profileTheme" value="lime"><span class="theme-swatch theme-swatch-lime"></span><strong>Signalgrün</strong></label><label><input type="radio" name="profileTheme" value="pink"><span class="theme-swatch theme-swatch-pink"></span><strong>Leuchtrosa</strong></label><label><input type="radio" name="profileTheme" value="glacier"><span class="theme-swatch theme-swatch-glacier"></span><strong>Gletscherblau</strong></label></div></fieldset>
+        </div>
+        <fieldset class="language-settings"><legend>Sprachen</legend><div><label>Erste Sprache<select id="profileLanguage1"></select></label><label>Zweitsprache<select id="profileLanguage2"></select></label><label>Drittsprache<select id="profileLanguage3"></select></label></div></fieldset>
+        <p id="profileMessage" class="settings-message" role="status"></p>
+        <div class="editor-actions"><span></span><button type="button" id="resetProfile">Verwerfen</button><button class="primary-command" type="submit">Speichern</button></div>
+      </form>
+    </section>
+    <section id="hoursSettings" class="settings-section owner-settings titleless-section" aria-label="Öffnungszeiten" hidden>
+      <form id="hoursSettingsForm" class="hours-editor">
+        <div class="hours-list" id="hoursList"></div>
+        <p id="hoursMessage" class="settings-message" role="status"></p>
+        <div class="editor-actions"><span></span><button type="button" id="resetHours">Zurücksetzen</button><button class="primary-command" type="submit">Speichern</button></div>
+      </form>
+    </section>
+    <section id="servicesSettings" class="settings-section owner-settings" aria-labelledby="servicesTitle" hidden>
+      <div class="settings-section-heading">
+        <h2 id="servicesTitle">Services</h2>
+        <div class="catalog-actions"><button id="addCategory" type="button">+ Kategorie</button><button id="addService" class="primary-command" type="button">+ Service</button></div>
+      </div>
+      <div class="service-settings-layout">
+        <div id="settingsCatalogTree" class="settings-service-list catalog-tree" aria-label="Kategorien und Services"></div>
+        <div class="catalog-order-actions"><span id="catalogOrderHint">Reihenfolge unverändert</span><button id="saveCatalogOrder" class="primary-command" type="button" disabled>Reihenfolge speichern</button></div>
+      </div>
+      <dialog id="catalogEditorDialog" class="settings-dialog catalog-editor-dialog" aria-label="Katalogeintrag bearbeiten">
+        <form id="serviceSettingsForm" class="service-editor">
+          <input id="serviceId" type="hidden">
+          <div class="editor-heading">
+            <h3 id="serviceEditorTitle">Service bearbeiten</h3>
+            <div class="editor-heading-actions"><label class="status-switch"><span id="serviceState">Online</span><input id="serviceActive" type="checkbox"><i aria-hidden="true"></i></label><button class="catalog-dialog-close" type="button" data-close-catalog aria-label="Schließen">&times;</button></div>
+          </div>
+          <div class="editor-grid">
+            <label>Name<input id="serviceName" maxlength="50" required></label>
+            <label>Kurzname (back-end)<input id="serviceShortName" maxlength="12" required></label>
+            <label><span id="serviceNameSecondLabel">Name (English)</span><input id="serviceNameEn" maxlength="50"></label>
+            <label><span id="serviceNameThirdLabel">Name (中文)</span><input id="serviceNameZh" maxlength="50"></label>
+            <input id="serviceCategory" type="hidden">
+            <div class="commercial-row"><label>Dauer<select id="serviceDuration"></select></label><div class="commercial-price-group"><label>Preis €<input id="servicePrice" type="number" min="0" max="999" step="1" required></label><label class="check-row"><input id="servicePriceFrom" type="checkbox"> Preis ab</label></div></div>
+          </div>
+          <fieldset class="occupied-settings"><legend>Belegte Zeit</legend><p>Jedes Feld entspricht einem Slot von 30 Minuten.</p><div id="occupiedSlotOptions"></div></fieldset>
+          <p id="serviceFormMessage" class="settings-message" role="status"></p>
+          <div class="editor-actions"><button class="delete-command" type="button" id="deleteService" hidden>Löschen</button><span></span><button type="button" id="cancelServiceEdit">Verwerfen</button><button class="primary-command" type="submit">Speichern</button></div>
+        </form>
+        <form id="categorySettingsForm" class="service-editor" hidden>
+          <input id="categoryId" type="hidden">
+          <div class="editor-heading"><h3 id="categoryEditorTitle">Kategorie bearbeiten</h3><div class="editor-heading-actions"><label class="status-switch"><span id="categoryState">Online</span><input id="categoryActive" type="checkbox"><i aria-hidden="true"></i></label><button class="catalog-dialog-close" type="button" data-close-catalog aria-label="Schließen">&times;</button></div></div>
+          <div class="editor-grid">
+            <label>Name<input id="categoryName" maxlength="50" required></label>
+            <label>Kurzname (back-end)<input id="categoryShortName" maxlength="12" required></label>
+            <label><span id="categoryNameSecondLabel">Name (English)</span><input id="categoryNameEn" maxlength="50"></label>
+            <label><span id="categoryNameThirdLabel">Name (中文)</span><input id="categoryNameZh" maxlength="50"></label>
+            <input id="categorySortOrder" type="hidden">
+          </div>
+          <p id="categoryFormMessage" class="settings-message" role="status"></p>
+          <div class="editor-actions"><button class="delete-command" type="button" id="deleteCategory" hidden>Löschen</button><span></span><button type="button" id="cancelCategoryEdit">Verwerfen</button><button class="primary-command" type="submit">Speichern</button></div>
+        </form>
+      </dialog>
+    </section>
+    <section id="staffSettings" class="settings-section owner-settings titleless-section" aria-label="Mitarbeiter" hidden>
+      <div class="staff-settings-layout">
+        <div id="settingsStaffList" class="settings-staff-list" aria-label="Mitarbeiter"></div>
+        <form id="staffEditorForm" class="service-editor">
+          <input id="staffKey" type="hidden">
+          <div class="editor-heading"><h3 id="staffEditorTitle">Mitarbeiter bearbeiten</h3><label class="status-switch"><span id="staffState">Aktiv</span><input id="staffActive" type="checkbox"><i aria-hidden="true"></i></label></div>
+          <div class="editor-grid">
+            <label>Name<input id="staffName" maxlength="50" required></label>
+            <label>Kurzname (back-end)<input id="staffShortName" maxlength="12" required></label>
+            <label class="color-field">Vertreterfarbe<input id="staffColor" type="color" value="#d7ef57"></label>
+            <label class="online-booking-switch"><span>Online-Buchungen</span><span class="status-switch"><span id="staffOnlineState">An</span><input id="staffAcceptsOnline" type="checkbox"><i aria-hidden="true"></i></span></label>
+            <label class="check-row owner-staff-row"><input id="staffIsOwner" type="checkbox"><span>Inhaber arbeitet als Mitarbeiter</span></label>
+          </div>
+          <fieldset class="staff-settings"><legend>Services</legend><div id="staffServiceOptions"></div></fieldset>
+          <p id="staffMessage" class="settings-message" role="status"></p>
+          <div class="editor-actions"><span></span><button type="button" id="cancelStaffEdit">Verwerfen</button><button class="primary-command" type="submit">Speichern</button></div>
+        </form>
+      </div>
+    </section>
+  </main>
+  <section id="settingsDenied" class="settings-denied" hidden><h2>Bitte anmelden</h2><p>Die Einstellungen sind nur mit einem lokalen Testkonto verfügbar.</p><a href="./admin.html">Zur Anmeldung</a></section>
+  <div id="settingsToast" class="settings-toast" role="status" hidden></div>
+  <dialog id="deleteDialog" class="settings-dialog"><form method="dialog"><h2 id="deleteDialogTitle">Löschen?</h2><p id="deleteDialogText"></p><div><button value="cancel">Abbrechen</button><button id="confirmDelete" class="delete-command" value="confirm">Löschen</button></div></form></dialog>
+  <script src="./local-config.js?v=20260927-hours1"></script>
+  <script src="./local-repository.js?v=20261002-facial-staff1"></script>
+  <script src="./local-auth-repository.js?v=20261002-staff3-login1"></script>
+  <script src="./settings-catalog.js?v=20261002-catalog-order1"></script>
+  <script src="./settings-hours.js?v=20261001-mobile-tabs1"></script>
+  <script src="./settings-staff.js?v=20261001-language-names1"></script>
+  <script src="./settings-profile.js?v=20261002-theme-palettes2"></script>
+  <script src="./settings-account.js?v=20261002-email-identity1"></script>
+</body>
+</html>

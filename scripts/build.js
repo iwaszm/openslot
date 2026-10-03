@@ -9,6 +9,8 @@ const buildId = `${process.env.CF_PAGES_COMMIT_SHA || "local"}-${Date.now().toSt
 const requiredEnv = ["OPENSLOT_SUPABASE_URL", "OPENSLOT_SUPABASE_ANON_KEY"];
 const missing = requiredEnv.filter((key) => !process.env[key]);
 
+validateTemplateIsolation();
+
 if (missing.length > 0) {
   console.error(`Missing required environment variables: ${missing.join(", ")}`);
   process.exit(1);
@@ -143,4 +145,16 @@ function escapeHtmlAttribute(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+function validateTemplateIsolation() {
+  const forbidden = ["../config.js", "/config.js", "supabase-js", "challenges.cloudflare.com"];
+  for (const file of ["index.html", "admin.html", "settings.html"]) {
+    const source = fs.readFileSync(path.join(root, "template", file), "utf8").toLowerCase();
+    for (const marker of forbidden) {
+      if (source.includes(marker)) {
+        throw new Error(`Template isolation failed: template/${file} references ${marker}`);
+      }
+    }
+  }
 }

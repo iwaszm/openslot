@@ -11,11 +11,11 @@
   --type-medium: 16px;
   --type-small: 12px;
   --theme-ink: #191b19;
-  --theme-paper: #ffffff;
-  --theme-lime: #fbc8bf;
+  --theme-paper: var(--shop-page, #fdfff8);
+  --theme-lime: var(--shop-accent, #fbc8bf);
   --theme-muted: #5d625d;
-  --theme-line: #d9ded6;
-  --theme-soft: #f2f4f0;
+  --theme-line: var(--shop-line, #d8ddca);
+  --theme-soft: var(--shop-hover, #f5ffd1);
   --accent: var(--theme-ink);
   --accent-strong: #363c33;
   --accent-soft: var(--theme-soft);
@@ -438,10 +438,12 @@
 
 .booking-themed .customer-booking .field-grid input {
   min-height: 44px;
+  background: var(--shop-field, #fbffef);
 }
 
 .booking-themed .customer-booking input:is(:hover, :focus) {
   border-color: var(--theme-ink);
+  background: var(--theme-soft);
   box-shadow: inset 0 -4px var(--theme-lime);
 }
 
@@ -454,7 +456,7 @@
 }
 
 .booking-themed .customer-booking .primary-action:hover {
-  background: #edff85;
+  background: var(--shop-accent-hover, #c8eb18);
   color: var(--theme-ink);
   transform: translateY(-2px);
 }

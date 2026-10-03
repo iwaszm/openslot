@@ -68,7 +68,7 @@ function getServiceName(service) {
 
 function getServiceCategoryName(service, category) {
   const language = window.OpenSlotI18n?.language || "de";
-  const databaseName = language === "en" ? service?.categoryNameEn : language === "zh" ? service?.categoryNameZh : "";
+  const databaseName = language === "en" ? service?.categoryNameEn : language === "zh" ? service?.categoryNameZh : service?.categoryName;
   if (databaseName) return databaseName;
   const key = `service.category.${category}`;
   const translated = t(key);
@@ -122,6 +122,16 @@ async function init() {
   await refreshStaffServices();
   await refreshDateOptions();
   await refreshDayData();
+  if (window.OPENSLOT_RUNTIME?.dataSource === "local" && window.OpenSlotLocalRepository) {
+    window.OpenSlotLocalRepository.subscribe("services", async () => {
+      await refreshServices();
+      await refreshDayData();
+    });
+    window.OpenSlotLocalRepository.subscribe("staff-services", async () => {
+      await refreshStaffServices();
+      await refreshDayData();
+    });
+  }
 }
 
 function bindEvents() {
@@ -183,9 +193,11 @@ function bindEvents() {
 
 function createRepository() {
   const config = window.OPENSLOT_SUPABASE || {};
-  const isLocalPreview = new URLSearchParams(window.location.search).has("demo");
+  const forcedLocal = window.OPENSLOT_RUNTIME?.dataSource === "local";
+  const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+  const isLocalPreview = isLocalHost && new URLSearchParams(window.location.search).has("demo");
   const hasSupabase = Boolean(window.supabase && config.url && config.anonKey);
-  if (isLocalPreview || !hasSupabase) {
+  if (forcedLocal || isLocalPreview || !hasSupabase) {
     state.storageStatusKey = "common.localDemo";
     if (els.storageStatus) els.storageStatus.textContent = t("common.localDemo");
     return createLocalRepository();
@@ -445,12 +457,13 @@ function groupServicesByCategory(services) {
     .map((group) => ({
       ...group,
       label: getServiceCategoryName(group.services[0], group.category),
-    }));
+      sortOrder: group.services[0]?.categorySortOrder || 999,
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder);
 }
 
 function getServiceCategory(service) {
-  if (SERVICE_CATEGORY_LABELS[service.category]) return service.category;
-  return "care";
+  return service.category || "care";
 }
 
 function selectServiceInput(input) {
@@ -840,8 +853,13 @@ function createLocalRepository() {
     async listServices() {
       return loadLocalServices().filter((service) => service.isActive);
     },
-    async listLaneLayout() { return createDefaultLaneLayout(); },
-    async listStaffServices() { return null; },
+    async listLaneLayout() {
+      const employees = window.OpenSlotLocalRepository?.listStaff?.()?.filter((employee) => employee.acceptsOnline) || [];
+      return employees.length ? employees.flatMap((employee) => Array.from({ length: employee.laneCount }, (_, index) => ({ laneKey: `${employee.staffKey}-${index + 1}`, staffKey: employee.staffKey, sortOrder: index + 1 }))) : createDefaultLaneLayout();
+    },
+    async listStaffServices() {
+      return window.OpenSlotLocalRepository?.listStaffServices?.() || null;
+    },
     async listAppointments(date) {
       return loadLocalAppointments().filter((appointment) => appointment.date === date);
     },
@@ -856,7 +874,17 @@ function createLocalRepository() {
         throw new Error("Slot conflict");
       }
       const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
-      appointments.push({ ...appointment, id, laneKey });
+      const service = loadLocalServices().find((item) => item.id === appointment.serviceId);
+      const serviceSnapshot = service ? {
+        name: service.name,
+        shortName: service.shortName,
+        duration: appointment.endMinutes - appointment.startMinutes,
+        bookedSlots: [...(service.bookedSlots || [])],
+        price: service.price,
+        priceFrom: service.priceFrom === true,
+        category: service.category,
+      } : null;
+      appointments.push({ ...appointment, id, laneKey, ...(serviceSnapshot ? { serviceSnapshot } : {}) });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appointments));
       return id;
     },
@@ -1164,6 +1192,9 @@ function buildDateRange(selectedDate) {
 }
 
 function getWeeklyRule(date) {
+  const localHours = window.OpenSlotLocalRepository?.listOpeningHours?.();
+  const localRule = localHours?.find((day) => day.day === date.getDay());
+  if (localRule) return { index: localRule.day, key: WEEKLY_HOURS.find((day) => day.index === localRule.day)?.key, openMinutes: localRule.isOpen ? localRule.openMinutes : null, closeMinutes: localRule.isOpen ? localRule.closeMinutes : null };
   return WEEKLY_HOURS.find((day) => day.index === date.getDay()) || WEEKLY_HOURS[0];
 }
 
@@ -1335,6 +1366,9 @@ function loadLocalBlocks() {
 }
 
 function loadLocalServices() {
+  if (window.OPENSLOT_RUNTIME?.dataSource === "local" && window.OpenSlotLocalRepository) {
+    return window.OpenSlotLocalRepository.listServices({ includeInactive: true });
+  }
   const services = JSON.parse(localStorage.getItem(SERVICES_KEY) || JSON.stringify(DEFAULT_SERVICES));
   if (services.length === 3 && services.every((service) => LEGACY_SERVICE_IDS.has(service.id))) {
     localStorage.setItem(SERVICES_KEY, JSON.stringify(DEFAULT_SERVICES));

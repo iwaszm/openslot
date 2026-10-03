@@ -7,11 +7,19 @@
   const close = document.querySelector("#bookingToastClose");
   const form = document.querySelector("#bookingForm");
   const employeePicker = document.querySelector(".employee-picker");
-  const employeeOptions = [...document.querySelectorAll(".employee-option")];
+  let employeeOptions = [...document.querySelectorAll(".employee-option")];
   const languageMenu = document.querySelector(".language-menu");
   let activeCategory = "";
   let activeEmployee = "any";
   let dismissTimer;
+  function applyShopProfile() {
+    const profile = window.OpenSlotLocalRepository?.getShopProfile?.(); if (!profile) return;
+    document.getElementById("salonName").textContent = profile.name; document.getElementById("salonAddress").textContent = profile.address;
+    const phone = document.getElementById("salonPhone"); phone.textContent = profile.phone; phone.href = `tel:${profile.phone.replace(/[^+\d]/g, "")}`;
+    document.title = `${profile.name} · Termin buchen`;
+    document.documentElement.dataset.shopTheme = profile.themePreset;
+    document.documentElement.style.setProperty("--shop-accent", profile.themeColor);
+  }
 
   function syncCategories() {
     const groups = [...services.querySelectorAll(".service-group")];
@@ -84,18 +92,25 @@
     languageMenu.querySelector("summary").setAttribute("aria-label", copy.language);
   }
 
+  function renderEmployees() {
+    const group = employeePicker.querySelector('[role="radiogroup"]');
+    const current = activeEmployee;
+    const records = (window.OpenSlotLocalRepository?.listStaff?.() || []).filter((employee) => employee.acceptsOnline);
+    group.innerHTML = `<button class="employee-option" type="button" role="radio" data-employee="any"><span></span></button>${records.map((employee) => `<button class="employee-option" type="button" role="radio" data-employee="${employee.staffKey}"><span>${employee.name}</span></button>`).join("")}`;
+    employeeOptions = [...group.querySelectorAll(".employee-option")];
+    activeEmployee = employeeOptions.some((option) => option.dataset.employee === current) ? current : "any";
+    selectEmployee(activeEmployee); syncEmployees();
+  }
+
   function selectEmployee(employee) {
     activeEmployee = employee;
     employeeOptions.forEach((option) => option.setAttribute("aria-checked", String(option.dataset.employee === employee)));
     window.dispatchEvent(new CustomEvent("openslot:employee-change", { detail: { staffKey: employee } }));
   }
 
-  employeeOptions.forEach((button) => {
-    button.addEventListener("click", () => {
-      const employee = button.dataset.employee;
-      if (employee === activeEmployee) return;
-      selectEmployee(employee);
-    });
+  employeePicker.querySelector('[role="radiogroup"]').addEventListener("click", (event) => {
+    const button = event.target.closest(".employee-option"); if (!button) return;
+    const employee = button.dataset.employee; if (employee !== activeEmployee) selectEmployee(employee);
   });
 
   services.addEventListener("click", () => queueMicrotask(syncEmployees));
@@ -117,7 +132,10 @@
   new MutationObserver(syncCategories).observe(services, { childList: true });
   new MutationObserver(syncEmployees).observe(services, { childList: true, subtree: true, attributes: true, attributeFilter: ["checked"] });
   syncCategories();
-  syncEmployees();
+  renderEmployees();
+  window.OpenSlotLocalRepository?.subscribe?.("staff", renderEmployees);
+  window.OpenSlotLocalRepository?.subscribe?.("shop-profile", applyShopProfile);
+  applyShopProfile();
 
   document.addEventListener("click", (event) => {
     if (languageMenu.open && !languageMenu.contains(event.target)) languageMenu.open = false;
