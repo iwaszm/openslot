@@ -233,3 +233,56 @@
   window.addEventListener("home-language-change", () => { renderServiceOptions(); renderAll(); });
   renderAll();
 })();
+
+(() => {
+  const root = document.documentElement;
+  const header = document.querySelector(".site-header");
+  const hero = document.querySelector(".hero");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const revealGroups = [
+    [".section-intro, .linked-demo-intro", "copy"],
+    [".demo-phone-stage", "device"],
+    [".steps article, .trust-rows article, .faq-items, .closing > *", "row"]
+  ];
+
+  revealGroups.forEach(([selector, type]) => {
+    document.querySelectorAll(selector).forEach(element => element.dataset.reveal = type);
+  });
+  root.classList.add("motion-ready");
+
+  const revealElements = [...document.querySelectorAll("[data-reveal]")];
+  function revealVisible() {
+    if (reduceMotion.matches) {
+      revealElements.forEach(element => element.classList.add("is-visible"));
+      return;
+    }
+    revealElements.forEach(element => {
+      if (element.classList.contains("is-visible")) return;
+      const bounds = element.getBoundingClientRect();
+      if (bounds.top < window.innerHeight * .9 && bounds.bottom > 0) element.classList.add("is-visible");
+    });
+  }
+
+  let lastScrollY = Math.max(window.scrollY, 0);
+  let scheduled = false;
+  function updateScrollState() {
+    const scrollY = Math.max(window.scrollY, 0);
+    const delta = scrollY - lastScrollY;
+    header.classList.toggle("is-scrolled", scrollY > 24);
+    if (delta > 6 && scrollY > 140) header.classList.add("is-hidden");
+    if (delta < -4 || scrollY <= 140) header.classList.remove("is-hidden");
+    if (hero && !reduceMotion.matches) {
+      const shift = Math.min(scrollY * .12, 54);
+      hero.style.setProperty("--hero-shift", `${shift}px`);
+    }
+    revealVisible();
+    lastScrollY = scrollY;
+    scheduled = false;
+  }
+  window.addEventListener("scroll", () => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(updateScrollState);
+  }, { passive: true });
+  updateScrollState();
+})();
