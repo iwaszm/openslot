@@ -708,7 +708,18 @@
   }
 
   .booking-themed .booking-summary-line {
+    display: grid;
     gap: 10px 16px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .booking-themed .booking-summary-line > span:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .booking-themed .booking-summary-line > span:nth-child(3) {
+    justify-self: end;
+    text-align: right;
   }
 
   .booking-themed .customer-booking .service-card {

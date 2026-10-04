@@ -9,6 +9,8 @@
   const employeePicker = document.querySelector(".employee-picker");
   let employeeOptions = [...document.querySelectorAll(".employee-option")];
   let staffRecords = [];
+  let selectedServiceId = "";
+  let eligibleEmployeeCount = 0;
   const languageMenu = document.querySelector(".language-menu");
   let activeCategory = "";
   let activeEmployee = "any";
@@ -71,9 +73,9 @@
   }
 
   function syncEmployees() {
-    if (!employeePicker || employeeOptions.length === 0) return;
+    if (!employeePicker) return;
     const checked = services.querySelector('input[name="service"]:checked');
-    employeePicker.hidden = !checked;
+    employeePicker.hidden = !checked || eligibleEmployeeCount <= 1;
     const copy = employeeCopy();
     employeePicker.setAttribute("aria-label", copy.label);
     employeePicker.querySelector('[role="radiogroup"]')?.setAttribute("aria-label", copy.label);
@@ -85,13 +87,21 @@
     if (!employeePicker) return;
     staffRecords = Array.isArray(records) ? records : [];
     const group = employeePicker.querySelector('[role="radiogroup"]');
-    const selectedServiceId = services.querySelector('input[name="service"]:checked')?.value || "";
+    const nextServiceId = services.querySelector('input[name="service"]:checked')?.value || "";
+    const serviceChanged = nextServiceId !== selectedServiceId;
+    selectedServiceId = nextServiceId;
     const available = staffRecords.filter((employee) => (
       !selectedServiceId || !Array.isArray(employee.serviceIds) || employee.serviceIds.includes(selectedServiceId)
     ));
-    group.innerHTML = `<button class="employee-option" type="button" role="radio" data-employee="any"><span></span></button>${available.map((employee) => `<button class="employee-option" type="button" role="radio" data-employee="${escapeAttribute(employee.staffKey)}"><span>${escapeHtml(employee.name)}</span></button>`).join("")}`;
+    eligibleEmployeeCount = selectedServiceId ? available.length : 0;
+    const showAnyEmployee = eligibleEmployeeCount > 1;
+    group.innerHTML = `${showAnyEmployee ? '<button class="employee-option" type="button" role="radio" data-employee="any"><span></span></button>' : ""}${available.map((employee) => `<button class="employee-option" type="button" role="radio" data-employee="${escapeAttribute(employee.staffKey)}"><span>${escapeHtml(employee.name)}</span></button>`).join("")}`;
     employeeOptions = [...group.querySelectorAll(".employee-option")];
-    const nextEmployee = employeeOptions.some((option) => option.dataset.employee === activeEmployee) ? activeEmployee : "any";
+    const nextEmployee = eligibleEmployeeCount === 1
+      ? available[0].staffKey
+      : eligibleEmployeeCount > 1 && !serviceChanged && available.some((employee) => employee.staffKey === activeEmployee)
+        ? activeEmployee
+        : "any";
     const changed = nextEmployee !== activeEmployee;
     activeEmployee = nextEmployee;
     employeeOptions.forEach((option) => option.setAttribute("aria-checked", String(option.dataset.employee === activeEmployee)));
@@ -109,8 +119,8 @@
     const button = event.target.closest(".employee-option");
     if (button && button.dataset.employee !== activeEmployee) selectEmployee(button.dataset.employee || "any");
   });
-  services.addEventListener("click", () => queueMicrotask(() => { renderEmployees(); syncEmployees(); }));
-  services.addEventListener("change", () => { renderEmployees(); syncEmployees(); });
+  services.addEventListener("click", () => queueMicrotask(renderEmployees));
+  services.addEventListener("change", renderEmployees);
   window.addEventListener("openslot:language-change", () => queueMicrotask(syncEmployees));
   window.addEventListener("openslot:staff-update", (event) => renderEmployees(event.detail?.staff || []));
 

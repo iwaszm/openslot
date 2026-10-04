@@ -162,11 +162,7 @@ function bindEvents() {
   }
   window.addEventListener("openslot:employee-change", (event) => {
     state.selectedStaffKey = event.detail?.staffKey || "any";
-    if (!activeServices().some((service) => service.id === state.selectedServiceId)) {
-      state.selectedServiceId = requiresServiceSelection() ? "" : activeServices()[0]?.id || "";
-    }
     state.selectedSlot = "";
-    renderServices();
     render();
   });
   els.customerName.addEventListener("input", () => {
@@ -1022,10 +1018,7 @@ function activeServices() {
 function serviceIsAvailableForSelection(serviceId) {
   if (!state.staffServiceKeys) return true;
   const staffKeys = [...new Set(state.laneLayout.map((lane) => lane.staffKey))];
-  const candidates = state.selectedStaffKey === "any"
-    ? staffKeys
-    : staffKeys.filter((staffKey) => staffKey === state.selectedStaffKey);
-  return candidates.some((staffKey) => state.staffServiceKeys.has(`${staffKey}:${serviceId}`));
+  return staffKeys.some((staffKey) => state.staffServiceKeys.has(`${staffKey}:${serviceId}`));
 }
 
 function compareServiceOrder(left, right) {
