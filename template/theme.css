@@ -42,4 +42,18 @@
   --shop-line: #dae5e8;
 }
 
+:root[data-shop-theme="gray"] {
+  --shop-accent: #aeb4b0;
+  --shop-accent-hover: #969e99;
+  --shop-accent-deep: #454c48;
+  --shop-page: #ffffff;
+  --shop-field: #fafbfa;
+  --shop-hover: #f0f2f1;
+  --shop-selected: #dde1df;
+  --shop-blocked: #eceeed;
+  --shop-blocked-strong: #d4d8d6;
+  --shop-blocked-ink: #555d58;
+  --shop-line: #dadddb;
+}
+
 ::selection { background: var(--shop-accent); color: #191b19; }

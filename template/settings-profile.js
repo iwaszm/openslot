@@ -29,7 +29,7 @@
   });
   document.getElementById("resetProfile").addEventListener("click", () => { render(); showToast(t("settings.discarded")); });
   form.querySelectorAll('[name="profileTheme"]').forEach((input) => input.addEventListener("change", () => {
-    const colors = { lime: "#dfff2f", pink: "#fbc8bf", glacier: "#67cbef" };
+    const colors = { lime: "#dfff2f", pink: "#fbc8bf", glacier: "#67cbef", gray: "#aeb4b0" };
     applyTheme(input.value, colors[input.value]);
   }));
   document.getElementById("profileAdminLanguage").addEventListener("change", (event) => window.OpenSlotBackofficeI18n?.setLanguage(event.target.value));

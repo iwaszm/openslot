@@ -40,6 +40,9 @@
     }
   };
   Object.entries(supplements).forEach(([lang, entries]) => Object.assign(dictionaries[lang], entries));
+  Object.assign(dictionaries.de, { "settings.themeGray": "Graphitgrau" });
+  Object.assign(dictionaries.en, { "settings.themeGray": "Graphite gray" });
+  Object.assign(dictionaries.zh, { "settings.themeGray": "石墨灰" });
 
   const interpolate = (text, values = {}) => Object.entries(values)
     .reduce((result, [name, value]) => result.replaceAll(`{${name}}`, value), text);

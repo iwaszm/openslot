@@ -48,7 +48,7 @@
     { day: 6, openMinutes: 600, closeMinutes: 1020, isOpen: true },
     { day: 0, openMinutes: null, closeMinutes: null, isOpen: false },
   ];
-  const themePresets = Object.freeze({ lime: "#dfff2f", pink: "#fbc8bf", glacier: "#67cbef" });
+  const themePresets = Object.freeze({ lime: "#dfff2f", pink: "#fbc8bf", glacier: "#67cbef", gray: "#aeb4b0" });
   const defaultProfile = { name: "Berlin Hair Salon", address: "Niebuhrstraße 66, 10629 Berlin", phone: "0176 41164231", email: "info@openslotberlin.de", themePreset: "lime", adminLanguage: "de", languages: ["de", "en", "zh"] };
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
