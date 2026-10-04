@@ -26,6 +26,7 @@ const BLOCKS_KEY = `${LOCAL_STORAGE_NAMESPACE}.blocked-slots`;
 const SERVICES_KEY = `${LOCAL_STORAGE_NAMESPACE}.services`;
 const FLEXIBLE_SLOTS_KEY = `${LOCAL_STORAGE_NAMESPACE}.flexible-staff-slots`;
 const TIME_BLOCKS_KEY = `${LOCAL_STORAGE_NAMESPACE}.time-blocks`;
+const STAFF_VIEW_KEY = `${LOCAL_STORAGE_NAMESPACE}.admin-staff-view`;
 const LEGACY_SERVICE_IDS = new Set(["haircut", "color", "perm"]);
 const LEGACY_SERVICE_META = new Map([
   ["haircut", { category: "cut", gender: "unisex" }],
@@ -61,14 +62,17 @@ const state = {
   isOwner: false,
   accessRole: null,
   accessStaffId: null,
-  logCollapsed: false,
+  logCollapsed: true,
   repository: null,
   services: DEFAULT_SERVICES,
   salon: null,
   laneLayout: createDefaultLaneLayout(),
+  staffServiceKeys: null,
   useUnifiedScheduleEntries: false,
   datePageStart: 0,
-  visibleStaffKey: "all",
+  showAllStaff: true,
+  selectedVisibleStaffKeys: new Set(),
+  staffViewIdentity: null,
 };
 let liveRefreshInFlight = false;
 let lastDateOptionsRefresh = 0;
@@ -97,6 +101,8 @@ const els = {
   ownerSession: document.querySelector("#ownerSession"),
   ownerEmailLabel: document.querySelector("#ownerEmailLabel"),
   ownerLogoutButton: document.querySelector("#ownerLogoutButton"),
+  settingsLink: document.querySelector("#settingsLink"),
+  adminShopName: document.querySelector("#adminShopName"),
   ownerControls: document.querySelector("#ownerControls"),
   adminSyncNotice: document.querySelector("#adminSyncNotice"),
   adminDateInput: document.querySelector("#adminDateInput"),
@@ -122,7 +128,9 @@ const els = {
   todayButton: document.querySelector("#todayButton"),
   availabilityToggle: document.querySelector("#availabilityToggle"),
   availabilityPanel: document.querySelector("#availabilityPanel"),
-  availabilityStaff: document.querySelector("#availabilityStaff"),
+  showAllStaff: document.querySelector("#showAllStaff"),
+  visibleStaffOptions: document.querySelector("#visibleStaffOptions"),
+  staffVisibilityHint: document.querySelector("#staffVisibilityHint"),
   existingTimeBlocks: document.querySelector("#existingTimeBlocks"),
   addBookingButton: document.querySelector("#addBookingButton"),
   bookingDialog: document.querySelector("#bookingDialog"),
@@ -136,6 +144,8 @@ const els = {
   detailDialog: document.querySelector("#detailDialog"),
   detailTitle: document.querySelector("#detailTitle"),
   detailList: document.querySelector("#detailList"),
+  detailActions: document.querySelector("#detailActions"),
+  detailDelete: document.querySelector("#detailDelete"),
   actionToast: document.querySelector("#actionToast"),
   toastMessage: document.querySelector("#toastMessage"),
   toastClose: document.querySelector("#toastClose"),
@@ -164,7 +174,6 @@ function translateStaticAdminUi() {
   setText("#bookingDialogTitle", "admin.addAppointment");
   setText("#ownerLoginForm .login-button", "admin.loginShort");
   setText("#availabilityPanel > strong", "admin.availability");
-  setLeadingText("label[for='availabilityStaff']", "admin.employee");
   setText("#timeBlockToggle", "admin.blockTime");
   setLeadingText("label:has(#timeBlockStart)", "admin.from");
   setLeadingText("label:has(#timeBlockEnd)", "admin.until");
@@ -214,6 +223,7 @@ async function init() {
   await initializeAuth();
   await refreshServices();
   await refreshLaneLayout();
+  await refreshStaffServices();
   await refreshDateOptions();
   await refreshDayData();
   await refreshUpcomingLog();
@@ -281,16 +291,25 @@ function bindEvents() {
   els.adminDateNextButton?.addEventListener("click", () => changeDatePage(1));
   els.todayButton?.addEventListener("click", selectToday);
   els.availabilityToggle?.addEventListener("click", toggleAvailabilityPanel);
-  els.availabilityStaff?.addEventListener("change", () => {
-    state.visibleStaffKey = els.availabilityStaff.value;
-    closeAvailabilityPanel();
+  els.showAllStaff?.addEventListener("change", () => {
+    state.showAllStaff = els.showAllStaff.checked;
+    if (!state.showAllStaff && state.selectedVisibleStaffKeys.size === 0) {
+      const groups = groupLanesByStaff(state.laneLayout);
+      const preferred = state.accessRole === "staff"
+        ? groups.find((group) => group.staffId === state.accessStaffId)
+        : groups[0];
+      if (preferred) state.selectedVisibleStaffKeys.add(preferred.key);
+    }
+    saveStaffViewPreference();
     renderSlotManager();
   });
+  els.visibleStaffOptions?.addEventListener("change", handleVisibleStaffChange);
   els.addBookingButton?.addEventListener("click", openManualBookingDialog);
   els.manualBookingForm?.addEventListener("submit", submitManualBooking);
-  els.bookingEmployee?.addEventListener("change", updateManualBookingTimes);
+  els.bookingEmployee?.addEventListener("change", updateManualServiceOptions);
   els.bookingCategory?.addEventListener("change", updateManualServiceOptions);
   els.bookingService?.addEventListener("change", updateManualBookingTimes);
+  els.detailDelete?.addEventListener("click", deleteSelectedManualEntry);
   document.querySelectorAll("[data-close-admin-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog")?.close()));
   els.dayBlockButton?.addEventListener("click", handleToggleDayBlock);
   els.timeBlockToggle?.addEventListener("click", toggleTimeBlockPanel);
@@ -320,6 +339,7 @@ function bindEvents() {
     translateStaticAdminUi();
     render();
   });
+  window.addEventListener("resize", () => renderSlotManager());
 }
 
 function createRepository() {
@@ -348,6 +368,7 @@ async function initializeAuth() {
     await applyAuthState(nextUser);
     await refreshServices();
     await refreshLaneLayout();
+    await refreshStaffServices();
     await refreshDateOptions();
     await refreshDayData();
     await refreshUpcomingLog();
@@ -358,6 +379,7 @@ async function applyAuthState(user) {
   state.isOwner = false;
   state.accessRole = null;
   state.accessStaffId = null;
+  state.staffViewIdentity = null;
 
   if (!user) {
     renderAuthState(null);
@@ -388,7 +410,21 @@ async function refreshLaneLayout() {
     const layout = await state.repository.listLaneLayout();
     state.laneLayout = normalizeLaneLayout(layout);
   } catch (_error) {
-    state.laneLayout = createDefaultLaneLayout();
+    state.laneLayout = state.repository.authSupported ? [] : createDefaultLaneLayout();
+  }
+  const validStaffKeys = new Set(groupLanesByStaff(state.laneLayout).map((group) => group.key));
+  state.selectedVisibleStaffKeys = new Set([...state.selectedVisibleStaffKeys].filter((key) => validStaffKeys.has(key)));
+  initializeStaffViewPreference();
+}
+
+async function refreshStaffServices() {
+  try {
+    const assignments = await state.repository.listStaffServices?.();
+    state.staffServiceKeys = Array.isArray(assignments)
+      ? new Set(assignments.map((item) => `${item.staffKey}:${item.serviceId}`))
+      : null;
+  } catch (_error) {
+    state.staffServiceKeys = null;
   }
 }
 
@@ -440,17 +476,16 @@ async function refreshDateOptions({ keepOnError = false } = {}) {
         loadManualSchedule(date),
         state.repository.listTimeBlocks(date),
       ]);
+      const manualEntries = manualSchedule.allEntries || [
+        ...manualSchedule.blockedSlots.map((item) => ({ ...item, laneKey: item.laneKey || "a" })),
+        ...groupStaffOverrides(manualSchedule.overflowSlots).map((item) => ({ ...item, laneKey: item.laneKey || "b" })),
+        ...groupStaffOverrides(manualSchedule.flexibleSlots).map((item) => ({ ...item, laneKey: item.laneKey || "c" })),
+      ];
+      const load = calculateScheduleLoad(appointments, manualEntries, daySettings, timeBlocks);
       return {
         date,
-        occupiedSlotCount: countOccupiedSlots(
-          appointments,
-          manualSchedule.blockedSlots,
-          manualSchedule.overflowSlots,
-          manualSchedule.flexibleSlots,
-          daySettings,
-          timeBlocks,
-        ),
-        totalSlotCount: countDaySlots(daySettings),
+        occupiedSlotCount: load.occupiedSlotCount,
+        totalSlotCount: load.totalSlotCount,
         blockedCount: manualSchedule.blockedSlots.filter((item) => !item.serviceId).length,
         isBlockedDay: daySettings.isBlockedDay,
         holidayName: daySettings.holidayName || "",
@@ -479,7 +514,7 @@ function createEmptyDateOption(date) {
   return {
     date,
     occupiedSlotCount: 0,
-    totalSlotCount: countDaySlots(settings),
+    totalSlotCount: countScheduleCapacity(settings),
     blockedCount: 0,
     isBlockedDay: settings.isBlockedDay,
     holidayName: settings.holidayName || "",
@@ -571,6 +606,7 @@ async function refreshUpcomingLog({ onlyIfChanged = false } = {}) {
 }
 
 function render() {
+  applyShopProfile();
   renderOwnerControls();
   renderDateStrip();
   renderSlotManager();
@@ -578,8 +614,16 @@ function render() {
   renderCollapseState();
 }
 
+function applyShopProfile() {
+  if (!state.salon) return;
+  if (els.adminShopName) els.adminShopName.textContent = state.salon.name || "OpenSlot";
+  document.title = `${state.salon.name || "OpenSlot"} · Tagesplan`;
+  document.documentElement.dataset.shopTheme = state.salon.theme_preset || "lime";
+}
+
 function renderAuthState(user = null, message = "") {
   if (els.ownerControls) els.ownerControls.hidden = !state.isOwner;
+  if (els.settingsLink) els.settingsLink.hidden = !state.isOwner;
   if (!state.isOwner && els.adminSyncNotice) els.adminSyncNotice.hidden = true;
   if (els.ownerLoginForm) els.ownerLoginForm.hidden = Boolean(user);
   if (els.ownerSession) els.ownerSession.hidden = !user;
@@ -590,7 +634,7 @@ function renderAuthState(user = null, message = "") {
 function renderOwnerControls() {
   if (els.ownerControls) els.ownerControls.hidden = !state.isOwner;
   if (!state.isOwner) return;
-  if (els.availabilityToggle) els.availabilityToggle.hidden = state.accessRole === "staff";
+  if (els.availabilityToggle) els.availabilityToggle.hidden = false;
 }
 
 function renderDateStrip() {
@@ -689,11 +733,101 @@ function getScheduleLanes(activeAppointments) {
 }
 
 function getVisibleLaneLayout() {
-  const groups = groupLanesByStaff(state.laneLayout).map((group) => group.lanes.slice(0, 2));
-  const selected = state.visibleStaffKey === "all"
+  const groups = getVisibleStaffGroups();
+  return groups.flatMap((group) => group.lanes.slice(0, 2));
+}
+
+function getVisibleStaffGroups() {
+  const limit = window.matchMedia("(orientation: portrait) and (max-width: 700px)").matches ? 2 : 4;
+  const groups = groupLanesByStaff(state.laneLayout);
+  const selected = state.showAllStaff
     ? groups
-    : groups.filter((group) => group[0]?.staffKey === state.visibleStaffKey);
-  return selected.flat();
+    : groups.filter((group) => state.selectedVisibleStaffKeys.has(group.key));
+  return selected.slice(0, limit);
+}
+
+function handleVisibleStaffChange(event) {
+  const input = event.target.closest('input[type="checkbox"]');
+  if (!input) return;
+  const wasShowingAll = state.showAllStaff;
+  state.showAllStaff = false;
+  if (els.showAllStaff) els.showAllStaff.checked = false;
+  if (wasShowingAll) {
+    state.selectedVisibleStaffKeys = new Set([input.value]);
+    input.checked = true;
+  } else if (input.checked) {
+    const limit = window.matchMedia("(orientation: portrait) and (max-width: 700px)").matches ? 2 : 4;
+    if (state.selectedVisibleStaffKeys.size >= limit) {
+      input.checked = false;
+      showToast(`In dieser Ansicht können maximal ${limit} Mitarbeiter angezeigt werden.`, "error");
+      return;
+    }
+    state.selectedVisibleStaffKeys.add(input.value);
+  } else {
+    state.selectedVisibleStaffKeys.delete(input.value);
+    if (state.selectedVisibleStaffKeys.size === 0) {
+      input.checked = true;
+      state.selectedVisibleStaffKeys.add(input.value);
+      showToast("Mindestens ein Mitarbeiter muss sichtbar bleiben.", "error");
+      return;
+    }
+  }
+  saveStaffViewPreference();
+  renderSlotManager();
+}
+
+function getStaffViewIdentity() {
+  return state.accessRole === "staff" && state.accessStaffId
+    ? `staff:${state.accessStaffId}`
+    : `role:${state.accessRole || "preview"}`;
+}
+
+function readStaffViewPreferences() {
+  try {
+    const value = JSON.parse(localStorage.getItem(STAFF_VIEW_KEY) || "{}");
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function initializeStaffViewPreference() {
+  const groups = groupLanesByStaff(state.laneLayout);
+  const identity = getStaffViewIdentity();
+  const validKeys = new Set(groups.map((group) => group.key));
+  if (state.staffViewIdentity === identity) {
+    state.selectedVisibleStaffKeys = new Set([...state.selectedVisibleStaffKeys].filter((key) => validKeys.has(key)));
+    return;
+  }
+
+  const saved = readStaffViewPreferences()[identity];
+  const savedKeys = Array.isArray(saved?.staffKeys) ? saved.staffKeys.filter((key) => validKeys.has(key)) : [];
+  if (saved && (saved.showAll === true || savedKeys.length > 0)) {
+    state.showAllStaff = saved.showAll === true;
+    state.selectedVisibleStaffKeys = new Set(savedKeys);
+  } else if (state.accessRole === "staff") {
+    const own = groups.find((group) => group.staffId === state.accessStaffId);
+    state.showAllStaff = false;
+    state.selectedVisibleStaffKeys = new Set(own ? [own.key] : groups[0] ? [groups[0].key] : []);
+  } else {
+    state.showAllStaff = true;
+    state.selectedVisibleStaffKeys = new Set();
+  }
+  state.staffViewIdentity = identity;
+}
+
+function saveStaffViewPreference() {
+  const identity = getStaffViewIdentity();
+  const preferences = readStaffViewPreferences();
+  preferences[identity] = {
+    showAll: state.showAllStaff,
+    staffKeys: [...state.selectedVisibleStaffKeys],
+  };
+  try {
+    localStorage.setItem(STAFF_VIEW_KEY, JSON.stringify(preferences));
+  } catch (_error) {
+    // The selected view still works for the current session if storage is unavailable.
+  }
 }
 
 function allocateAppointmentsByLane(appointments, layout) {
@@ -726,20 +860,7 @@ function renderSlotManager() {
     els.appointmentList.innerHTML = `<div class="empty-state">${state.daySettings.isBlockedDay ? t("admin.dayBlockedEmpty") : t("admin.emptyAppointments")}</div>`;
     return;
   }
-  const staffGroups = groupLanesByStaff(lanes);
-  const staffOrder = groupLanesByStaff(state.laneLayout).map((group) => group.key);
-  els.appointmentList.innerHTML = `
-    <div class="staff-schedule" style="--lane-count:${lanes.length}">
-      <div class="staff-schedule-head" aria-hidden="true">
-        <span></span>
-        ${staffGroups.map((group) => {
-          const staffNumber = Math.max(1, staffOrder.indexOf(group.key) + 1);
-          return `<strong style="grid-column:${group.start + 2} / span ${group.lanes.length}"><span class="staff-avatar">${staffNumber}</span>${escapeHtml(group.name)}</strong>`;
-        }).join("")}
-      </div>
-      ${renderOutlookSchedule(slots, lanes)}
-    </div>
-  `;
+  els.appointmentList.innerHTML = renderOutlookSchedule(slots, lanes);
   els.appointmentList.querySelectorAll("[data-time-block-delete]").forEach((button) => {
     button.addEventListener("click", () => deleteTimeBlockById(button.dataset.timeBlockDelete));
   });
@@ -772,7 +893,15 @@ function groupLanesByStaff(lanes) {
   lanes.forEach((lane, index) => {
     const previous = groups.at(-1);
     if (previous?.key === lane.staffKey) previous.lanes.push(lane);
-    else groups.push({ key: lane.staffKey, name: lane.staffName, start: index, lanes: [lane] });
+    else groups.push({
+      key: lane.staffKey,
+      name: lane.staffShortName || lane.staffName,
+      fullName: lane.staffName,
+      color: lane.staffColor || "#d7ef57",
+      staffId: lane.staffId || null,
+      start: index,
+      lanes: [lane],
+    });
   });
   return groups;
 }
@@ -782,52 +911,78 @@ function canEditLane(lane) {
 }
 
 function renderOutlookSchedule(slots, lanes) {
-  const rowCount = slots.length;
-  const gridRows = slots.map((slot, rowIndex) => {
-    const row = rowIndex + 1;
-    const isHour = slot.startMinutes % 60 === 0;
-    const laneCells = lanes.map((lane, laneIndex) => {
-      const isStaffStart = laneIndex === 0 || lanes[laneIndex - 1]?.staffKey !== lane.staffKey;
-      const isTimeBlocked = state.timeBlocks.some((block) => (
-        slot.startMinutes >= block.startMinutes && slot.startMinutes < block.endMinutes
-      ));
-      const isCovered = isTimeBlocked || [...lane.appointments, ...lane.manual].some((item) => (
-        slot.startMinutes >= item.startMinutes && slot.startMinutes < item.endMinutes
-      ));
-      return `
-        <div class="calendar-lane-cell lane-column-${laneIndex + 1} ${isStaffStart ? "is-staff-start" : "is-staff-continuation"} ${laneIndex === lanes.length - 1 ? "is-last-lane" : ""} ${isCovered ? "is-covered" : "is-open"}" style="grid-column:${laneIndex + 2};grid-row:${row}">
-        </div>
-      `;
-    }).join("");
-    return `
-      <div class="calendar-grid-line ${isHour ? "hour-line" : "half-hour-line"}" style="grid-row:${row}" aria-hidden="true"></div>
-      <div class="staff-time-marker ${isHour ? "hour-marker" : "half-hour-marker"}" style="grid-row:${row}" aria-hidden="true">
-        ${isHour ? `<span>${escapeHtml(formatMinutes(slot.startMinutes))}</span>` : ""}
-      </div>
-      ${laneCells}
-    `;
+  const staffGroups = groupLanesByStaff(lanes);
+  const allEvents = lanes.flatMap((lane) => [...lane.appointments, ...lane.manual]);
+  const positions = [0];
+  slots.forEach((slot) => {
+    const busy = allEvents.some((item) => item.startMinutes < slot.startMinutes + SLOT_STEP && item.endMinutes > slot.startMinutes);
+    positions.push(positions.at(-1) + (busy ? 62 : 34));
+  });
+  const openMinutes = state.daySettings.openMinutes;
+  const closeMinutes = state.daySettings.closeMinutes;
+  const at = (minute) => {
+    if (positions.length === 1) return 0;
+    const clamped = Math.max(openMinutes, Math.min(closeMinutes, minute));
+    const index = Math.min(positions.length - 2, Math.floor((clamped - openMinutes) / SLOT_STEP));
+    const fraction = (clamped - openMinutes - index * SLOT_STEP) / SLOT_STEP;
+    return positions[index] + (positions[index + 1] - positions[index]) * fraction;
+  };
+  const totalHeight = positions.at(-1) || 0;
+  const hours = [];
+  for (let minute = openMinutes; minute <= closeMinutes; minute += 60) {
+    hours.push(`<div class="hour-label" style="top:${at(minute)}px">${escapeHtml(String(Math.floor(minute / 60)).padStart(2, "0"))}</div>`);
+  }
+  const rows = slots.map((slot, index) => `<div class="time-row ${slot.startMinutes % 60 === 0 ? "hour-row" : "half-row"}" style="top:${positions[index]}px;height:${positions[index + 1] - positions[index]}px"></div>`).join("");
+  const staffMarkup = staffGroups.map((group) => {
+    const staffEvents = group.lanes.flatMap((lane, laneIndex) => [
+      ...lane.appointments.map((item) => ({ ...item, laneIndex, kind: "online", lane })),
+      ...lane.manual.map((item) => ({ ...item, laneIndex, kind: item.serviceId ? "manual" : "blocked", lane })),
+    ]).sort((left, right) => left.startMinutes - right.startMinutes || right.endMinutes - left.endMinutes);
+    const scopedBlocks = state.timeBlocks.filter((block) => !block.staffId || block.staffId === group.staffId);
+    const shades = state.daySettings.isBlockedDay
+      ? `<div class="availability-shade" style="top:0;height:${totalHeight}px"></div>`
+      : scopedBlocks.map((block) => `<div class="availability-shade" style="top:${at(block.startMinutes)}px;height:${Math.max(1, at(block.endMinutes) - at(block.startMinutes))}px"></div>`).join("");
+    const blockMarkup = state.daySettings.isBlockedDay
+      ? `<article class="calendar-block day-block" style="top:0;height:${totalHeight}px"><div class="block-heading"><strong>Tag blockiert</strong></div></article>`
+      : scopedBlocks.map((block) => renderStaffTimeBlock(block, at, group)).join("");
+    const eventMarkup = staffEvents.map((event) => renderStaffCalendarEvent(event, staffEvents, at)).join("");
+    const editable = group.lanes.some(canEditLane);
+    return `<section class="staff-column ${editable ? "is-editable" : "is-readonly"}" aria-label="${escapeAttribute(group.name)}${editable ? "" : ", nur lesen"}"><div class="staff-name"><span class="staff-avatar" style="--staff-color:${escapeAttribute(group.color)}">${escapeHtml(String(group.name || "M").slice(0, 2))}</span><strong>${escapeHtml(group.name)}</strong>${editable ? "" : `<span class="readonly-label">Nur lesen</span>`}</div><div class="staff-timeline" style="height:${totalHeight}px">${shades}${rows}${blockMarkup}${eventMarkup}${renderNowLine(at)}</div></section>`;
   }).join("");
-  const eventBlocks = lanes.map((lane, laneIndex) => [
-    ...lane.appointments.map((item) => renderCalendarEvent(item, lane, laneIndex, "online", rowCount, lanes)),
-    ...lane.manual.map((item) => renderCalendarEvent(item, lane, laneIndex, item.serviceId ? "manual" : "blocked", rowCount, lanes)),
-  ].join("")).join("");
-  const timeBlockEvents = state.timeBlocks.map((block) => renderCalendarTimeBlock(block, rowCount)).join("");
-  const dayBlockEvent = state.daySettings.isBlockedDay ? renderCalendarDayBlock(rowCount) : "";
+  return `<div class="time-gutter"><div class="gutter-heading"></div><div class="time-labels" style="height:${totalHeight}px">${hours.join("")}</div></div><div class="staff-columns ${staffGroups.length === 1 ? "single-staff" : ""}" style="--staff-count:${Math.max(1, staffGroups.length)}">${staffMarkup}</div>`;
+}
+
+function renderNowLine(at) {
   const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const showNow = els.adminDateInput?.value === toDateInputValue(now)
-    && nowMinutes >= state.daySettings.openMinutes && nowMinutes <= state.daySettings.closeMinutes;
-  const nowTop = ((nowMinutes - state.daySettings.openMinutes) / SLOT_STEP) * ADMIN_SLOT_HEIGHT;
-  return `
-    <div class="staff-schedule-body outlook-calendar" style="--calendar-rows:${rowCount}">
-      ${gridRows}
-      <div class="calendar-grid-end" aria-hidden="true"></div>
-      ${dayBlockEvent}
-      ${eventBlocks}
-      ${timeBlockEvents}
-      ${showNow ? `<div class="now-line" style="top:${nowTop}px" aria-hidden="true"></div>` : ""}
-    </div>
-  `;
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  if (els.adminDateInput?.value !== toDateInputValue(now)
+    || minutes < state.daySettings.openMinutes || minutes > state.daySettings.closeMinutes) return "";
+  return `<div class="now-line" style="top:${at(minutes)}px" aria-hidden="true"></div>`;
+}
+
+function renderStaffTimeBlock(block, at, group) {
+  const top = at(block.startMinutes);
+  const height = Math.max(34, at(block.endMinutes) - top);
+  const canDelete = canManageTimeBlock(block, group);
+  const menu = canDelete ? `<details class="service-block-menu lane-menu time-block-menu"><summary aria-label="Sperre verwalten"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary><div class="service-block-options" role="menu"><button type="button" role="menuitem" class="clear-lane-option" data-time-block-delete="${escapeAttribute(block.id)}">Löschen</button></div></details>` : "";
+  return `<article class="calendar-block time-block" style="top:${top}px;height:${height}px"><div class="block-heading"><strong>Blockiert</strong>${menu}</div><span>${escapeHtml(formatMinutes(block.startMinutes))}-${escapeHtml(formatMinutes(block.endMinutes))}</span></article>`;
+}
+
+function canManageTimeBlock(block, group = null) {
+  if (state.accessRole !== "staff") return true;
+  const staffId = group?.staffId || state.accessStaffId || null;
+  return Boolean(staffId && staffId === state.accessStaffId && block.staffId === state.accessStaffId);
+}
+
+function renderStaffCalendarEvent(event, staffEvents, at) {
+  const top = at(event.startMinutes);
+  const height = Math.max(34, at(event.endMinutes) - top);
+  const overlapsOtherLane = staffEvents.some((other) => other !== event && other.laneIndex !== event.laneIndex && hasTimeRangeOverlap(event, [other]));
+  const service = serviceForItem(event);
+  const label = service ? getServiceAbbrev(service) : t("admin.blockedSlot");
+  const detail = event.kind === "online" ? (event.name || t("admin.unnamedCustomer")) : (event.note || "");
+  if (event.kind === "blocked") return "";
+  return `<article class="calendar-event ${overlapsOtherLane ? `split lane-${event.laneIndex}` : "full"}" style="--service-color:${escapeAttribute(service?.slotColor || service?.color || "#e7ece8")};top:${top}px;height:${height}px" title="${escapeAttribute(`${label} · ${formatMinutes(event.startMinutes)}-${formatMinutes(event.endMinutes)}`)}"><button class="event-main" type="button" data-event-detail="${escapeAttribute(event.id || event.scheduleEntryId || "")}" data-event-kind="${escapeAttribute(event.kind)}" aria-label="Termindetails: ${escapeAttribute(label)}"><strong>${escapeHtml(label)}</strong>${detail ? `<span class="event-detail">${escapeHtml(detail)}</span>` : ""}<span class="event-time">${escapeHtml(formatMinutes(event.startMinutes))}-${escapeHtml(formatMinutes(event.endMinutes))}</span>${event.kind === "online" ? `<span class="online-indicator" aria-label="Online" title="Online"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>` : ""}</button></article>`;
 }
 
 function renderCalendarDayBlock(rowCount) {
@@ -963,7 +1118,7 @@ function toggleSection(section) {
 }
 
 function renderLogAppointment(appointment) {
-  const service = findService(appointment.serviceId);
+  const service = serviceForItem(appointment);
   const isCancelled = appointment.status === "cancelled";
   const appointmentLane = state.laneLayout.find((lane) => lane.laneKey === appointment.laneKey);
   const canCancel = state.accessRole !== "staff" || canEditLane(appointmentLane || {});
@@ -1199,7 +1354,21 @@ async function handleOwnerLogout() {
 }
 
 async function handleToggleDayBlock() {
-  const nextBlocked = !state.daySettings.isBlockedDay;
+  const targetStaff = getAvailabilityStaffGroups();
+  const globalScope = isGlobalAvailabilityScope();
+  if (!globalScope && state.daySettings.isBlockedDay) return;
+  if (!globalScope && targetStaff.length === 0) {
+    showToast("Bitte waehlen Sie in der Ansicht mindestens einen Mitarbeiter aus.", "error");
+    return;
+  }
+  const staffDayBlocks = targetStaff.map((staff) => state.timeBlocks.find((block) => (
+    block.staffId === staff.staffId
+    && block.startMinutes <= state.daySettings.openMinutes
+    && block.endMinutes >= state.daySettings.closeMinutes
+  ))).filter(Boolean);
+  const nextBlocked = globalScope
+    ? !state.daySettings.isBlockedDay
+    : staffDayBlocks.length !== targetStaff.length;
   const message = nextBlocked ? confirmMessages.blockDay : confirmMessages.unblockDay;
   const confirmed = await window.OpenSlotConfirm.ask({
     title: nextBlocked ? "Tag blockieren" : "Tag freigeben",
@@ -1210,11 +1379,27 @@ async function handleToggleDayBlock() {
   if (!confirmed) return;
   els.dayBlockButton.disabled = true;
   try {
-    await state.repository.setDayBlocked({
-      ...state.daySettings,
-      date: els.adminDateInput.value,
-      isBlockedDay: nextBlocked,
-    });
+    if (!globalScope) {
+      if (nextBlocked) {
+        const blockedStaffIds = new Set(staffDayBlocks.map((block) => block.staffId));
+        await Promise.all(targetStaff.filter((staff) => !blockedStaffIds.has(staff.staffId)).map((staff) => (
+          state.repository.createTimeBlock({
+            date: els.adminDateInput.value,
+            startMinutes: state.daySettings.openMinutes,
+            endMinutes: state.daySettings.closeMinutes,
+            staffId: staff.staffId,
+          })
+        )));
+      } else {
+        await Promise.all(staffDayBlocks.map((block) => state.repository.deleteTimeBlock(block.id)));
+      }
+    } else {
+      await state.repository.setDayBlocked({
+        ...state.daySettings,
+        date: els.adminDateInput.value,
+        isBlockedDay: nextBlocked,
+      });
+    }
     await refreshDateOptions();
     await refreshDayData();
     showToast(nextBlocked
@@ -1223,7 +1408,7 @@ async function handleToggleDayBlock() {
   } catch (error) {
     await showAvailabilityError(error, "Der Tag konnte nicht blockiert werden.");
   } finally {
-    els.dayBlockButton.disabled = false;
+    renderDayBlockButton();
   }
 }
 
@@ -1251,10 +1436,45 @@ function renderDayBlockButton() {
   if (!els.dayBlockButton) return;
   const weeklyRule = getWeeklyRule(new Date(`${els.adminDateInput.value}T00:00:00`));
   els.dayBlockButton.hidden = weeklyRule.openMinutes === null;
-  const label = state.daySettings.isBlockedDay ? t("admin.unblockDay") : t("admin.blockDay");
+  const targetStaff = getAvailabilityStaffGroups();
+  const globalScope = isGlobalAvailabilityScope();
+  const staffBlocked = targetStaff.length > 0 && targetStaff.every((staff) => state.timeBlocks.some((block) => (
+    block.staffId === staff.staffId
+      && block.startMinutes <= state.daySettings.openMinutes
+      && block.endMinutes >= state.daySettings.closeMinutes
+  )));
+  const blocked = state.daySettings.isBlockedDay || (globalScope ? false : staffBlocked);
+  const label = blocked ? t("admin.unblockDay") : t("admin.blockDay");
   els.dayBlockButton.textContent = label;
   els.dayBlockButton.setAttribute("aria-label", label);
-  els.dayBlockButton.classList.toggle("is-blocked", state.daySettings.isBlockedDay);
+  els.dayBlockButton.classList.toggle("is-blocked", Boolean(blocked));
+  els.dayBlockButton.disabled = state.daySettings.isBlockedDay && !globalScope;
+}
+
+function getAvailabilityStaffGroups() {
+  const groups = groupLanesByStaff(state.laneLayout);
+  if (state.accessRole === "staff") {
+    const own = groups.find((group) => group.staffId === state.accessStaffId);
+    return own ? [own] : [];
+  }
+  if (state.showAllStaff) return [];
+  return groups.filter((group) => state.selectedVisibleStaffKeys.has(group.key));
+}
+
+function isGlobalAvailabilityScope() {
+  return state.accessRole !== "staff" && state.showAllStaff;
+}
+
+function getAvailabilityScopeKey() {
+  return isGlobalAvailabilityScope()
+    ? "all"
+    : getAvailabilityStaffGroups().map((group) => group.key).sort().join(",");
+}
+
+function getScopedTimeBlocks() {
+  if (isGlobalAvailabilityScope()) return state.timeBlocks.filter((block) => !block.staffId);
+  const staffIds = new Set(getAvailabilityStaffGroups().map((group) => group.staffId));
+  return state.timeBlocks.filter((block) => !block.staffId || staffIds.has(block.staffId));
 }
 
 function toggleTimeBlockPanel() {
@@ -1292,7 +1512,7 @@ function openManualBookingDialog() {
     state.accessRole !== "staff" || group.lanes.some((lane) => lane.staffId === state.accessStaffId)
   ));
   els.bookingEmployee.innerHTML = staffGroups.map((group) => `<option value="${escapeAttribute(group.key)}">${escapeHtml(group.name)}</option>`).join("");
-  const categories = [...new Set(state.services.filter((service) => service.isActive).map((service) => service.category))];
+  const categories = [...new Set(getManualServicesForStaff(els.bookingEmployee.value).map((service) => service.category))];
   els.bookingCategory.innerHTML = categories.map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(formatServiceCategory(category))}</option>`).join("");
   if (els.bookingNote) els.bookingNote.value = "";
   if (els.bookingFormMessage) els.bookingFormMessage.textContent = "";
@@ -1301,14 +1521,32 @@ function openManualBookingDialog() {
 }
 
 function formatServiceCategory(category) {
-  return ({ cut: "Schnitt", color: "Farbe", care: "Pflege", shape: "Form" })[category] || category;
+  const service = state.services.find((item) => item.category === category);
+  return service?.categoryShortName || service?.categoryName
+    || ({ cut: "Schnitt", color: "Farbe", care: "Pflege", shape: "Form" })[category] || category;
 }
 
 function updateManualServiceOptions() {
   if (!els.bookingService || !els.bookingCategory) return;
-  const services = state.services.filter((service) => service.isActive && service.category === els.bookingCategory.value);
+  const availableServices = getManualServicesForStaff(els.bookingEmployee?.value);
+  const categories = [...new Set(availableServices.map((service) => service.category))];
+  if (!categories.includes(els.bookingCategory.value)) {
+    els.bookingCategory.innerHTML = categories.map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(formatServiceCategory(category))}</option>`).join("");
+  }
+  const services = availableServices.filter((service) => service.category === els.bookingCategory.value);
   els.bookingService.innerHTML = services.map((service) => `<option value="${escapeAttribute(service.id)}">${escapeHtml(`${getServiceAbbrev(service)} · ${service.duration} Min.`)}</option>`).join("");
+  els.bookingService.disabled = services.length === 0;
+  if (!services.length) {
+    els.bookingService.innerHTML = `<option value="">Keine passenden Services</option>`;
+  }
   updateManualBookingTimes();
+}
+
+function getManualServicesForStaff(staffKey) {
+  return state.services.filter((service) => (
+    service.isActive
+    && (!state.staffServiceKeys || state.staffServiceKeys.has(`${staffKey}:${service.id}`))
+  ));
 }
 
 function getSelectedStaffLanes() {
@@ -1317,11 +1555,21 @@ function getSelectedStaffLanes() {
 
 function updateManualBookingTimes() {
   if (!els.bookingStart) return;
+  if (!els.bookingService?.value) {
+    els.bookingStart.innerHTML = `<option value="">Keine freie Uhrzeit</option>`;
+    els.bookingStart.disabled = true;
+    const submit = els.manualBookingForm?.querySelector('[type="submit"]');
+    if (submit) submit.disabled = true;
+    if (els.bookingFormMessage) els.bookingFormMessage.textContent = "Diesem Mitarbeiter ist kein aktiver Service zugeordnet.";
+    return;
+  }
   const service = findService(els.bookingService?.value);
   const lanes = getSelectedStaffLanes();
   const starts = [];
   for (let minute = state.daySettings.openMinutes; minute < state.daySettings.closeMinutes; minute += SLOT_STEP) {
-    if (state.timeBlocks.some((block) => minute < block.endMinutes && minute + service.duration > block.startMinutes)) continue;
+    const staffId = lanes[0]?.staffId || null;
+    if (state.timeBlocks.some((block) => (!block.staffId || block.staffId === staffId)
+      && minute < block.endMinutes && minute + service.duration > block.startMinutes)) continue;
     if (lanes.some((lane) => canPlaceManualService(service, minute, lane.storageKey))) starts.push(minute);
   }
   els.bookingStart.innerHTML = starts.length
@@ -1335,6 +1583,10 @@ function updateManualBookingTimes() {
 
 async function submitManualBooking(event) {
   event.preventDefault();
+  if (!els.bookingService?.value) {
+    els.bookingFormMessage.textContent = "Bitte wählen Sie einen verfügbaren Service.";
+    return;
+  }
   const service = findService(els.bookingService.value);
   const startMinutes = Number(els.bookingStart.value);
   const lane = getSelectedStaffLanes().find((candidate) => canPlaceManualService(service, startMinutes, candidate.storageKey));
@@ -1350,7 +1602,7 @@ async function submitManualBooking(event) {
     els.bookingDialog.close();
     await refreshDateOptions();
     await refreshDayData();
-    showToast(`${service.name} um ${formatMinutes(startMinutes)} wurde für ${lane.staffName} eingetragen.`);
+    showToast(`${getServiceAbbrev(service)} um ${formatMinutes(startMinutes)} wurde für ${lane.staffShortName || lane.staffName} eingetragen.`);
   } catch (error) {
     els.bookingFormMessage.textContent = "";
     showToast(`Termin konnte nicht gespeichert werden: ${error.message}`, "error");
@@ -1365,27 +1617,54 @@ function openScheduleDetail(id, kind) {
     ? state.appointments.find((entry) => String(entry.id) === id)
     : state.manualEntries.find((entry) => String(entry.id || entry.scheduleEntryId) === id);
   if (!item) return;
-  const service = findService(item.serviceId);
+  const service = serviceForItem(item);
   const lane = state.laneLayout.find((entry) => entry.laneKey === item.laneKey);
   const rows = [
-    ["Service", service.name],
+    ["Service", service.shortName || service.name],
     ["Datum", formatLogDate(item.date || els.adminDateInput.value)],
     ["Uhrzeit", `${formatMinutes(item.startMinutes)}-${formatMinutes(item.endMinutes)}`],
-    ["Mitarbeiter", lane?.staffName || ""],
+    ["Mitarbeiter", lane?.staffShortName || lane?.staffName || ""],
     kind === "online" ? ["Kunde", item.name || ""] : ["Notiz", item.note || item.reason || ""],
     kind === "online" ? ["Telefon", item.phone || ""] : null,
     kind === "online" ? ["E-Mail", item.email || ""] : null,
   ].filter((row) => row && row[1]);
-  els.detailTitle.textContent = service.name;
+  els.detailTitle.textContent = service.shortName || service.name;
   els.detailList.innerHTML = rows.map(([label, value]) => `<div class="detail-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  const canDelete = kind === "manual" && canEditLane(lane || {});
+  if (els.detailActions) els.detailActions.hidden = !canDelete;
+  if (els.detailDelete) {
+    els.detailDelete.dataset.entryId = canDelete ? String(item.id || item.scheduleEntryId || "") : "";
+    els.detailDelete.dataset.laneKey = canDelete ? String(item.laneKey || "") : "";
+  }
   els.detailDialog.showModal();
+}
+
+async function deleteSelectedManualEntry() {
+  const entryId = els.detailDelete?.dataset.entryId;
+  if (!entryId) return;
+  const confirmed = await window.OpenSlotConfirm.ask({
+    title: "Termin löschen",
+    message: "Dieser manuell angelegte Termin wird aus dem Tagesplan entfernt.",
+    confirmLabel: "Löschen",
+    tone: "danger",
+  });
+  if (!confirmed) return;
+  try {
+    await state.repository.deleteManualScheduleEntry(entryId);
+    els.detailDialog?.close();
+    await Promise.all([refreshDateOptions(), refreshDayData()]);
+    showToast("Der manuelle Termin wurde gelöscht.");
+  } catch (error) {
+    showToast(`Termin konnte nicht gelöscht werden: ${error.message}`, "error");
+  }
 }
 
 function renderTimeBlockControls() {
   if (!els.timeBlockStart || !els.timeBlockEnd || !els.timeBlockAction || !els.timeBlockToggle) return;
   const { openMinutes, closeMinutes, isBlockedDay } = state.daySettings;
   const date = els.adminDateInput?.value;
-  const signature = `${date}:${openMinutes}:${closeMinutes}:${state.timeBlocks.map((block) => `${block.id}:${block.startMinutes}-${block.endMinutes}`).join(",")}`;
+  const scopedBlocks = getScopedTimeBlocks();
+  const signature = `${date}:${getAvailabilityScopeKey()}:${openMinutes}:${closeMinutes}:${scopedBlocks.map((block) => `${block.id}:${block.startMinutes}-${block.endMinutes}`).join(",")}`;
   if (els.timeBlockPanel?.dataset.signature !== signature) {
     const sameDate = els.timeBlockPanel?.dataset.date === date;
     const preferredStart = sameDate && els.timeBlockStart.value ? Number(els.timeBlockStart.value) : openMinutes;
@@ -1411,40 +1690,48 @@ function renderTimeBlockControls() {
 
   const selectedStart = Number(els.timeBlockStart.value);
   const selectedEnd = Number(els.timeBlockEnd.value);
-  const overlapsAnotherBlock = state.timeBlocks.some((block) => (
+  const overlapsAnotherBlock = scopedBlocks.some((block) => (
     selectedStart < block.endMinutes && selectedEnd > block.startMinutes
   ));
-  els.timeBlockToggle.disabled = isBlockedDay;
-  els.timeBlockAction.disabled = isBlockedDay || overlapsAnotherBlock || selectedEnd <= selectedStart;
+  const scopeBlocked = isBlockedDay || (!isGlobalAvailabilityScope() && getAvailabilityStaffGroups().length > 0
+    && getAvailabilityStaffGroups().every((staff) => state.timeBlocks.some((block) => (
+      block.staffId === staff.staffId
+        && block.startMinutes <= openMinutes
+        && block.endMinutes >= closeMinutes
+    ))));
+  els.timeBlockToggle.disabled = scopeBlocked;
+  els.timeBlockAction.disabled = scopeBlocked || overlapsAnotherBlock || selectedEnd <= selectedStart;
   if (els.timeBlockHint) {
-    els.timeBlockHint.textContent = isBlockedDay
+    els.timeBlockHint.textContent = scopeBlocked
       ? "Der gesamte Tag ist bereits blockiert."
       : overlapsAnotherBlock
       ? "Die Auswahl überschneidet eine bestehende Sperre."
         : "";
   }
   if (els.existingTimeBlocks) {
-    els.existingTimeBlocks.innerHTML = state.timeBlocks.map((block) => `
+    els.existingTimeBlocks.innerHTML = scopedBlocks.map((block) => `
       <div class="existing-block">
         <span>${escapeHtml(formatMinutes(block.startMinutes))}-${escapeHtml(formatMinutes(block.endMinutes))}</span>
-        <button type="button" data-unblock-time="${escapeAttribute(block.id)}" aria-label="${escapeAttribute(`${formatMinutes(block.startMinutes)} bis ${formatMinutes(block.endMinutes)} freigeben`)}">Freigeben</button>
+        ${canManageTimeBlock(block) ? `<button type="button" data-unblock-time="${escapeAttribute(block.id)}" aria-label="${escapeAttribute(`${formatMinutes(block.startMinutes)} bis ${formatMinutes(block.endMinutes)} freigeben`)}">Freigeben</button>` : ""}
       </div>
     `).join("");
   }
 }
 
 function renderAvailabilityStaffOptions() {
-  if (!els.availabilityStaff) return;
   const groups = groupLanesByStaff(state.laneLayout);
-  if (state.visibleStaffKey !== "all" && !groups.some((group) => group.key === state.visibleStaffKey)) {
-    state.visibleStaffKey = "all";
+  if (els.showAllStaff) els.showAllStaff.checked = state.showAllStaff;
+  if (els.visibleStaffOptions) {
+    els.visibleStaffOptions.innerHTML = groups.map((group) => {
+      const checked = state.showAllStaff || state.selectedVisibleStaffKeys.has(group.key);
+      return `<label><input type="checkbox" value="${escapeAttribute(group.key)}" ${checked ? "checked" : ""}><span><i style="--staff-color:${escapeAttribute(group.color)}">${escapeHtml(String(group.name || "M").slice(0, 2))}</i>${escapeHtml(group.name || group.fullName || group.key)}</span></label>`;
+    }).join("");
   }
-  els.availabilityStaff.innerHTML = [
-    `<option value="all">${escapeHtml(t("admin.allEmployees"))}</option>`,
-    ...groups.map((group) => `<option value="${escapeAttribute(group.key)}">${escapeHtml(group.name)}</option>`),
-  ].join("");
-  els.availabilityStaff.value = state.visibleStaffKey;
-  els.availabilityToggle?.classList.toggle("is-filtered", state.visibleStaffKey !== "all");
+  if (els.staffVisibilityHint) {
+    const limit = window.matchMedia("(orientation: portrait) and (max-width: 700px)").matches ? 2 : 4;
+    els.staffVisibilityHint.textContent = `Maximal ${limit} Mitarbeiter in dieser Ansicht`;
+  }
+  els.availabilityToggle?.classList.toggle("is-filtered", !state.showAllStaff);
 }
 
 function findAvailableTimeBlockRange(preferredStart, openMinutes, closeMinutes) {
@@ -1454,7 +1741,7 @@ function findAvailableTimeBlockRange(preferredStart, openMinutes, closeMinutes) 
   for (const startMinutes of ordered) {
     for (const duration of [60, SLOT_STEP]) {
       const endMinutes = startMinutes + duration;
-      if (endMinutes <= closeMinutes && !state.timeBlocks.some((block) => startMinutes < block.endMinutes && endMinutes > block.startMinutes)) {
+      if (endMinutes <= closeMinutes && !getScopedTimeBlocks().some((block) => startMinutes < block.endMinutes && endMinutes > block.startMinutes)) {
         return { startMinutes, endMinutes };
       }
     }
@@ -1474,7 +1761,7 @@ async function handleCreateTimeBlock() {
   const startMinutes = Number(els.timeBlockStart?.value);
   const endMinutes = Number(els.timeBlockEnd?.value);
   if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) return;
-  if (state.timeBlocks.some((block) => startMinutes < block.endMinutes && endMinutes > block.startMinutes)) return;
+  if (getScopedTimeBlocks().some((block) => startMinutes < block.endMinutes && endMinutes > block.startMinutes)) return;
   const confirmed = await window.OpenSlotConfirm.ask({
     title: "Uhrzeit blockieren",
     message: `${formatMinutes(startMinutes)}-${formatMinutes(endMinutes)} für neue Buchungen blockieren?`,
@@ -1485,11 +1772,19 @@ async function handleCreateTimeBlock() {
 
   els.timeBlockAction.disabled = true;
   try {
-    await state.repository.createTimeBlock({
-      date: els.adminDateInput.value,
-      startMinutes,
-      endMinutes,
-    });
+    const targets = getAvailabilityStaffGroups();
+    if (!isGlobalAvailabilityScope() && targets.length === 0) {
+      showToast("Bitte waehlen Sie in der Ansicht mindestens einen Mitarbeiter aus.", "error");
+      return;
+    }
+    await Promise.all((isGlobalAvailabilityScope() ? [null] : targets).map((staff) => (
+      state.repository.createTimeBlock({
+        date: els.adminDateInput.value,
+        startMinutes,
+        endMinutes,
+        staffId: staff?.staffId || null,
+      })
+    )));
     await refreshDateOptions();
     await refreshDayData();
     closeTimeBlockPanel();
@@ -1597,8 +1892,9 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("services")
-        .select("id, name, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, slot_color")
+        .select("id, name, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, category_id, slot_color, sort_order, service_categories!services_category_salon_fkey(id, name, short_name, sort_order, is_active)")
         .eq("salon_id", salon.id)
+        .order("sort_order", { ascending: true })
         .order("id", { ascending: true });
       if (error) throw error;
       return (data || []).map(fromSupabaseService);
@@ -1607,7 +1903,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("staff_lanes")
-        .select("id, lane_key, label, sort_order, salon_staff!inner(id, staff_key, name, sort_order, is_active)")
+        .select("id, lane_key, label, sort_order, salon_staff!inner(id, staff_key, name, short_name, display_color, sort_order, is_active)")
         .eq("salon_id", salon.id)
         .eq("is_active", true)
         .eq("salon_staff.is_active", true)
@@ -1621,17 +1917,32 @@ function createSupabaseRepository(client) {
         staffKey: row.salon_staff?.staff_key,
         staffId: row.salon_staff?.id,
         staffName: row.salon_staff?.name,
+        staffShortName: row.salon_staff?.short_name || row.salon_staff?.name,
+        staffColor: row.salon_staff?.display_color || "#d7ef57",
         staffSortOrder: row.salon_staff?.sort_order,
       })).sort((left, right) => (
         Number(left.staffSortOrder || 0) - Number(right.staffSortOrder || 0)
         || Number(left.sortOrder || 0) - Number(right.sortOrder || 0)
       ));
     },
+    async listStaffServices() {
+      const salon = await salonPromise;
+      const { data, error } = await client
+        .from("staff_services")
+        .select("service_id, salon_staff!inner(staff_key)")
+        .eq("salon_id", salon.id)
+        .eq("is_active", true);
+      if (error) throw error;
+      return (data || []).map((row) => {
+        const staff = Array.isArray(row.salon_staff) ? row.salon_staff[0] : row.salon_staff;
+        return { staffKey: staff?.staff_key, serviceId: row.service_id };
+      }).filter((item) => item.staffKey && item.serviceId);
+    },
     async listManualScheduleEntries(date) {
       const salon = await salonPromise;
       let { data, error } = await client
         .from("schedule_entries")
-        .select("id, service_id, entry_source, schedule_date, covered_start, covered_end, occupied_slots, note, staff_lanes!inner(lane_key)")
+        .select("id, service_id, service_snapshot, entry_source, schedule_date, covered_start, covered_end, occupied_slots, note, staff_lanes!inner(lane_key)")
         .eq("salon_id", salon.id)
         .eq("schedule_date", date)
         .eq("status", "active")
@@ -1640,7 +1951,7 @@ function createSupabaseRepository(client) {
       if (error?.code === "42703") {
         ({ data, error } = await client
           .from("schedule_entries")
-          .select("id, service_id, entry_source, schedule_date, covered_start, covered_end, occupied_slots, staff_lanes!inner(lane_key)")
+          .select("id, service_id, service_snapshot, entry_source, schedule_date, covered_start, covered_end, occupied_slots, staff_lanes!inner(lane_key)")
           .eq("salon_id", salon.id)
           .eq("schedule_date", date)
           .eq("status", "active")
@@ -1692,14 +2003,14 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       let { data, error } = await client
         .from("appointments")
-        .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)")
+        .select("id, service_id, service_snapshot, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)")
         .eq("salon_id", salon.id)
         .eq("appointment_date", date)
         .order("start_time", { ascending: true });
       if (error?.code === "42703") {
         ({ data, error } = await client
           .from("appointments")
-          .select("id, service_id, appointment_date, start_time, end_time, occupied_slots, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)")
+          .select("id, service_id, service_snapshot, appointment_date, start_time, end_time, occupied_slots, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)")
           .eq("salon_id", salon.id)
           .eq("appointment_date", date)
           .order("start_time", { ascending: true }));
@@ -1715,8 +2026,8 @@ function createSupabaseRepository(client) {
 
       while (true) {
         const columns = includeLane
-          ? "id, service_id, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)"
-          : "id, service_id, appointment_date, start_time, end_time, occupied_slots, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)";
+          ? "id, service_id, service_snapshot, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)"
+          : "id, service_id, service_snapshot, appointment_date, start_time, end_time, occupied_slots, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)";
         const { data, error } = await client
           .from("appointments")
           .select(columns)
@@ -1796,7 +2107,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("admin_time_blocks")
-        .select("id, block_date, start_time, end_time")
+        .select("id, staff_id, block_date, start_time, end_time")
         .eq("salon_id", salon.id)
         .eq("block_date", date)
         .order("start_time", { ascending: true });
@@ -1810,6 +2121,7 @@ function createSupabaseRepository(client) {
         p_block_date: block.date,
         p_start_time: `${formatMinutes(block.startMinutes)}:00`,
         p_end_time: `${formatMinutes(block.endMinutes)}:00`,
+        p_staff_id: block.staffId || null,
       });
       if (error) throw error;
     },
@@ -1848,7 +2160,7 @@ async function loadCurrentSalon(client) {
   const slug = getCurrentSalonSlug();
   const { data, error } = await client
     .from("salons")
-    .select("id, slug, name, address, phone, timezone, opening_hours")
+    .select("id, slug, name, address, phone, timezone, opening_hours, theme_preset, languages")
     .eq("slug", slug)
     .eq("is_active", true)
     .maybeSingle();
@@ -1878,13 +2190,16 @@ function createDefaultLaneLayout() {
       ...createLaneDefinition(String.fromCharCode(97 + index), index + 1),
       staffKey: isDemoSalon ? ["default", "tony"][staffIndex] : `staff-${staffIndex + 1}`,
       staffName: isDemoSalon ? (["Linda", "Tony"][staffIndex] || `M${staffIndex + 1}`) : `M${staffIndex + 1}`,
+      staffShortName: isDemoSalon ? (["L", "T"][staffIndex] || `M${staffIndex + 1}`) : `M${staffIndex + 1}`,
+      staffColor: ["#f8c7ff", "#b8d9d0", "#d7ef57", "#c9c3e6"][staffIndex % 4],
       staffId: `demo-staff-${staffIndex + 1}`,
     };
   });
 }
 
 function normalizeLaneLayout(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) return createDefaultLaneLayout();
+  if (!Array.isArray(rows)) return createDefaultLaneLayout();
+  if (rows.length === 0) return [];
   const normalized = rows
     .filter((row) => String(row.laneKey || "").trim())
     .map((row) => {
@@ -1900,6 +2215,8 @@ function normalizeLaneLayout(rows) {
         staffId: row.staffId || null,
         staffKey: row.staffKey || "default",
         staffName: row.staffName || "Mitarbeiter 1",
+        staffShortName: row.staffShortName || row.staffName || "M",
+        staffColor: row.staffColor || "#d7ef57",
         staffSortOrder: Number(row.staffSortOrder || 0),
       };
     })
@@ -1929,6 +2246,7 @@ function createLocalRepository() {
     async signOut() {},
     async listServices() { return loadLocalServices(); },
     async listLaneLayout() { return createDefaultLaneLayout(); },
+    async listStaffServices() { return window.OpenSlotLocalRepository?.listStaffServices?.() || null; },
     async listManualScheduleEntries() { return null; },
     async getDaySnapshot() { return null; },
     async createManualScheduleEntry() { throw new Error("Unified schedule entries are unavailable in local mode"); },
@@ -2298,31 +2616,51 @@ function countDaySlots(daySettings) {
   return Math.max(0, Math.floor((daySettings.closeMinutes - daySettings.openMinutes) / SLOT_STEP));
 }
 
-function isScheduledBusinessDay(date) {
-  return getWeeklyRule(new Date(`${date}T00:00:00`)).openMinutes !== null;
+function getLoadLaneLayout() {
+  return state.accessRole === "staff" && state.accessStaffId
+    ? state.laneLayout.filter((lane) => lane.staffId === state.accessStaffId)
+    : state.laneLayout;
 }
 
-function countOccupiedSlots(appointments, blockedSlots = [], overflowSlots = [], flexibleSlots = [], daySettings = null, timeBlocks = []) {
+function countScheduleCapacity(daySettings) {
+  return countDaySlots(daySettings) * getLoadLaneLayout().length;
+}
+
+function calculateScheduleLoad(appointments, manualEntries, daySettings, timeBlocks) {
+  const lanes = getLoadLaneLayout();
+  const laneKeys = new Set(lanes.map((lane) => lane.laneKey));
   const occupied = new Set();
-  const addOccupiedRange = (range) => {
-    if (daySettings && (range.startMinutes < daySettings.openMinutes || range.startMinutes >= daySettings.closeMinutes)) return;
-    occupied.add(range.startMinutes);
+  const addOccupiedRanges = (laneKey, item) => {
+    if (!laneKeys.has(laneKey)) return;
+    getOccupiedRanges(item).forEach((range) => {
+      if (range.startMinutes < daySettings.openMinutes || range.startMinutes >= daySettings.closeMinutes) return;
+      occupied.add(`${laneKey}:${range.startMinutes}`);
+    });
   };
-  appointments
-    .filter((appointment) => appointment.status !== "cancelled")
-    .forEach((appointment) => getOccupiedRanges(appointment).forEach(addOccupiedRange));
-  blockedSlots.forEach((block) => {
-    getOccupiedRanges(block).forEach(addOccupiedRange);
+
+  const allocated = allocateAppointmentsByLane(
+    appointments.filter((appointment) => appointment.status !== "cancelled"),
+    state.laneLayout,
+  );
+  lanes.forEach((lane) => {
+    (allocated.get(lane.laneKey) || []).forEach((appointment) => addOccupiedRanges(lane.laneKey, appointment));
   });
-  [...groupStaffOverrides(overflowSlots), ...groupStaffOverrides(flexibleSlots)].forEach((item) => {
-    getOccupiedRanges(item).forEach(addOccupiedRange);
-  });
+  manualEntries.forEach((entry) => addOccupiedRanges(entry.laneKey, entry));
   timeBlocks.forEach((block) => {
-    for (let startMinutes = block.startMinutes; startMinutes < block.endMinutes; startMinutes += SLOT_STEP) {
-      addOccupiedRange({ startMinutes });
-    }
+    lanes.filter((lane) => !block.staffId || lane.staffId === block.staffId).forEach((lane) => {
+      for (let startMinutes = block.startMinutes; startMinutes < block.endMinutes; startMinutes += SLOT_STEP) {
+        addOccupiedRanges(lane.laneKey, { startMinutes, endMinutes: startMinutes + SLOT_STEP });
+      }
+    });
   });
-  return occupied.size;
+  return {
+    occupiedSlotCount: occupied.size,
+    totalSlotCount: countDaySlots(daySettings) * lanes.length,
+  };
+}
+
+function isScheduledBusinessDay(date) {
+  return getWeeklyRule(new Date(`${date}T00:00:00`)).openMinutes !== null;
 }
 
 function getOccupiedEdgeClasses(item, startMinutes) {
@@ -2344,12 +2682,51 @@ function getServiceAbbrev(service) {
   return service.shortName || Array.from(getEditableServiceName(service)).slice(0, 3).join("");
 }
 
+function serviceForItem(item) {
+  const current = state.services.find((service) => service.id === item?.serviceId);
+  if (!item?.serviceSnapshot) return current || findService(item?.serviceId);
+  const snapshotService = { ...current, ...item.serviceSnapshot, id: item.serviceId };
+  if (!current || item.status === "cancelled" || String(item.date || "") < toDateInputValue(new Date())) return snapshotService;
+  return {
+    ...snapshotService,
+    name: current.name,
+    nameEn: current.nameEn,
+    nameZh: current.nameZh,
+    shortName: current.shortName,
+    slotColor: current.slotColor,
+    color: current.color || current.slotColor,
+  };
+}
+
+function normalizeServiceSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  return {
+    name: snapshot.name || "",
+    shortName: snapshot.shortName || snapshot.name || "",
+    duration: Number(snapshot.durationMinutes || snapshot.duration || SLOT_STEP),
+    bookedSlots: Array.isArray(snapshot.bookedSlots) ? snapshot.bookedSlots.map(Number) : [],
+    price: Number(snapshot.price || 0),
+    priceFrom: snapshot.priceFrom === true,
+    category: snapshot.category?.legacyKey || snapshot.category?.id || snapshot.category || "",
+    categoryName: snapshot.category?.name || "",
+    categoryShortName: snapshot.category?.shortName || snapshot.category?.name || "",
+    slotColor: snapshot.color || "",
+    color: snapshot.color || "",
+  };
+}
+
 function findService(id) {
   return state.services.find((service) => service.id === id) || { id, name: id, duration: 30, price: 0, isActive: false };
 }
 
 function sortServices(services) {
-  return services.slice().sort((a, b) => (getServiceSortIndex(a.id) - getServiceSortIndex(b.id)) || a.name.localeCompare(b.name));
+  return services.slice().sort((left, right) => {
+    const leftCategory = Number.isFinite(left.categorySortOrder) ? left.categorySortOrder : 999;
+    const rightCategory = Number.isFinite(right.categorySortOrder) ? right.categorySortOrder : 999;
+    const leftService = Number.isFinite(left.sortOrder) ? left.sortOrder : getServiceSortIndex(left.id);
+    const rightService = Number.isFinite(right.sortOrder) ? right.sortOrder : getServiceSortIndex(right.id);
+    return (leftCategory - rightCategory) || (leftService - rightService) || left.name.localeCompare(right.name);
+  });
 }
 
 function getServiceOccupiedMinutes(service, startMinutes) {
@@ -2553,6 +2930,7 @@ function fromSupabaseService(row) {
   const baseId = stripSalonPrefix(row.id);
   const fallback = DEFAULT_SERVICES.find((service) => service.id === baseId);
   const legacy = LEGACY_SERVICE_META.get(baseId);
+  const category = Array.isArray(row.service_categories) ? row.service_categories[0] : row.service_categories;
   return {
     id: row.id,
     name: row.name,
@@ -2563,6 +2941,11 @@ function fromSupabaseService(row) {
     priceFrom: Boolean(row.price_from),
     slotColor: row.slot_color || "",
     category: row.category || fallback?.category || legacy?.category || "care",
+    categoryId: row.category_id || category?.id || null,
+    categoryName: category?.name || row.category,
+    categoryShortName: category?.short_name || category?.name || row.category,
+    categorySortOrder: Number.isFinite(Number(category?.sort_order)) ? Number(category.sort_order) : 999,
+    sortOrder: Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : undefined,
     gender: fallback?.gender || legacy?.gender || row.gender || "unisex",
     isActive: row.is_active,
   };
@@ -2587,6 +2970,7 @@ function fromSupabaseAppointment(row) {
     occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
     laneKey: row.lane_key || null,
     status: row.status,
+    serviceSnapshot: normalizeServiceSnapshot(row.service_snapshot),
   };
 }
 
@@ -2605,6 +2989,7 @@ function fromSupabaseScheduleEntry(row) {
     isOpen: row.entry_source !== "block",
     entrySource: row.entry_source,
     note: row.note || "",
+    serviceSnapshot: normalizeServiceSnapshot(row.service_snapshot),
   };
 }
 
@@ -2632,6 +3017,7 @@ function fromSupabaseDaySettings(row) {
 function fromSupabaseTimeBlock(row) {
   return {
     id: row.id,
+    staffId: row.staff_id || null,
     date: row.block_date,
     startMinutes: parseTime(String(row.start_time).slice(0, 5)),
     endMinutes: parseTime(String(row.end_time).slice(0, 5)),

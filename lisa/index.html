@@ -7,9 +7,10 @@
     <link rel="icon" href="/favicon.ico?v=20260925" sizes="any" />
     <link rel="icon" href="../assets/home/icons/site-icon.svg?v=20260925" type="image/svg+xml" />
     <link rel="stylesheet" href="../styles.css?v=20260915-customer-languages-2" />
+    <link rel="stylesheet" href="../shared/settings-theme-presets.css?v=20261003-lisa-pink-1" />
     <link rel="stylesheet" href="../booking-theme.css?v=20260924-shared-1" />
   </head>
-  <body class="booking-themed" style='--salon-cover-image: url("./lisa/feature.jpg");'>
+  <body class="booking-themed" style='--salon-cover-image: url("./feature.jpg");'>
     <main class="customer-page">
       <div class="customer-layout">
         <section id="book" class="booking-section" aria-labelledby="booking-title">
@@ -19,6 +20,11 @@
               <legend class="section-title" data-i18n="booking.serviceLegend">Dienstleistungen</legend>
               <div id="serviceCategoryTabs" class="service-category-tabs" role="tablist" aria-label="Dienstleistungskategorien"></div>
               <div class="service-grid" id="serviceOptions"></div>
+              <div class="employee-picker" aria-label="Mitarbeiter wählen" hidden>
+                <div class="employee-options" role="radiogroup" aria-label="Mitarbeiter">
+                  <button class="employee-option" type="button" role="radio" aria-checked="true" data-employee="any"><span>Ohne Mitarbeiterwahl</span></button>
+                </div>
+              </div>
             </fieldset>
 
             <fieldset>
@@ -147,8 +153,8 @@
       window.OPENSLOT_REQUIRE_SERVICE_SELECTION = true;
       window.OPENSLOT_SHOW_UNAVAILABLE_SLOTS = true;
     </script>
-    <script src="../customer.js?v=20260920-online-lane-capacity-1"></script>
-    <script src="../booking-theme.js?v=20260924-shared-1"></script>
+    <script src="../customer.js?v=20261004-service-status-1"></script>
+    <script src="../booking-theme.js?v=20261003-template-ui-1"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   </body>
 </html>

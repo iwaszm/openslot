@@ -7,7 +7,8 @@
   const close = document.querySelector("#bookingToastClose");
   const form = document.querySelector("#bookingForm");
   const employeePicker = document.querySelector(".employee-picker");
-  const employeeOptions = [...document.querySelectorAll(".employee-option")];
+  let employeeOptions = [...document.querySelectorAll(".employee-option")];
+  let staffRecords = [];
   const languageMenu = document.querySelector(".language-menu");
   let activeCategory = "";
   let activeEmployee = "any";
@@ -80,16 +81,38 @@
     languageMenu.querySelector("summary")?.setAttribute("aria-label", copy.language);
   }
 
+  function renderEmployees(records = staffRecords) {
+    if (!employeePicker) return;
+    staffRecords = Array.isArray(records) ? records : [];
+    const group = employeePicker.querySelector('[role="radiogroup"]');
+    const selectedServiceId = services.querySelector('input[name="service"]:checked')?.value || "";
+    const available = staffRecords.filter((employee) => (
+      !selectedServiceId || !Array.isArray(employee.serviceIds) || employee.serviceIds.includes(selectedServiceId)
+    ));
+    group.innerHTML = `<button class="employee-option" type="button" role="radio" data-employee="any"><span></span></button>${available.map((employee) => `<button class="employee-option" type="button" role="radio" data-employee="${escapeAttribute(employee.staffKey)}"><span>${escapeHtml(employee.name)}</span></button>`).join("")}`;
+    employeeOptions = [...group.querySelectorAll(".employee-option")];
+    const nextEmployee = employeeOptions.some((option) => option.dataset.employee === activeEmployee) ? activeEmployee : "any";
+    const changed = nextEmployee !== activeEmployee;
+    activeEmployee = nextEmployee;
+    employeeOptions.forEach((option) => option.setAttribute("aria-checked", String(option.dataset.employee === activeEmployee)));
+    syncEmployees();
+    if (changed) window.dispatchEvent(new CustomEvent("openslot:employee-change", { detail: { staffKey: activeEmployee } }));
+  }
+
   function selectEmployee(employee) {
     activeEmployee = employee;
     employeeOptions.forEach((option) => option.setAttribute("aria-checked", String(option.dataset.employee === employee)));
     window.dispatchEvent(new CustomEvent("openslot:employee-change", { detail: { staffKey: employee } }));
   }
 
-  employeeOptions.forEach((button) => button.addEventListener("click", () => selectEmployee(button.dataset.employee || "any")));
-  services.addEventListener("click", () => queueMicrotask(syncEmployees));
-  services.addEventListener("change", syncEmployees);
+  employeePicker?.querySelector('[role="radiogroup"]')?.addEventListener("click", (event) => {
+    const button = event.target.closest(".employee-option");
+    if (button && button.dataset.employee !== activeEmployee) selectEmployee(button.dataset.employee || "any");
+  });
+  services.addEventListener("click", () => queueMicrotask(() => { renderEmployees(); syncEmployees(); }));
+  services.addEventListener("change", () => { renderEmployees(); syncEmployees(); });
   window.addEventListener("openslot:language-change", () => queueMicrotask(syncEmployees));
+  window.addEventListener("openslot:staff-update", (event) => renderEmployees(event.detail?.staff || []));
 
   function syncToast() {
     const hasResult = !result.hidden && Boolean(result.textContent.trim());
@@ -125,6 +148,16 @@
   });
 
   syncCategories();
-  syncEmployees();
+  renderEmployees();
   syncToast();
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[character]);
+  }
+
+  function escapeAttribute(value) {
+    return escapeHtml(value).replace(/`/g, "&#96;");
+  }
 })();

@@ -9,13 +9,14 @@
   main.hidden = false;
   const isOwner = session.role === "owner" || session.role === "admin";
   document.body.dataset.accessRole = session.role;
+  const readOnlyBadge = document.getElementById("settingsReadOnlyBadge");
+  if (readOnlyBadge) readOnlyBadge.hidden = isOwner;
   window.OpenSlotSettingsAccess = Object.freeze({ session, isOwner });
 
   const serviceForm = document.getElementById("serviceSettingsForm");
   const categoryForm = document.getElementById("categorySettingsForm");
   const tree = document.getElementById("settingsCatalogTree");
   const saveOrderButton = document.getElementById("saveCatalogOrder");
-  const orderHint = document.getElementById("catalogOrderHint");
   const editorDialog = document.getElementById("catalogEditorDialog");
   const duration = document.getElementById("serviceDuration");
   const occupiedOptions = document.getElementById("occupiedSlotOptions");
@@ -31,6 +32,7 @@
   let draftOrder = null;
 
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+  const onlineIcon = () => `<span class="online-status-icon" aria-label="Online" title="Online"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>`;
   const slug = (value) => String(value).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 36) || "item";
   const services = () => repository.listServices({ includeInactive: true });
   const categories = () => repository.listCategories({ includeInactive: true });
@@ -94,11 +96,11 @@
       const children = childIds.map((id) => serviceMap.get(id)).filter(Boolean);
       return `<section class="catalog-category ${category.isActive ? "" : "inactive"}" data-category-id="${escapeHtml(category.id)}">
         <button class="catalog-entry category-entry ${selectedType === "category" && selectedId === category.id ? "selected" : ""}" type="button" draggable="true" data-drag-type="category" data-item-id="${escapeHtml(category.id)}" data-edit-type="category">
-          <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="catalog-copy"><strong>${escapeHtml(category.shortName)}</strong><small>${escapeHtml(category.name)} · ${children.length} Services</small></span><span class="catalog-state">${category.isActive ? "Online" : "Offline"}</span>
+          <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="catalog-copy"><strong>${escapeHtml(category.shortName)}</strong><small>${escapeHtml(category.name)} · ${children.length} Services</small></span>${category.acceptsOnline ? onlineIcon() : ""}
         </button>
         <div class="catalog-services" data-category-services="${escapeHtml(category.id)}">
           ${children.map((service) => `<button class="catalog-entry service-entry ${service.isActive ? "" : "inactive"} ${selectedType === "service" && selectedId === service.id ? "selected" : ""}" type="button" draggable="true" data-drag-type="service" data-item-id="${escapeHtml(service.id)}" data-edit-type="service">
-            <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="catalog-copy"><strong>${escapeHtml(service.shortName)}</strong><small>${escapeHtml(service.name)} · ${service.duration} Min. · ${service.priceFrom ? "ab " : ""}${Number(service.price).toFixed(0)} €</small></span><span class="catalog-state">${service.isActive ? "Online" : "Offline"}</span>
+            <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="service-color-chip" style="--service-color:${escapeHtml(service.color || "#dfeee8")}" aria-hidden="true"></span><span class="catalog-copy"><strong>${escapeHtml(service.shortName)}</strong><small>${escapeHtml(service.name)} · ${service.duration} Min. · ${service.priceFrom ? "ab " : ""}${Number(service.price).toFixed(0)} €</small></span>${service.acceptsOnline ? onlineIcon() : ""}
           </button>`).join("")}
           <div class="catalog-drop-end" data-drop-category="${escapeHtml(category.id)}" aria-hidden="true"><span>Am Ende ablegen</span></div>
         </div>
@@ -135,8 +137,11 @@
     setServiceCategory(service.category); duration.value = String(service.duration);
     document.getElementById("servicePrice").value = String(service.price);
     document.getElementById("servicePriceFrom").checked = service.priceFrom;
+    document.getElementById("serviceColor").value = service.color || "#dfeee8";
     document.getElementById("serviceActive").checked = service.isActive;
-    document.getElementById("serviceState").textContent = service.isActive ? "Online" : "Offline";
+    document.getElementById("serviceState").textContent = service.isActive ? "Aktiv" : "Inaktiv";
+    document.getElementById("serviceAcceptsOnline").checked = service.acceptsOnline;
+    document.getElementById("serviceOnlineState").textContent = service.acceptsOnline ? "An" : "Aus";
     document.getElementById("deleteService").hidden = !repository.canDeleteService(service.id);
     serviceMessage.textContent = ""; renderOccupiedSlots(service.bookedSlots); renderTree();
   }
@@ -152,7 +157,9 @@
     document.getElementById("categoryNameZh").value = category[translatedProperty(third)] || "";
     document.getElementById("categorySortOrder").value = String(category.sortOrder);
     document.getElementById("categoryActive").checked = category.isActive;
-    document.getElementById("categoryState").textContent = category.isActive ? "Online" : "Offline";
+    document.getElementById("categoryState").textContent = category.isActive ? "Aktiv" : "Inaktiv";
+    document.getElementById("categoryAcceptsOnline").checked = category.acceptsOnline;
+    document.getElementById("categoryOnlineState").textContent = category.acceptsOnline ? "An" : "Aus";
     document.getElementById("deleteCategory").hidden = !repository.canDeleteCategory(category.id);
     categoryMessage.textContent = ""; renderTree();
   }
@@ -161,8 +168,11 @@
     const targetCategory = selectedType === "category" ? selectedId : previousService?.category;
     selectedType = "service"; selectedId = ""; showEditor("service"); serviceForm.reset();
     document.getElementById("serviceId").value = ""; document.getElementById("serviceEditorTitle").textContent = "Neuer Service";
-    duration.value = "30"; setServiceCategory(targetCategory || categories().find((category) => category.isActive)?.id);
-    document.getElementById("serviceActive").checked = true; document.getElementById("serviceState").textContent = "Online";
+    const category = targetCategory || categories().find((item) => item.isActive)?.id;
+    duration.value = "30"; setServiceCategory(category);
+    document.getElementById("serviceColor").value = services().find((service) => service.category === category)?.color || "#dfeee8";
+    document.getElementById("serviceActive").checked = true; document.getElementById("serviceState").textContent = "Aktiv";
+    document.getElementById("serviceAcceptsOnline").checked = true; document.getElementById("serviceOnlineState").textContent = "An";
     document.getElementById("deleteService").hidden = true;
     renderOccupiedSlots([1]); renderTree(); document.getElementById("serviceName").focus();
   }
@@ -170,7 +180,8 @@
     selectedType = "category"; selectedId = ""; showEditor("category"); categoryForm.reset();
     document.getElementById("categoryId").value = ""; document.getElementById("categoryEditorTitle").textContent = "Neue Kategorie";
     document.getElementById("categorySortOrder").value = String(categories().length + 1);
-    document.getElementById("categoryActive").checked = true; document.getElementById("categoryState").textContent = "Online";
+    document.getElementById("categoryActive").checked = true; document.getElementById("categoryState").textContent = "Aktiv";
+    document.getElementById("categoryAcceptsOnline").checked = true; document.getElementById("categoryOnlineState").textContent = "An";
     document.getElementById("deleteCategory").hidden = true;
     renderTree(); document.getElementById("categoryName").focus();
   }
@@ -192,7 +203,6 @@
     }
     draftOrder = { categoryIds, serviceIdsByCategory };
     saveOrderButton.disabled = false;
-    orderHint.textContent = "Ungespeicherte Reihenfolge";
     renderTree();
   }
   const clearDropTargets = () => tree.querySelectorAll(".drop-target").forEach((item) => item.classList.remove("drop-target"));
@@ -240,7 +250,6 @@
     repository.reorderCatalog(draftOrder);
     draftOrder = null;
     saveOrderButton.disabled = true;
-    orderHint.textContent = "Reihenfolge unverändert";
     renderTree();
     showToast("Reihenfolge wurde lokal gespeichert.");
   });
@@ -251,8 +260,10 @@
     const checked = [...serviceForm.querySelectorAll('[name="occupiedSlot"]:checked')].map((input) => Number(input.value));
     renderOccupiedSlots(checked.filter((slot) => slot <= Number(duration.value) / 30));
   });
-  document.getElementById("serviceActive").addEventListener("change", (event) => { document.getElementById("serviceState").textContent = event.target.checked ? "Online" : "Offline"; });
-  document.getElementById("categoryActive").addEventListener("change", (event) => { document.getElementById("categoryState").textContent = event.target.checked ? "Online" : "Offline"; });
+  document.getElementById("serviceActive").addEventListener("change", (event) => { document.getElementById("serviceState").textContent = event.target.checked ? "Aktiv" : "Inaktiv"; });
+  document.getElementById("serviceAcceptsOnline").addEventListener("change", (event) => { document.getElementById("serviceOnlineState").textContent = event.target.checked ? "An" : "Aus"; });
+  document.getElementById("categoryActive").addEventListener("change", (event) => { document.getElementById("categoryState").textContent = event.target.checked ? "Aktiv" : "Inaktiv"; });
+  document.getElementById("categoryAcceptsOnline").addEventListener("change", (event) => { document.getElementById("categoryOnlineState").textContent = event.target.checked ? "An" : "Aus"; });
 
   function requestDelete(type) {
     const item = type === "service" ? services().find((entry) => entry.id === selectedId) : categories().find((entry) => entry.id === selectedId);
@@ -290,7 +301,7 @@
     names[translatedProperty(second)] = document.getElementById("serviceNameEn").value.trim();
     names[translatedProperty(third)] = document.getElementById("serviceNameZh").value.trim();
     if (!names.name) names.name = name;
-    const saved = repository.saveService({ id, ...names, shortName, color: existing?.color, category, sortOrder: existing?.sortOrder || services().filter((item) => item.category === category).length + 1, gender: "unisex", duration: Number(duration.value), bookedSlots, price: Number(document.getElementById("servicePrice").value), priceFrom: document.getElementById("servicePriceFrom").checked, isActive: document.getElementById("serviceActive").checked });
+    const saved = repository.saveService({ id, ...names, shortName, color: document.getElementById("serviceColor").value, category, sortOrder: existing?.sortOrder || services().filter((item) => item.category === category).length + 1, gender: "unisex", duration: Number(duration.value), bookedSlots, price: Number(document.getElementById("servicePrice").value), priceFrom: document.getElementById("servicePriceFrom").checked, isActive: document.getElementById("serviceActive").checked, acceptsOnline: document.getElementById("serviceAcceptsOnline").checked });
     selectedType = "service"; selectedId = saved.id; renderTree(); closeEditor(); showToast(`${saved.name} wurde lokal gespeichert.`);
   });
   categoryForm.addEventListener("submit", (event) => {
@@ -305,7 +316,7 @@
     names[translatedProperty(second)] = document.getElementById("categoryNameEn").value.trim();
     names[translatedProperty(third)] = document.getElementById("categoryNameZh").value.trim();
     if (!names.name) names.name = name;
-    const saved = repository.saveCategory({ id, ...names, shortName, sortOrder: Number(document.getElementById("categorySortOrder").value), isActive: document.getElementById("categoryActive").checked });
+    const saved = repository.saveCategory({ id, ...names, shortName, sortOrder: Number(document.getElementById("categorySortOrder").value), isActive: document.getElementById("categoryActive").checked, acceptsOnline: document.getElementById("categoryAcceptsOnline").checked });
     selectedType = "category"; selectedId = saved.id; renderTree(); closeEditor(); showToast(`${saved.name} wurde lokal gespeichert.`);
   });
 

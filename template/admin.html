@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>Berlin Hair Salon · Tagesplan</title>
-  <link rel="stylesheet" href="./theme.css?v=20261002-theme-palettes2">
-  <link rel="stylesheet" href="./admin-theme.css?v=20261002-staff-filter1">
+  <link rel="stylesheet" href="./theme.css?v=20261003-lisa-pink-1">
+  <link rel="stylesheet" href="./admin-theme.css?v=20261003-availability-scope-1">
 </head>
 <body class="theme-preview preview-admin">
   <header class="preview-header">
@@ -49,7 +49,6 @@
               <div id="visibleStaffOptions" class="staff-visibility-options"></div>
               <small id="staffVisibilityHint"></small>
             </fieldset>
-            <label class="availability-staff-label" for="availabilityStaff"><span data-i18n="admin.employee">Mitarbeiter</span><select id="availabilityStaff"></select></label>
             <button id="dayBlockButton" class="availability-option" type="button"></button>
             <button id="timeBlockToggle" class="availability-option" type="button" aria-controls="timeBlockFields" aria-expanded="false" data-i18n="admin.blockTime">Uhrzeit blockieren</button>
             <div id="timeBlockFields" class="time-block-fields" hidden>
@@ -68,7 +67,7 @@
       <div class="schedule-scroll"><div id="scheduleBoard" class="schedule-board" aria-label="Termine nach Uhrzeit und Mitarbeitenden" data-i18n-aria-label="admin.scheduleByStaff"></div></div>
     </section>
     <section class="booking-log" aria-labelledby="bookingLogHeading">
-      <div class="section-heading"><h2 id="bookingLogHeading" data-i18n="admin.bookingLog">Buchungslog</h2><span id="logCount"></span></div>
+      <div class="section-heading"><h2 id="bookingLogHeading" data-i18n="admin.bookingLog">Buchungslog</h2><span id="logCount"></span><div class="log-title-actions"><button id="logCollapseButton" class="icon-button collapse-button" type="button" aria-controls="bookingLogList" aria-expanded="false" aria-label="Buchungslog einblenden"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div></div>
       <div id="bookingLogList" class="booking-log-list"></div>
     </section>
   </main>
@@ -104,10 +103,10 @@
     <button id="toastClose" class="icon-button toast-close" type="button" aria-label="Hinweis schließen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
   <script src="./local-config.js?v=20260927-hours1"></script>
-  <script src="./local-repository.js?v=20261002-facial-staff1"></script>
+  <script src="./local-repository.js?v=20261004-category-status-1"></script>
   <script src="./local-auth-repository.js?v=20261002-staff3-login1"></script>
   <script src="../i18n.js"></script>
   <script src="./demo-data.js"></script>
-  <script src="./admin-preview.js?v=20261002-staff-filter1"></script>
+  <script src="./admin-preview.js?v=20261003-live-service-style-1"></script>
 </body>
 </html>

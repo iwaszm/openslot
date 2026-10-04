@@ -216,7 +216,7 @@ button { cursor: pointer; }
   .service-editor { padding: 20px 4px 24px; }
   .editor-heading { gap: 10px; }
   .editor-heading h3 { font-size: 16px; }
-  .editor-grid { gap: 14px 10px; }
+  .editor-grid { grid-template-columns: 1fr; gap: 14px; }
   .commercial-row { grid-template-columns: minmax(116px, 1fr) minmax(174px, 1fr); gap: 10px; }
   .commercial-price-group { grid-template-columns: minmax(72px, 88px) minmax(94px, 1fr); gap: 8px; }
   .commercial-row > label:first-child { padding-left: 0; }

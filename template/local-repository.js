@@ -48,7 +48,7 @@
     { day: 6, openMinutes: 600, closeMinutes: 1020, isOpen: true },
     { day: 0, openMinutes: null, closeMinutes: null, isOpen: false },
   ];
-  const themePresets = Object.freeze({ lime: "#dfff2f", pink: "#ff7cb8", glacier: "#67cbef" });
+  const themePresets = Object.freeze({ lime: "#dfff2f", pink: "#fbc8bf", glacier: "#67cbef" });
   const defaultProfile = { name: "Berlin Hair Salon", address: "Niebuhrstraße 66, 10629 Berlin", phone: "0176 41164231", email: "info@openslotberlin.de", themePreset: "lime", languages: ["de", "en", "zh"] };
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -77,6 +77,7 @@
       price: Math.max(0, Number(service.price || 0)),
       priceFrom: service.priceFrom === true,
       isActive: service.isActive !== false,
+      acceptsOnline: service.acceptsOnline !== false,
     };
   };
   const ensureServices = () => {
@@ -109,12 +110,14 @@
     nameZh: String(category.nameZh || "").trim().slice(0, 50),
     sortOrder: Math.max(1, Math.round(Number(category.sortOrder || 1))),
     isActive: category.isActive !== false,
+    acceptsOnline: category.acceptsOnline !== false,
   });
   const ensureCategories = () => {
     const saved = read(categoriesKey, null);
     if (!Array.isArray(saved) || !saved.length) {
-      localStorage.setItem(categoriesKey, JSON.stringify(defaultCategories));
-      return clone(defaultCategories);
+      const normalizedDefaults = defaultCategories.map(normalizeCategory);
+      localStorage.setItem(categoriesKey, JSON.stringify(normalizedDefaults));
+      return clone(normalizedDefaults);
     }
     const categories = saved.map(normalizeCategory);
     const facialCategory = defaultCategories.find((category) => category.id === "facial");
@@ -284,7 +287,12 @@
     if (index >= 0) categories[index] = category;
     else categories.push(category);
     localStorage.setItem(categoriesKey, JSON.stringify(categories));
+    const services = ensureServices().map((service) => (
+      service.category === category.id ? { ...service, acceptsOnline: category.acceptsOnline } : service
+    ));
+    localStorage.setItem(servicesKey, JSON.stringify(services));
     notify("categories");
+    notify("services");
     return clone(category);
   };
   const reorderCatalog = ({ categoryIds, serviceIdsByCategory }) => {

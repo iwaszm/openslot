@@ -15,6 +15,7 @@
   const staffDayBlocksKey = `${namespace}.staff-day-blocks`;
   const timeBlocksKey = `${namespace}.time-blocks`;
   const seedKey = `${namespace}.preview-manual-seed`;
+  const staffViewKey = `${namespace}.admin-staff-view`;
   const localRepository = window.OpenSlotLocalRepository;
   let staffRecords = localRepository.listStaff();
   let staff = staffRecords.map((employee) => employee.shortName);
@@ -47,11 +48,12 @@
   let pendingConfirm = null;
   let showAllStaff = true;
   let selectedVisibleStaffKeys = new Set();
+  let staffViewIdentity = null;
+  let logCollapsed = true;
   let session = await auth.getSession();
   const isOwner = () => session?.role === "owner" || session?.role === "admin";
   const sessionStaffIndex = () => staffRecords.findIndex((employee) => employee.staffKey === session?.staffKey);
   const canManageStaff = (staffIndex) => isOwner() || (session?.role === "staff" && Number(staffIndex) === sessionStaffIndex());
-  const mutationStaffIndex = () => isOwner() ? selectedStaffIndex() : sessionStaffIndex();
   function denyMutation() {
     showToast("Nur der zuständige Mitarbeiter oder der Owner darf diesen Bereich ändern.", "error");
   }
@@ -63,9 +65,7 @@
     if (!loggedIn) return;
     document.getElementById("previewSessionLabel").textContent = session.email;
     document.getElementById("settingsLink").hidden = false;
-    const availabilityStaff = document.getElementById("availabilityStaff");
-    availabilityStaff.value = isOwner() ? "all" : String(Math.max(0, sessionStaffIndex()));
-    availabilityStaff.disabled = !isOwner();
+    restoreStaffView();
     render();
   }
 
@@ -121,7 +121,18 @@
   } : null;
   const serviceForItem = (item) => {
     const current = findService(item.serviceId);
-    return item.serviceSnapshot ? { ...current, ...item.serviceSnapshot, id: item.serviceId } : current;
+    if (!item.serviceSnapshot) return current;
+    const snapshotService = { ...current, ...item.serviceSnapshot, id: item.serviceId };
+    if (!current || item.status === "cancelled" || String(item.date || "") < today) return snapshotService;
+    return {
+      ...snapshotService,
+      name: current.name,
+      nameEn: current.nameEn,
+      nameZh: current.nameZh,
+      shortName: current.shortName,
+      color: current.color,
+      slotColor: current.slotColor || current.color,
+    };
   };
   const backfillAppointmentSnapshots = () => {
     [onlineKey, manualKey].forEach((key) => {
@@ -192,10 +203,6 @@
     return { openMinutes: saved?.openMinutes ?? regularOpen, closeMinutes: Math.min(saved?.closeMinutes ?? regularClose, regularClose) };
   };
   const timeBlocksFor = (date, staffIndex) => readArray(timeBlocksKey).filter((block) => block.date === date && (staffIndex === undefined || block.staffIndex == null || block.staffIndex === staffIndex));
-  const selectedStaffIndex = () => {
-    const value = document.getElementById("availabilityStaff").value;
-    return value === "all" ? null : Number(value);
-  };
   const isPortraitSchedule = () => window.matchMedia("(orientation: portrait) and (max-width: 700px)").matches;
   const visibleStaffLimit = () => isPortraitSchedule() ? 2 : 4;
   const visibleStaffIndexes = () => {
@@ -205,6 +212,44 @@
     const selected = indexes.filter((index) => selectedVisibleStaffKeys.has(staffRecords[index].staffKey)).slice(0, limit);
     return selected.length ? selected : indexes.slice(0, Math.min(1, limit));
   };
+  const availabilityIsGlobal = () => isOwner() && showAllStaff;
+  const availabilityStaffIndexes = () => {
+    if (session?.role === "staff") return [sessionStaffIndex()].filter((index) => index >= 0);
+    if (availabilityIsGlobal()) return [];
+    return staffRecords.map((employee, index) => selectedVisibleStaffKeys.has(employee.staffKey) ? index : -1).filter((index) => index >= 0);
+  };
+  const staffViewAccountKey = () => session?.role === "staff" ? `staff:${session.staffKey}` : `role:${session?.role || "guest"}`;
+  const readStaffViews = () => {
+    try {
+      const value = JSON.parse(localStorage.getItem(staffViewKey) || "{}");
+      return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    } catch {
+      return {};
+    }
+  };
+  function restoreStaffView() {
+    const identity = staffViewAccountKey();
+    if (staffViewIdentity === identity) return;
+    const validKeys = new Set(staffRecords.map((employee) => employee.staffKey));
+    const saved = readStaffViews()[identity];
+    const savedKeys = Array.isArray(saved?.staffKeys) ? saved.staffKeys.filter((key) => validKeys.has(key)) : [];
+    if (saved && (saved.showAll === true || savedKeys.length)) {
+      showAllStaff = saved.showAll === true;
+      selectedVisibleStaffKeys = new Set(savedKeys);
+    } else if (session?.role === "staff") {
+      showAllStaff = false;
+      selectedVisibleStaffKeys = new Set(validKeys.has(session.staffKey) ? [session.staffKey] : []);
+    } else {
+      showAllStaff = true;
+      selectedVisibleStaffKeys = new Set();
+    }
+    staffViewIdentity = identity;
+  }
+  function saveStaffView() {
+    const views = readStaffViews();
+    views[staffViewAccountKey()] = { showAll: showAllStaff, staffKeys: [...selectedVisibleStaffKeys] };
+    try { localStorage.setItem(staffViewKey, JSON.stringify(views)); } catch { /* Keep the current in-memory view. */ }
+  }
   function renderStaffVisibilityOptions() {
     const limit = visibleStaffLimit();
     if (!showAllStaff && selectedVisibleStaffKeys.size > limit) {
@@ -228,8 +273,24 @@
   const occupiedInRange = (startMinutes, endMinutes, staffIndex = null) => dayEvents().some((item) => (staffIndex == null || item.staffIndex === staffIndex) && occupiedSlots(item).some((minute) => minute < endMinutes && minute + slotStep > startMinutes));
   const bookingStatus = (date) => {
     const { openMinutes, closeMinutes } = workingHours(date);
-    const occupied = new Set(dayEvents(date).flatMap(occupiedSlots).filter((minute) => minute >= openMinutes && minute < closeMinutes));
-    return { count: dayEvents(date).length, percent: closeMinutes > openMinutes ? Math.min(100, occupied.size / ((closeMinutes - openMinutes) / slotStep) * 100) : 0 };
+    const indexes = session?.role === "staff" ? [sessionStaffIndex()].filter((index) => index >= 0) : staffRecords.map((_, index) => index);
+    const occupied = new Set();
+    indexes.forEach((staffIndex) => {
+      const entries = allocate(dayEvents(date).filter((item) => item.staffIndex === staffIndex));
+      entries.forEach((item) => occupiedSlots(item)
+        .filter((minute) => minute >= openMinutes && minute < closeMinutes)
+        .forEach((minute) => occupied.add(`${staffIndex}:${item.previewLane}:${minute}`)));
+      timeBlocksFor(date, staffIndex).forEach((block) => {
+        for (let minute = block.startMinutes; minute < block.endMinutes; minute += slotStep) {
+          if (minute < openMinutes || minute >= closeMinutes) continue;
+          occupied.add(`${staffIndex}:0:${minute}`);
+          occupied.add(`${staffIndex}:1:${minute}`);
+        }
+      });
+    });
+    const slotCount = Math.max(0, (closeMinutes - openMinutes) / slotStep) * indexes.length * 2;
+    const count = dayEvents(date).filter((item) => indexes.includes(item.staffIndex)).length;
+    return { count, percent: slotCount ? Math.min(100, occupied.size / slotCount * 100) : 0 };
   };
   const shiftDate = (value, days) => { const date = parseDate(value); date.setDate(date.getDate() + days); return dateValue(date); };
   const nextMonday = (value) => {
@@ -297,7 +358,7 @@
       const day = parseDate(value);
       const outOfRange = value > lastSelectableDate();
       const status = outOfRange ? { count: 0, percent: 0 } : bookingStatus(value);
-      const blocked = isDayBlocked(value);
+      const blocked = isDayBlocked(value, session?.role === "staff" ? sessionStaffIndex() : undefined);
       const holiday = berlinHoliday(value);
       const closed = isDefaultClosed(value);
       const weekdayShort = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(day).replace(/\.$/, "");
@@ -366,22 +427,26 @@
       const canCancel = canManageStaff(Number.isInteger(item.staffIndex) ? item.staffIndex : 0);
       return `<article class="log-entry ${cancelled ? "cancelled" : ""}"><div class="log-actions">${cancelled || !canCancel ? "" : `<button class="cancel-log" type="button" data-cancel="${escapeHtml(item.id)}" aria-label="Buchung stornieren"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg><span>Stornieren</span></button>`}</div><div class="log-copy"><div class="log-primary"><strong>${escapeHtml(item.name || "Kunde")}</strong>${phone ? `<span class="log-phone">${escapeHtml(phone)}</span>` : ""}</div><span>${escapeHtml(serviceForItem(item)?.shortName || item.serviceId)} · ${escapeHtml(item.date)} · ${time(item.startMinutes)}</span></div></article>`;
     }).join("") : `<p class="empty-log">Noch keine Online-Buchungen.</p>`;
+    list.hidden = logCollapsed;
+    const collapseButton = document.getElementById("logCollapseButton");
+    collapseButton.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${logCollapsed ? "m6 9 6 6 6-6" : "m6 15 6-6 6 6"}"/></svg>`;
+    collapseButton.setAttribute("aria-expanded", String(!logCollapsed));
   }
 
   function renderAvailability() {
-    const scope = mutationStaffIndex();
+    const targets = availabilityStaffIndexes();
     const setting = daySettings()[selectedDate];
     const globalBlock = setting?.isBlockedDay === true || (setting?.isBlockedDay !== false && isDefaultClosed(selectedDate));
-    const blocked = scope == null ? isDayBlocked(selectedDate) : isDayBlocked(selectedDate, scope);
+    const blocked = availabilityIsGlobal() ? globalBlock : globalBlock || (targets.length > 0 && targets.every((index) => isDayBlocked(selectedDate, index)));
     const dayButton = document.getElementById("dayBlockButton");
-    dayButton.textContent = globalBlock && scope != null ? "Alle Mitarbeiter blockiert" : blocked ? "Tag freigeben" : "Tag blockieren";
-    dayButton.disabled = globalBlock && scope != null;
+    dayButton.textContent = globalBlock && !availabilityIsGlobal() ? "Alle Mitarbeiter blockiert" : blocked ? "Tag freigeben" : "Tag blockieren";
+    dayButton.disabled = globalBlock && !availabilityIsGlobal();
     document.getElementById("timeBlockToggle").disabled = blocked || close <= open;
     if (blocked) {
       document.getElementById("timeBlockFields").hidden = true;
       document.getElementById("timeBlockToggle").setAttribute("aria-expanded", "false");
     }
-    const blocks = readArray(timeBlocksKey).filter((block) => block.date === selectedDate && (scope == null ? block.staffIndex == null : block.staffIndex === scope)).sort((a, b) => a.startMinutes - b.startMinutes);
+    const blocks = readArray(timeBlocksKey).filter((block) => block.date === selectedDate && (availabilityIsGlobal() ? block.staffIndex == null : block.staffIndex == null || targets.includes(block.staffIndex))).sort((a, b) => a.startMinutes - b.startMinutes);
     document.getElementById("existingTimeBlocks").innerHTML = blocks.map((block) => `<div class="existing-block"><span>${time(block.startMinutes)}–${time(block.endMinutes)}</span><button type="button" data-unblock-time="${escapeHtml(block.id)}" aria-label="${time(block.startMinutes)} bis ${time(block.endMinutes)} freigeben">Freigeben</button></div>`).join("");
     const startSelect = document.getElementById("timeBlockStart");
     const endSelect = document.getElementById("timeBlockEnd");
@@ -485,7 +550,6 @@
     confirmDialog.showModal();
   }
 
-  fill(document.getElementById("availabilityStaff"), [["all", t("admin.allEmployees")], ...staff.map((name, index) => [index, name])]);
   const previewAccounts = await auth.listAccounts();
   fill(document.getElementById("previewAccount"), previewAccounts.map((account) => [account.id, `${account.email} · ${account.role === "admin" ? "Admin" : account.role === "owner" ? "Owner" : "Staff"}`]));
   document.getElementById("previewLoginForm").addEventListener("submit", async (event) => {
@@ -522,14 +586,22 @@
   });
   document.getElementById("showAllStaff").addEventListener("change", (event) => {
     showAllStaff = event.target.checked;
-    if (!showAllStaff && selectedVisibleStaffKeys.size === 0 && staffRecords[0]) selectedVisibleStaffKeys.add(staffRecords[0].staffKey);
+    if (!showAllStaff && selectedVisibleStaffKeys.size === 0) {
+      const defaultStaff = session?.role === "staff" ? staffRecords[sessionStaffIndex()] : staffRecords[0];
+      if (defaultStaff) selectedVisibleStaffKeys.add(defaultStaff.staffKey);
+    }
+    saveStaffView();
     render();
   });
   document.getElementById("visibleStaffOptions").addEventListener("change", (event) => {
     const input = event.target.closest('input[type="checkbox"]');
     if (!input) return;
+    const wasShowingAll = showAllStaff;
     showAllStaff = false;
-    if (input.checked) {
+    if (wasShowingAll) {
+      selectedVisibleStaffKeys = new Set([input.value]);
+      input.checked = true;
+    } else if (input.checked) {
       if (selectedVisibleStaffKeys.size >= visibleStaffLimit()) {
         input.checked = false;
         showToast(`In dieser Ansicht können maximal ${visibleStaffLimit()} Mitarbeiter angezeigt werden.`, "error");
@@ -542,24 +614,30 @@
         showToast("Mindestens ein Mitarbeiter muss sichtbar bleiben.", "error");
       }
     }
+    saveStaffView();
     render();
   });
-  document.getElementById("availabilityStaff").addEventListener("change", () => { closeAvailability(); render(); });
+  document.getElementById("logCollapseButton").addEventListener("click", () => {
+    logCollapsed = !logCollapsed;
+    renderLog();
+  });
   document.getElementById("dayBlockButton").addEventListener("click", () => {
-    const scope = mutationStaffIndex();
-    if (scope != null && (daySettings()[selectedDate]?.isBlockedDay === true || (daySettings()[selectedDate]?.isBlockedDay !== false && isDefaultClosed(selectedDate)))) return;
-    const nextBlocked = !(scope == null ? isDayBlocked(selectedDate) : isDayBlocked(selectedDate, scope));
-    if (nextBlocked && occupiedInRange(open, close, scope)) { closeAvailability(); showToast("Tag nicht blockiert: Für die Auswahl sind bereits belegte Zeiten vorhanden.", "error"); return; }
-    const scopeLabel = scope == null ? "alle Mitarbeiter" : staff[scope];
+    const targets = availabilityStaffIndexes();
+    const globalBlock = daySettings()[selectedDate]?.isBlockedDay === true || (daySettings()[selectedDate]?.isBlockedDay !== false && isDefaultClosed(selectedDate));
+    if (!availabilityIsGlobal() && globalBlock) return;
+    if (!availabilityIsGlobal() && targets.length === 0) { showToast("Bitte waehlen Sie in der Ansicht mindestens einen Mitarbeiter aus.", "error"); return; }
+    const nextBlocked = availabilityIsGlobal() ? !globalBlock : !targets.every((index) => isDayBlocked(selectedDate, index));
+    if (nextBlocked && (availabilityIsGlobal() ? occupiedInRange(open, close, null) : targets.some((index) => occupiedInRange(open, close, index)))) { closeAvailability(); showToast("Tag nicht blockiert: Für die Auswahl sind bereits belegte Zeiten vorhanden.", "error"); return; }
+    const scopeLabel = availabilityIsGlobal() ? "alle Mitarbeiter" : targets.map((index) => staff[index]).join(", ");
     confirmAction(nextBlocked ? "Tag blockieren?" : "Tag freigeben?", nextBlocked ? `Den Tag für ${scopeLabel} sperren?` : `Den Tag für ${scopeLabel} wieder freigeben?`, nextBlocked ? "Blockieren" : "Freigeben", () => {
-      if (scope == null) {
+      if (availabilityIsGlobal()) {
         const settings = daySettings();
         settings[selectedDate] = { ...settings[selectedDate], date: selectedDate, openMinutes: open, closeMinutes: close, isBlockedDay: nextBlocked };
         localStorage.setItem(settingsKey, JSON.stringify(settings));
         if (!nextBlocked) saveArray(staffDayBlocksKey, staffDayBlocks().filter((block) => block.date !== selectedDate));
       } else {
-        const blocks = staffDayBlocks().filter((block) => block.date !== selectedDate || block.staffIndex !== scope);
-        if (nextBlocked) blocks.push({ date: selectedDate, staffIndex: scope });
+        const blocks = staffDayBlocks().filter((block) => block.date !== selectedDate || !targets.includes(block.staffIndex));
+        if (nextBlocked) targets.forEach((staffIndex) => blocks.push({ date: selectedDate, staffIndex }));
         saveArray(staffDayBlocksKey, blocks);
       }
       closeAvailability();
@@ -577,16 +655,19 @@
     if (Number(end.value) <= start) end.value = String(start + slotStep);
   });
   document.getElementById("timeBlockAction").addEventListener("click", () => {
-    const scope = mutationStaffIndex();
+    const targets = availabilityStaffIndexes();
     const start = Number(document.getElementById("timeBlockStart").value);
     const end = Number(document.getElementById("timeBlockEnd").value);
     const hint = document.getElementById("timeBlockHint");
+    if (!availabilityIsGlobal() && targets.length === 0) { showToast("Bitte waehlen Sie in der Ansicht mindestens einen Mitarbeiter aus.", "error"); return; }
     if (end <= start) { hint.textContent = "Bitte eine gültige Zeitspanne wählen."; showToast(hint.textContent, "error"); return; }
-    if (timeBlocksFor(selectedDate, scope).some((block) => start < block.endMinutes && end > block.startMinutes)) { hint.textContent = "Die Zeitspanne ist bereits blockiert."; showToast(hint.textContent, "error"); return; }
-    if (occupiedInRange(start, end, scope)) { closeAvailability(); showToast("Uhrzeit nicht blockiert: Für die Auswahl sind bereits belegte Zeiten vorhanden.", "error"); return; }
-    const scopeLabel = scope == null ? "alle Mitarbeiter" : staff[scope];
+    const scopedBlocks = readArray(timeBlocksKey).filter((block) => block.date === selectedDate && (availabilityIsGlobal() ? block.staffIndex == null : block.staffIndex == null || targets.includes(block.staffIndex)));
+    if (scopedBlocks.some((block) => start < block.endMinutes && end > block.startMinutes)) { hint.textContent = "Die Zeitspanne ist bereits blockiert."; showToast(hint.textContent, "error"); return; }
+    if (availabilityIsGlobal() ? occupiedInRange(start, end, null) : targets.some((index) => occupiedInRange(start, end, index))) { closeAvailability(); showToast("Uhrzeit nicht blockiert: Für die Auswahl sind bereits belegte Zeiten vorhanden.", "error"); return; }
+    const scopeLabel = availabilityIsGlobal() ? "alle Mitarbeiter" : targets.map((index) => staff[index]).join(", ");
     confirmAction("Uhrzeit blockieren?", `${time(start)}–${time(end)} für ${scopeLabel} sperren?`, "Blockieren", () => {
-      saveArray(timeBlocksKey, [...readArray(timeBlocksKey), { id: crypto.randomUUID(), date: selectedDate, staffIndex: scope, startMinutes: start, endMinutes: end }]);
+      const scopes = availabilityIsGlobal() ? [null] : targets;
+      saveArray(timeBlocksKey, [...readArray(timeBlocksKey), ...scopes.map((staffIndex) => ({ id: crypto.randomUUID(), date: selectedDate, staffIndex, startMinutes: start, endMinutes: end }))]);
       closeAvailability();
       return { toast: `${time(start)}–${time(end)} wurde für ${scopeLabel} blockiert.` };
     });
@@ -707,7 +788,8 @@
     staffRecords = localRepository.listStaff(); staff = staffRecords.map((employee) => employee.shortName);
     const validKeys = new Set(staffRecords.map((employee) => employee.staffKey));
     selectedVisibleStaffKeys = new Set([...selectedVisibleStaffKeys].filter((key) => validKeys.has(key)));
-    fill(document.getElementById("availabilityStaff"), [["all", t("admin.allEmployees")], ...staff.map((name, index) => [index, name])]);
+    staffViewIdentity = null;
+    restoreStaffView();
     render();
   });
   localRepository.subscribe("shop-profile", applyShopProfile);

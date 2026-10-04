@@ -221,7 +221,7 @@ async function refreshServices() {
   try {
     state.services = await state.repository.listServices();
     const selected = state.services.find((service) => service.id === state.selectedServiceId);
-    if (!selected?.isActive) {
+    if (!selected?.isActive || selected.acceptsOnline === false) {
       state.selectedServiceId = requiresServiceSelection() ? "" : activeServices()[0]?.id || "";
     }
   } catch (error) {
@@ -236,8 +236,9 @@ async function refreshLaneLayout() {
     const layout = await state.repository.listLaneLayout();
     state.laneLayout = normalizeLaneLayout(layout);
   } catch (_error) {
-    state.laneLayout = createDefaultLaneLayout();
+    state.laneLayout = state.repository.requiresTurnstile ? [] : createDefaultLaneLayout();
   }
+  publishStaffOptions();
 }
 
 async function refreshStaffServices() {
@@ -249,7 +250,34 @@ async function refreshStaffServices() {
   } catch (_error) {
     state.staffServiceKeys = null;
   }
+  publishStaffOptions();
   renderServices();
+}
+
+function publishStaffOptions() {
+  const byStaff = new Map();
+  state.laneLayout.forEach((lane) => {
+    if (!byStaff.has(lane.staffKey)) {
+      byStaff.set(lane.staffKey, {
+        staffKey: lane.staffKey,
+        name: lane.staffName || lane.staffShortName || lane.staffKey,
+        shortName: lane.staffShortName || lane.staffName || lane.staffKey,
+        color: lane.staffColor || "#d7ef57",
+        serviceIds: [],
+      });
+    }
+  });
+  if (state.staffServiceKeys) {
+    byStaff.forEach((employee) => {
+      employee.serviceIds = state.services
+        .filter((service) => state.staffServiceKeys.has(`${employee.staffKey}:${service.id}`))
+        .map((service) => service.id);
+    });
+  }
+  const staff = [...byStaff.values()].filter((employee) => (
+    !state.staffServiceKeys || employee.serviceIds.length > 0
+  ));
+  window.dispatchEvent(new CustomEvent("openslot:staff-update", { detail: { staff } }));
 }
 
 async function refreshDateOptions() {
@@ -313,6 +341,15 @@ function renderSalonInfo() {
     const phone = state.salon.phone || "";
     els.salonPhone.textContent = phone;
     els.salonPhone.href = `tel:${normalizePhoneHref(phone)}`;
+  }
+  document.title = `${state.salon.name || t("salon.name")} · Termin buchen`;
+  document.documentElement.dataset.shopTheme = state.salon.theme_preset || "lime";
+  const languageSwitcher = document.querySelector(".language-switcher");
+  if (languageSwitcher && Array.isArray(state.salon.languages)) {
+    state.salon.languages.forEach((language) => {
+      const button = languageSwitcher.querySelector(`[data-language-option="${language}"]`);
+      if (button) languageSwitcher.append(button);
+    });
   }
 }
 
@@ -698,9 +735,11 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       let { data, error } = await client
         .from("services")
-        .select("id, name, name_en, name_zh, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, category_name_en, category_name_zh, slot_color")
+        .select("id, name, name_en, name_zh, short_name, duration_minutes, booked_slots, price, price_from, is_active, accepts_online_bookings, category, category_id, category_name_en, category_name_zh, slot_color, sort_order, service_categories!services_category_salon_fkey(id, name, name_en, name_zh, sort_order, is_active)")
         .eq("salon_id", salon.id)
         .eq("is_active", true)
+        .eq("accepts_online_bookings", true)
+        .order("sort_order", { ascending: true })
         .order("id", { ascending: true });
       if (error?.code === "42703") {
         ({ data, error } = await client
@@ -717,7 +756,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("staff_lanes")
-        .select("lane_key, sort_order, salon_staff!inner(staff_key, sort_order, is_active, accepts_online_bookings)")
+        .select("lane_key, sort_order, salon_staff!inner(staff_key, name, short_name, display_color, sort_order, is_active, accepts_online_bookings)")
         .eq("salon_id", salon.id)
         .eq("is_active", true)
         .eq("salon_staff.is_active", true)
@@ -728,6 +767,9 @@ function createSupabaseRepository(client) {
         laneKey: row.lane_key,
         laneSortOrder: Number(row.sort_order || 0),
         staffKey: row.salon_staff?.staff_key || "default",
+        staffName: row.salon_staff?.name || row.salon_staff?.short_name || "Mitarbeiter",
+        staffShortName: row.salon_staff?.short_name || row.salon_staff?.name || "M",
+        staffColor: row.salon_staff?.display_color || "#d7ef57",
         staffSortOrder: Number(row.salon_staff?.sort_order || 0),
       }));
     },
@@ -831,7 +873,7 @@ async function loadCurrentSalon(client) {
   const slug = getCurrentSalonSlug();
   const { data, error } = await client
     .from("salons")
-    .select("id, slug, name, address, phone, timezone, opening_hours")
+    .select("id, slug, name, address, phone, timezone, opening_hours, theme_preset, languages")
     .eq("slug", slug)
     .eq("is_active", true)
     .maybeSingle();
@@ -851,7 +893,7 @@ function createLocalRepository() {
   return {
     requiresTurnstile: false,
     async listServices() {
-      return loadLocalServices().filter((service) => service.isActive);
+      return loadLocalServices().filter((service) => service.isActive && service.acceptsOnline !== false);
     },
     async listLaneLayout() {
       const employees = window.OpenSlotLocalRepository?.listStaff?.()?.filter((employee) => employee.acceptsOnline) || [];
@@ -972,9 +1014,9 @@ function getSelectedService() {
 
 function activeServices() {
   return state.services
-    .filter((service) => service.isActive && serviceIsAvailableForSelection(service.id))
+    .filter((service) => service.isActive && service.acceptsOnline !== false && serviceIsAvailableForSelection(service.id))
     .slice()
-    .sort((a, b) => (getServiceSortIndex(a.id) - getServiceSortIndex(b.id)) || a.name.localeCompare(b.name));
+    .sort(compareServiceOrder);
 }
 
 function serviceIsAvailableForSelection(serviceId) {
@@ -986,8 +1028,12 @@ function serviceIsAvailableForSelection(serviceId) {
   return candidates.some((staffKey) => state.staffServiceKeys.has(`${staffKey}:${serviceId}`));
 }
 
-function getServiceSortIndex(id) {
-  return SERVICE_ORDER.get(stripSalonPrefix(id)) ?? 999;
+function compareServiceOrder(left, right) {
+  const leftCategory = Number.isFinite(left.categorySortOrder) ? left.categorySortOrder : 999;
+  const rightCategory = Number.isFinite(right.categorySortOrder) ? right.categorySortOrder : 999;
+  const leftService = Number.isFinite(left.sortOrder) ? left.sortOrder : SERVICE_ORDER.get(stripSalonPrefix(left.id)) ?? 999;
+  const rightService = Number.isFinite(right.sortOrder) ? right.sortOrder : SERVICE_ORDER.get(stripSalonPrefix(right.id)) ?? 999;
+  return (leftCategory - rightCategory) || (leftService - rightService) || left.name.localeCompare(right.name);
 }
 
 function hasOverlap(candidate, ranges) {
@@ -1064,18 +1110,25 @@ function createDefaultLaneLayout() {
     laneKey,
     laneSortOrder: (index % 2) + 1,
     staffKey: index < 2 ? "default" : "tony",
+    staffName: index < 2 ? "Linda" : "Tony",
+    staffShortName: index < 2 ? "L" : "T",
+    staffColor: index < 2 ? "#f8c7ff" : "#b8d9d0",
     staffSortOrder: index < 2 ? 1 : 2,
   }));
 }
 
 function normalizeLaneLayout(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) return createDefaultLaneLayout();
+  if (!Array.isArray(rows)) return createDefaultLaneLayout();
+  if (rows.length === 0) return [];
   return rows
     .filter((row) => row.laneKey)
     .map((row) => ({
       laneKey: String(row.laneKey).toLowerCase(),
       laneSortOrder: Number(row.laneSortOrder || 0),
       staffKey: row.staffKey || "default",
+      staffName: row.staffName || row.staffShortName || row.staffKey || "Mitarbeiter",
+      staffShortName: row.staffShortName || row.staffName || row.staffKey || "M",
+      staffColor: row.staffColor || "#d7ef57",
       staffSortOrder: Number(row.staffSortOrder || 0),
     }))
     .sort((left, right) => left.staffSortOrder - right.staffSortOrder || left.laneSortOrder - right.laneSortOrder);
@@ -1306,6 +1359,7 @@ function resetPageHorizontalScroll() {
 
 function fromSupabaseService(row) {
   const fallback = DEFAULT_SERVICES.find((service) => service.id === stripSalonPrefix(row.id));
+  const category = Array.isArray(row.service_categories) ? row.service_categories[0] : row.service_categories;
   return {
     id: row.id,
     name: row.name,
@@ -1318,10 +1372,15 @@ function fromSupabaseService(row) {
     priceFrom: Boolean(row.price_from),
     slotColor: row.slot_color || "",
     category: row.category || fallback?.category || "care",
-    categoryNameEn: row.category_name_en || "",
-    categoryNameZh: row.category_name_zh || "",
+    categoryId: row.category_id || category?.id || null,
+    categoryName: category?.name || row.category,
+    categoryNameEn: category?.name_en || row.category_name_en || "",
+    categoryNameZh: category?.name_zh || row.category_name_zh || "",
+    categorySortOrder: Number.isFinite(Number(category?.sort_order)) ? Number(category.sort_order) : 999,
+    sortOrder: Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : undefined,
     gender: fallback?.gender || row.gender || "unisex",
     isActive: row.is_active,
+    acceptsOnline: row.accepts_online_bookings !== false,
   };
 }
 

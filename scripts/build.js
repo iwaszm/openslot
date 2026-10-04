@@ -41,10 +41,12 @@ copyFile(path.join("home", "assets", "icons", "favicon.ico"), "favicon.ico");
 for (const dir of ["datenschutz", "stornierung", "lisa", "demo"]) {
   copyDir(dir);
 }
+copyDir("shared");
 copyDir(path.join("home", "assets"), path.join("assets", "home"));
 replaceTurnstileSiteKeys(dist);
 stampAdminAssetUrls();
 stampCustomerAssetUrls();
+stampSettingsAssetUrls();
 
 writeFile(
   "config.js",
@@ -67,8 +69,10 @@ writeFile(
   "_redirects",
   `/lisa /lisa/index.html 200
 /lisa/admin /lisa/admin/index.html 200
+/lisa/settings /lisa/settings/index.html 200
 /demo /demo/index.html 200
 /demo/admin /demo/admin/index.html 200
+/demo/settings /demo/settings/index.html 200
 /liyong /demo 301
 /liyong/admin /demo/admin 301
 /stornierung /stornierung/index.html 200
@@ -98,11 +102,11 @@ function stampAdminAssetUrls() {
     const file = path.join(dist, salon, "admin", "index.html");
     const html = fs.readFileSync(file, "utf8");
     let count = 0;
-    const updated = html.replace(/((?:src|href)=")(\.\.\/\.\.\/(?:config\.js|admin\.js|styles\.css)|\.\/(?:pwa\.js|pwa\.css|push\.js))(?:\?v=[^"]+)?"/g, (_match, prefix, asset) => {
+    const updated = html.replace(/((?:src|href)=")(\.\.\/\.\.\/(?:config\.js|admin\.js|styles\.css|shared\/(?:settings-theme-presets\.css|admin-ui\.css))|\.\/(?:pwa\.js|pwa\.css|push\.js))(?:\?v=[^"]+)?"/g, (_match, prefix, asset) => {
       count += 1;
       return `${prefix}${asset}?v=${buildId}"`;
     });
-    const expectedCount = 5;
+    const expectedCount = 7;
     if (count !== expectedCount) throw new Error(`Expected ${expectedCount} admin assets in ${file}, found ${count}`);
     fs.writeFileSync(file, updated, "utf8");
   }
@@ -113,11 +117,25 @@ function stampCustomerAssetUrls() {
     const file = path.join(dist, salon, "index.html");
     const html = fs.readFileSync(file, "utf8");
     let count = 0;
-    const updated = html.replace(/((?:src|href)="\.\.\/(?:customer\.js|booking-theme\.css|booking-theme\.js))(?:\?v=[^"]+)?"/g, (_match, asset) => {
+    const updated = html.replace(/((?:src|href)="\.\.\/(?:customer\.js|booking-theme\.css|booking-theme\.js|shared\/settings-theme-presets\.css))(?:\?v=[^"]+)?"/g, (_match, asset) => {
       count += 1;
       return `${asset}?v=${buildId}"`;
     });
-    if (count !== 3) throw new Error(`Expected three booking assets in ${file}, found ${count}`);
+    if (count !== 4) throw new Error(`Expected four booking assets in ${file}, found ${count}`);
+    fs.writeFileSync(file, updated, "utf8");
+  }
+}
+
+function stampSettingsAssetUrls() {
+  for (const salon of ["lisa", "demo"]) {
+    const file = path.join(dist, salon, "settings", "index.html");
+    const html = fs.readFileSync(file, "utf8");
+    let count = 0;
+    const updated = html.replace(/((?:src|href)="\.\.\/\.\.\/(?:config\.js|shared\/(?:settings-theme-presets\.css|settings-ui\.css|repository-contract\.js|settings-repository\.js|settings-ui\.js)))(?:\?v=[^"]+)?"/g, (_match, asset) => {
+      count += 1;
+      return `${asset}?v=${buildId}"`;
+    });
+    if (count !== 6) throw new Error(`Expected six settings assets in ${file}, found ${count}`);
     fs.writeFileSync(file, updated, "utf8");
   }
 }

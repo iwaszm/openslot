@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Berlin Hair Salon · Einstellungen</title>
-  <link rel="stylesheet" href="./theme.css?v=20261003-lisa-pink-1">
-  <link rel="stylesheet" href="./settings-theme.css?v=20261004-service-status-1">
+  <title>OpenSlot · Einstellungen</title>
+  <link rel="stylesheet" href="../../shared/settings-theme-presets.css?v=20261003-lisa-pink-1">
+  <link rel="stylesheet" href="../../shared/settings-ui.css?v=20261004-service-status-1">
 </head>
-<body class="theme-preview settings-page">
+<body class="theme-preview settings-page" data-salon-slug="lisa">
   <main id="settingsMain" hidden>
     <div class="settings-utility">
-      <a class="settings-back" href="./admin.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>Zur Verwaltung</span></a>
+      <a class="settings-back" href="../admin/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>Zur Verwaltung</span></a>
       <span id="settingsReadOnlyBadge" class="settings-readonly-badge" hidden>Nur lesen</span>
     </div>
     <nav class="settings-tabs" aria-label="Einstellungsbereiche">
@@ -36,9 +36,7 @@
         <form id="accountPasswordForm" class="service-editor account-editor">
           <div class="editor-heading"><h3>Passwort ändern</h3></div>
           <div class="editor-grid password-grid">
-            <label class="wide">Aktuelles Passwort<input id="currentPassword" type="password" minlength="8" required autocomplete="current-password"></label>
-            <label>Neues Passwort<input id="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>
-            <label>Neues Passwort bestätigen<input id="confirmPassword" type="password" minlength="8" required autocomplete="new-password"></label>
+            <label class="wide">Neues Passwort<input id="newPassword" type="password" minlength="8" required autocomplete="new-password"></label>
           </div>
           <div class="editor-actions"><span></span><button type="button" id="resetPasswordForm">Leeren</button><button class="primary-command" type="submit">Passwort ändern</button></div>
         </form>
@@ -82,7 +80,7 @@
           </div>
           <div class="editor-grid">
             <label>Name<input id="serviceName" maxlength="50" required></label>
-            <label>Kurzname (back-end)<input id="serviceShortName" maxlength="12" required></label>
+            <label>Kurzname (max. 12 Zeichen)<input id="serviceShortName" maxlength="12" required></label>
             <label><span id="serviceNameSecondLabel">Name (English)</span><input id="serviceNameEn" maxlength="50"></label>
             <label><span id="serviceNameThirdLabel">Name (中文)</span><input id="serviceNameZh" maxlength="50"></label>
             <label class="color-field">Terminfarbe<input id="serviceColor" type="color" value="#dfeee8"></label>
@@ -92,7 +90,7 @@
           </div>
           <fieldset class="occupied-settings"><legend>Belegte Zeit</legend><p>Jedes Feld entspricht einem Slot von 30 Minuten.</p><div id="occupiedSlotOptions"></div></fieldset>
           <p id="serviceFormMessage" class="settings-message" role="status"></p>
-          <div class="editor-actions"><button class="delete-command" type="button" id="deleteService" hidden>Löschen</button><span></span><button type="button" id="cancelServiceEdit">Verwerfen</button><button class="primary-command" type="submit">Speichern</button></div>
+          <div class="editor-actions"><span></span><button type="button" id="cancelServiceEdit">Verwerfen</button><button class="primary-command" type="submit">Speichern</button></div>
         </form>
         <form id="categorySettingsForm" class="service-editor" hidden>
           <input id="categoryId" type="hidden">
@@ -106,7 +104,7 @@
             <input id="categorySortOrder" type="hidden">
           </div>
           <p id="categoryFormMessage" class="settings-message" role="status"></p>
-          <div class="editor-actions"><button class="delete-command" type="button" id="deleteCategory" hidden>Löschen</button><span></span><button type="button" id="cancelCategoryEdit">Verwerfen</button><button class="primary-command" type="submit">Speichern</button></div>
+          <div class="editor-actions"><span></span><button type="button" id="cancelCategoryEdit">Verwerfen</button><button class="primary-command" type="submit">Speichern</button></div>
         </form>
       </dialog>
     </section>
@@ -118,30 +116,19 @@
         <form id="staffEditorForm" class="service-editor">
           <input id="staffKey" type="hidden">
           <div class="editor-heading"><h3 id="staffEditorTitle">Mitarbeiter bearbeiten</h3><div class="editor-heading-actions"><label class="status-switch"><span id="staffState">Aktiv</span><input id="staffActive" type="checkbox"><i aria-hidden="true"></i></label><button class="catalog-dialog-close" type="button" data-close-staff aria-label="Schließen">&times;</button></div></div>
-          <div class="editor-grid">
-            <label>Name<input id="staffName" maxlength="50" required></label>
-            <label>Kurzname (back-end)<input id="staffShortName" maxlength="12" required></label>
-            <label class="color-field">Vertreterfarbe<input id="staffColor" type="color" value="#d7ef57"></label>
-            <label class="online-booking-switch"><span>Online-Buchungen</span><span class="status-switch"><span id="staffOnlineState">An</span><input id="staffAcceptsOnline" type="checkbox"><i aria-hidden="true"></i></span></label>
-            <label class="check-row owner-staff-row"><input id="staffIsOwner" type="checkbox"><span>Inhaber arbeitet als Mitarbeiter</span></label>
-          </div>
-          <fieldset class="staff-settings"><legend>Services</legend><div id="staffServiceOptions"></div></fieldset>
-          <p id="staffMessage" class="settings-message" role="status"></p>
+          <div class="editor-grid"><label>Name<input id="staffName" maxlength="50" required></label><label>Kurzname (back-end)<input id="staffShortName" maxlength="12" required></label><label class="color-field">Vertreterfarbe<input id="staffColor" type="color" value="#d7ef57"></label><label class="online-booking-switch"><span>Online-Buchungen</span><span class="status-switch"><span id="staffOnlineState">An</span><input id="staffAcceptsOnline" type="checkbox"><i aria-hidden="true"></i></span></label></div>
+          <fieldset class="staff-settings"><legend>Services</legend><div id="staffServiceOptions"></div></fieldset><p id="staffMessage" class="settings-message" role="status"></p>
           <div class="editor-actions"><span></span><button type="button" id="cancelStaffEdit">Verwerfen</button><button class="primary-command" type="submit">Speichern</button></div>
         </form>
       </dialog>
     </section>
   </main>
-  <section id="settingsDenied" class="settings-denied" hidden><h2>Bitte anmelden</h2><p>Die Einstellungen sind nur mit einem lokalen Testkonto verfügbar.</p><a href="./admin.html">Zur Anmeldung</a></section>
+  <section id="settingsDenied" class="settings-denied" hidden><h2>Bitte anmelden</h2><p>Die Einstellungen sind nur nach der Anmeldung verfügbar.</p><a href="../admin/">Zur Anmeldung</a></section>
   <div id="settingsToast" class="settings-toast" role="status" hidden></div>
-  <dialog id="deleteDialog" class="settings-dialog"><form method="dialog"><h2 id="deleteDialogTitle">Löschen?</h2><p id="deleteDialogText"></p><div><button value="cancel">Abbrechen</button><button id="confirmDelete" class="delete-command" value="confirm">Löschen</button></div></form></dialog>
-  <script src="./local-config.js?v=20260927-hours1"></script>
-  <script src="./local-repository.js?v=20261004-category-status-1"></script>
-  <script src="./local-auth-repository.js?v=20261002-staff3-login1"></script>
-  <script src="./settings-catalog.js?v=20261004-category-status-1"></script>
-  <script src="./settings-hours.js?v=20261001-mobile-tabs1"></script>
-  <script src="./settings-staff.js?v=20261004-service-status-1"></script>
-  <script src="./settings-profile.js?v=20261003-theme-preview-1"></script>
-  <script src="./settings-account.js?v=20261002-email-identity1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../config.js"></script>
+  <script src="../../shared/repository-contract.js"></script>
+  <script src="../../shared/settings-repository.js?v=20261004-category-status-1"></script>
+  <script src="../../shared/settings-ui.js?v=20261004-category-status-1"></script>
 </body>
 </html>
