@@ -30,9 +30,10 @@
   let suppressClick = false;
   let pendingDelete = null;
   let draftOrder = null;
+  const t = (key, values) => window.OpenSlotBackofficeI18n?.t(key, values) || key;
 
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-  const onlineIcon = () => `<span class="online-status-icon" aria-label="Online" title="Online"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>`;
+  const onlineIcon = () => `<span class="online-status-icon" aria-label="${escapeHtml(t("common.online"))}" title="${escapeHtml(t("common.online"))}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>`;
   const slug = (value) => String(value).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 36) || "item";
   const services = () => repository.listServices({ includeInactive: true });
   const categories = () => repository.listCategories({ includeInactive: true });
@@ -71,7 +72,7 @@
     main.addEventListener("submit", (event) => {
       if (!event.target.closest(".owner-settings")) return;
       event.preventDefault();
-      showToast("Dieser Bereich ist für Staff nur lesbar.", "error");
+      showToast(t("settings.staffReadOnly"), "error");
     }, true);
     main.addEventListener("dragstart", (event) => {
       if (event.target.closest(".owner-settings")) event.preventDefault();
@@ -80,7 +81,7 @@
 
   duration.innerHTML = Array.from({ length: 16 }, (_, index) => {
     const minutes = (index + 1) * 30;
-    return `<option value="${minutes}">${minutes} Min.</option>`;
+    return `<option value="${minutes}">${escapeHtml(t("settings.minutes", { count: minutes }))}</option>`;
   }).join("");
 
   function renderTree() {
@@ -96,13 +97,13 @@
       const children = childIds.map((id) => serviceMap.get(id)).filter(Boolean);
       return `<section class="catalog-category ${category.isActive ? "" : "inactive"}" data-category-id="${escapeHtml(category.id)}">
         <button class="catalog-entry category-entry ${selectedType === "category" && selectedId === category.id ? "selected" : ""}" type="button" draggable="true" data-drag-type="category" data-item-id="${escapeHtml(category.id)}" data-edit-type="category">
-          <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="catalog-copy"><strong>${escapeHtml(category.shortName)}</strong><small>${escapeHtml(category.name)} · ${children.length} Services</small></span>${category.acceptsOnline ? onlineIcon() : ""}
+          <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="catalog-copy"><strong>${escapeHtml(category.shortName)}</strong><small>${escapeHtml(category.name)} · ${escapeHtml(t("settings.children", { count: children.length }))}</small></span>${category.acceptsOnline ? onlineIcon() : ""}
         </button>
         <div class="catalog-services" data-category-services="${escapeHtml(category.id)}">
           ${children.map((service) => `<button class="catalog-entry service-entry ${service.isActive ? "" : "inactive"} ${selectedType === "service" && selectedId === service.id ? "selected" : ""}" type="button" draggable="true" data-drag-type="service" data-item-id="${escapeHtml(service.id)}" data-edit-type="service">
-            <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="service-color-chip" style="--service-color:${escapeHtml(service.color || "#dfeee8")}" aria-hidden="true"></span><span class="catalog-copy"><strong>${escapeHtml(service.shortName)}</strong><small>${escapeHtml(service.name)} · ${service.duration} Min. · ${service.priceFrom ? "ab " : ""}${Number(service.price).toFixed(0)} €</small></span>${service.acceptsOnline ? onlineIcon() : ""}
+            <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="service-color-chip" style="--service-color:${escapeHtml(service.color || "#dfeee8")}" aria-hidden="true"></span><span class="catalog-copy"><strong>${escapeHtml(service.shortName)}</strong><small>${escapeHtml(service.name)} · ${escapeHtml(t("settings.minutes", { count: service.duration }))} · ${service.priceFrom ? escapeHtml(t("settings.priceFromPrefix")) : ""}${Number(service.price).toFixed(0)} €</small></span>${service.acceptsOnline ? onlineIcon() : ""}
           </button>`).join("")}
-          <div class="catalog-drop-end" data-drop-category="${escapeHtml(category.id)}" aria-hidden="true"><span>Am Ende ablegen</span></div>
+          <div class="catalog-drop-end" data-drop-category="${escapeHtml(category.id)}" aria-hidden="true"><span>${escapeHtml(t("settings.dropAtEnd"))}</span></div>
         </div>
       </section>`;
     }).join("");
@@ -127,7 +128,7 @@
   function editService(id) {
     const service = services().find((item) => item.id === id); if (!service) return;
     selectedType = "service"; selectedId = service.id; showEditor("service");
-    document.getElementById("serviceEditorTitle").textContent = "Service bearbeiten";
+    document.getElementById("serviceEditorTitle").textContent = t("settings.editService");
     document.getElementById("serviceId").value = service.id;
     const [first, second, third] = repository.getShopProfile().languages;
     document.getElementById("serviceName").value = service[translatedProperty(first)] || service.name;
@@ -139,16 +140,16 @@
     document.getElementById("servicePriceFrom").checked = service.priceFrom;
     document.getElementById("serviceColor").value = service.color || "#dfeee8";
     document.getElementById("serviceActive").checked = service.isActive;
-    document.getElementById("serviceState").textContent = service.isActive ? "Aktiv" : "Inaktiv";
+    document.getElementById("serviceState").textContent = service.isActive ? t("common.active") : t("common.inactive");
     document.getElementById("serviceAcceptsOnline").checked = service.acceptsOnline;
-    document.getElementById("serviceOnlineState").textContent = service.acceptsOnline ? "An" : "Aus";
+    document.getElementById("serviceOnlineState").textContent = service.acceptsOnline ? t("common.on") : t("common.off");
     document.getElementById("deleteService").hidden = !repository.canDeleteService(service.id);
     serviceMessage.textContent = ""; renderOccupiedSlots(service.bookedSlots); renderTree();
   }
   function editCategory(id) {
     const category = categories().find((item) => item.id === id); if (!category) return;
     selectedType = "category"; selectedId = category.id; showEditor("category");
-    document.getElementById("categoryEditorTitle").textContent = "Kategorie bearbeiten";
+    document.getElementById("categoryEditorTitle").textContent = t("settings.editCategory");
     document.getElementById("categoryId").value = category.id;
     const [first, second, third] = repository.getShopProfile().languages;
     document.getElementById("categoryName").value = category[translatedProperty(first)] || category.name;
@@ -157,9 +158,9 @@
     document.getElementById("categoryNameZh").value = category[translatedProperty(third)] || "";
     document.getElementById("categorySortOrder").value = String(category.sortOrder);
     document.getElementById("categoryActive").checked = category.isActive;
-    document.getElementById("categoryState").textContent = category.isActive ? "Aktiv" : "Inaktiv";
+    document.getElementById("categoryState").textContent = category.isActive ? t("common.active") : t("common.inactive");
     document.getElementById("categoryAcceptsOnline").checked = category.acceptsOnline;
-    document.getElementById("categoryOnlineState").textContent = category.acceptsOnline ? "An" : "Aus";
+    document.getElementById("categoryOnlineState").textContent = category.acceptsOnline ? t("common.on") : t("common.off");
     document.getElementById("deleteCategory").hidden = !repository.canDeleteCategory(category.id);
     categoryMessage.textContent = ""; renderTree();
   }
@@ -167,21 +168,21 @@
     const previousService = selectedType === "service" ? services().find((item) => item.id === selectedId) : null;
     const targetCategory = selectedType === "category" ? selectedId : previousService?.category;
     selectedType = "service"; selectedId = ""; showEditor("service"); serviceForm.reset();
-    document.getElementById("serviceId").value = ""; document.getElementById("serviceEditorTitle").textContent = "Neuer Service";
+    document.getElementById("serviceId").value = ""; document.getElementById("serviceEditorTitle").textContent = t("settings.newService");
     const category = targetCategory || categories().find((item) => item.isActive)?.id;
     duration.value = "30"; setServiceCategory(category);
     document.getElementById("serviceColor").value = services().find((service) => service.category === category)?.color || "#dfeee8";
-    document.getElementById("serviceActive").checked = true; document.getElementById("serviceState").textContent = "Aktiv";
-    document.getElementById("serviceAcceptsOnline").checked = true; document.getElementById("serviceOnlineState").textContent = "An";
+    document.getElementById("serviceActive").checked = true; document.getElementById("serviceState").textContent = t("common.active");
+    document.getElementById("serviceAcceptsOnline").checked = true; document.getElementById("serviceOnlineState").textContent = t("common.on");
     document.getElementById("deleteService").hidden = true;
     renderOccupiedSlots([1]); renderTree(); document.getElementById("serviceName").focus();
   }
   function newCategory() {
     selectedType = "category"; selectedId = ""; showEditor("category"); categoryForm.reset();
-    document.getElementById("categoryId").value = ""; document.getElementById("categoryEditorTitle").textContent = "Neue Kategorie";
+    document.getElementById("categoryId").value = ""; document.getElementById("categoryEditorTitle").textContent = t("settings.newCategory");
     document.getElementById("categorySortOrder").value = String(categories().length + 1);
-    document.getElementById("categoryActive").checked = true; document.getElementById("categoryState").textContent = "Aktiv";
-    document.getElementById("categoryAcceptsOnline").checked = true; document.getElementById("categoryOnlineState").textContent = "An";
+    document.getElementById("categoryActive").checked = true; document.getElementById("categoryState").textContent = t("common.active");
+    document.getElementById("categoryAcceptsOnline").checked = true; document.getElementById("categoryOnlineState").textContent = t("common.on");
     document.getElementById("deleteCategory").hidden = true;
     renderTree(); document.getElementById("categoryName").focus();
   }
@@ -251,19 +252,19 @@
     draftOrder = null;
     saveOrderButton.disabled = true;
     renderTree();
-    showToast("Reihenfolge wurde lokal gespeichert.");
+    showToast(t("settings.orderSaved"));
   });
   document.querySelectorAll("[data-close-catalog]").forEach((button) => button.addEventListener("click", closeEditor));
-  document.getElementById("cancelServiceEdit").addEventListener("click", () => { closeEditor(); showToast("Nicht gespeicherte Änderungen wurden verworfen."); });
-  document.getElementById("cancelCategoryEdit").addEventListener("click", () => { closeEditor(); showToast("Nicht gespeicherte Änderungen wurden verworfen."); });
+  document.getElementById("cancelServiceEdit").addEventListener("click", () => { closeEditor(); showToast(t("settings.discarded")); });
+  document.getElementById("cancelCategoryEdit").addEventListener("click", () => { closeEditor(); showToast(t("settings.discarded")); });
   duration.addEventListener("change", () => {
     const checked = [...serviceForm.querySelectorAll('[name="occupiedSlot"]:checked')].map((input) => Number(input.value));
     renderOccupiedSlots(checked.filter((slot) => slot <= Number(duration.value) / 30));
   });
-  document.getElementById("serviceActive").addEventListener("change", (event) => { document.getElementById("serviceState").textContent = event.target.checked ? "Aktiv" : "Inaktiv"; });
-  document.getElementById("serviceAcceptsOnline").addEventListener("change", (event) => { document.getElementById("serviceOnlineState").textContent = event.target.checked ? "An" : "Aus"; });
-  document.getElementById("categoryActive").addEventListener("change", (event) => { document.getElementById("categoryState").textContent = event.target.checked ? "Aktiv" : "Inaktiv"; });
-  document.getElementById("categoryAcceptsOnline").addEventListener("change", (event) => { document.getElementById("categoryOnlineState").textContent = event.target.checked ? "An" : "Aus"; });
+  document.getElementById("serviceActive").addEventListener("change", (event) => { document.getElementById("serviceState").textContent = event.target.checked ? t("common.active") : t("common.inactive"); });
+  document.getElementById("serviceAcceptsOnline").addEventListener("change", (event) => { document.getElementById("serviceOnlineState").textContent = event.target.checked ? t("common.on") : t("common.off"); });
+  document.getElementById("categoryActive").addEventListener("change", (event) => { document.getElementById("categoryState").textContent = event.target.checked ? t("common.active") : t("common.inactive"); });
+  document.getElementById("categoryAcceptsOnline").addEventListener("change", (event) => { document.getElementById("categoryOnlineState").textContent = event.target.checked ? t("common.on") : t("common.off"); });
 
   function requestDelete(type) {
     const item = type === "service" ? services().find((entry) => entry.id === selectedId) : categories().find((entry) => entry.id === selectedId);
@@ -302,7 +303,7 @@
     names[translatedProperty(third)] = document.getElementById("serviceNameZh").value.trim();
     if (!names.name) names.name = name;
     const saved = repository.saveService({ id, ...names, shortName, color: document.getElementById("serviceColor").value, category, sortOrder: existing?.sortOrder || services().filter((item) => item.category === category).length + 1, gender: "unisex", duration: Number(duration.value), bookedSlots, price: Number(document.getElementById("servicePrice").value), priceFrom: document.getElementById("servicePriceFrom").checked, isActive: document.getElementById("serviceActive").checked, acceptsOnline: document.getElementById("serviceAcceptsOnline").checked });
-    selectedType = "service"; selectedId = saved.id; renderTree(); closeEditor(); showToast(`${saved.name} wurde lokal gespeichert.`);
+    selectedType = "service"; selectedId = saved.id; renderTree(); closeEditor(); showToast(t("settings.itemSavedLocal", { name: saved.name }));
   });
   categoryForm.addEventListener("submit", (event) => {
     event.preventDefault(); const name = document.getElementById("categoryName").value.trim(); const shortName = document.getElementById("categoryShortName").value.trim();
@@ -317,7 +318,7 @@
     names[translatedProperty(third)] = document.getElementById("categoryNameZh").value.trim();
     if (!names.name) names.name = name;
     const saved = repository.saveCategory({ id, ...names, shortName, sortOrder: Number(document.getElementById("categorySortOrder").value), isActive: document.getElementById("categoryActive").checked, acceptsOnline: document.getElementById("categoryAcceptsOnline").checked });
-    selectedType = "category"; selectedId = saved.id; renderTree(); closeEditor(); showToast(`${saved.name} wurde lokal gespeichert.`);
+    selectedType = "category"; selectedId = saved.id; renderTree(); closeEditor(); showToast(t("settings.itemSavedLocal", { name: saved.name }));
   });
 
   repository.subscribe("services", () => {
@@ -333,6 +334,15 @@
   });
   repository.subscribe("shop-profile", () => {
     updateLanguageLabels();
+    if (editorDialog.open && selectedType === "service" && selectedId) editService(selectedId);
+    if (editorDialog.open && selectedType === "category" && selectedId) editCategory(selectedId);
+  });
+  window.addEventListener("openslot:backoffice-language-change", () => {
+    duration.innerHTML = Array.from({ length: 16 }, (_, index) => {
+      const minutes = (index + 1) * 30;
+      return `<option value="${minutes}">${escapeHtml(t("settings.minutes", { count: minutes }))}</option>`;
+    }).join("");
+    renderTree();
     if (editorDialog.open && selectedType === "service" && selectedId) editService(selectedId);
     if (editorDialog.open && selectedType === "category" && selectedId) editCategory(selectedId);
   });

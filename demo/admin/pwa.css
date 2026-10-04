@@ -254,7 +254,7 @@ body.production-admin { margin: 0; background: #fff; color: #191b19; font-family
 .toast-message { flex: 1; min-width: 0; }
 .toast-close { width: 28px; height: 28px; flex: none; }
 .toast-close svg { width: 15px; height: 15px; }
-.production-admin ::selection { background: #e4ff43; color: #191b19; }
+.production-admin ::selection { background: var(--shop-accent, #e4ff43); color: #191b19; }
 .production-admin :focus-visible { outline: 2px solid #191b19; outline-offset: 2px; }
 
 @media (max-width:700px) {

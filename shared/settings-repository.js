@@ -85,6 +85,7 @@
         phone: data?.salon?.phone || "",
         timezone: data?.salon?.timezone || "Europe/Berlin",
         themePreset: data?.salon?.theme_preset || "lime",
+        adminLanguage: data?.salon?.admin_language || "de",
         languages: data?.salon?.languages || ["de", "en", "zh"],
       },
       categories: categories.sort((left, right) => left.sortOrder - right.sortOrder),
@@ -137,6 +138,7 @@
         p_address: input.address,
         p_phone: input.phone,
         p_theme_preset: input.themePreset,
+        p_admin_language: input.adminLanguage,
         p_languages: input.languages,
       });
       return reload();

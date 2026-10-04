@@ -51,6 +51,7 @@
           <label class="wide">Name<input id="profileName" maxlength="80" required></label>
           <label class="wide">Adresse<input id="profileAddress" maxlength="120" required></label>
           <label>Telefon<input id="profilePhone" type="tel" maxlength="30" required></label>
+          <label>Backend-Sprache<select id="profileAdminLanguage"><option value="de">Deutsch</option><option value="en">English</option><option value="zh">中文</option></select></label>
           <fieldset class="theme-picker wide"><legend>Thema</legend><div class="theme-options"><label><input type="radio" name="profileTheme" value="lime"><span class="theme-swatch theme-swatch-lime"></span><strong>Signalgrün</strong></label><label><input type="radio" name="profileTheme" value="pink"><span class="theme-swatch theme-swatch-pink"></span><strong>Leuchtrosa</strong></label><label><input type="radio" name="profileTheme" value="glacier"><span class="theme-swatch theme-swatch-glacier"></span><strong>Gletscherblau</strong></label></div></fieldset>
         </div>
         <p id="profileMessage" class="settings-message" role="status"></p>
@@ -136,12 +137,14 @@
   <div id="settingsToast" class="settings-toast" role="status" hidden></div>
   <dialog id="deleteDialog" class="settings-dialog"><form method="dialog"><h2 id="deleteDialogTitle">Löschen?</h2><p id="deleteDialogText"></p><div><button value="cancel">Abbrechen</button><button id="confirmDelete" class="delete-command" value="confirm">Löschen</button></div></form></dialog>
   <script src="./local-config.js?v=20260927-hours1"></script>
-  <script src="./local-repository.js?v=20261004-category-status-1"></script>
+  <script src="../i18n.js?v=20261004-backoffice-language-1"></script>
+  <script src="../shared/backoffice-i18n.js?v=20261004-backoffice-language-1"></script>
+  <script src="./local-repository.js?v=20261004-backoffice-language-1"></script>
   <script src="./local-auth-repository.js?v=20261002-staff3-login1"></script>
-  <script src="./settings-catalog.js?v=20261004-category-status-1"></script>
-  <script src="./settings-hours.js?v=20261001-mobile-tabs1"></script>
-  <script src="./settings-staff.js?v=20261004-service-status-1"></script>
-  <script src="./settings-profile.js?v=20261003-theme-preview-1"></script>
-  <script src="./settings-account.js?v=20261002-email-identity1"></script>
+  <script src="./settings-catalog.js?v=20261004-backoffice-language-1"></script>
+  <script src="./settings-hours.js?v=20261004-backoffice-language-1"></script>
+  <script src="./settings-staff.js?v=20261004-backoffice-language-1"></script>
+  <script src="./settings-profile.js?v=20261004-backoffice-language-1"></script>
+  <script src="./settings-account.js?v=20261004-backoffice-language-1"></script>
 </body>
 </html>

@@ -8,7 +8,8 @@
   const list = document.getElementById("hoursList");
   const message = document.getElementById("hoursMessage");
   const showToast = (text) => window.OpenSlotSettingsToast?.(text);
-  const dayNames = new Map([[1, "Montag"], [2, "Dienstag"], [3, "Mittwoch"], [4, "Donnerstag"], [5, "Freitag"], [6, "Samstag"], [0, "Sonntag"]]);
+  const t = (key, values) => window.OpenSlotBackofficeI18n?.t(key, values) || key;
+  const dayName = (day) => t(`weekday.${day === 0 ? 7 : day}`);
   const pad = (value) => String(value).padStart(2, "0");
   const formatTime = (minutes) => `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
   const options = (selected) => Array.from({ length: 33 }, (_, index) => 7 * 60 + index * 30)
@@ -16,10 +17,10 @@
 
   function render() {
     list.innerHTML = repository.listOpeningHours().map((row) => `<div class="hours-row ${row.isOpen ? "" : "closed"}" data-day="${row.day}">
-      <strong>${dayNames.get(row.day)}</strong>
-      <label class="status-switch hours-switch"><span>${row.isOpen ? "Geöffnet" : "Geschlossen"}</span><input type="checkbox" name="isOpen" ${row.isOpen ? "checked" : ""}><i aria-hidden="true"></i></label>
-      <label>Von<select name="openMinutes" ${row.isOpen ? "" : "disabled"}>${options(row.openMinutes ?? 600)}</select></label>
-      <label>Bis<select name="closeMinutes" ${row.isOpen ? "" : "disabled"}>${options(row.closeMinutes ?? 1080)}</select></label>
+      <strong>${dayName(row.day)}</strong>
+      <label class="status-switch hours-switch"><span>${row.isOpen ? t("settings.open") : t("settings.closed")}</span><input type="checkbox" name="isOpen" ${row.isOpen ? "checked" : ""}><i aria-hidden="true"></i></label>
+      <label>${t("common.from")}<select name="openMinutes" ${row.isOpen ? "" : "disabled"}>${options(row.openMinutes ?? 600)}</select></label>
+      <label>${t("common.until")}<select name="closeMinutes" ${row.isOpen ? "" : "disabled"}>${options(row.closeMinutes ?? 1080)}</select></label>
     </div>`).join("");
   }
 
@@ -50,7 +51,7 @@
     if (!row || event.target.name !== "isOpen") return;
     const open = event.target.checked;
     row.classList.toggle("closed", !open);
-    row.querySelector(".hours-switch span").textContent = open ? "Geöffnet" : "Geschlossen";
+    row.querySelector(".hours-switch span").textContent = open ? t("settings.open") : t("settings.closed");
     row.querySelectorAll("select").forEach((select) => { select.disabled = !open; });
   });
   form.addEventListener("submit", (event) => {
@@ -60,11 +61,12 @@
       return { day: Number(row.dataset.day), isOpen, openMinutes: isOpen ? Number(row.querySelector('[name="openMinutes"]').value) : null, closeMinutes: isOpen ? Number(row.querySelector('[name="closeMinutes"]').value) : null };
     });
     const invalid = rows.find((row) => row.isOpen && row.closeMinutes <= row.openMinutes);
-    if (invalid) { showToast(`${dayNames.get(invalid.day)}: Die Endzeit muss nach der Startzeit liegen.`); return; }
-    repository.saveOpeningHours(rows); showToast("Öffnungszeiten wurden lokal gespeichert.");
+    if (invalid) { showToast(t("settings.endAfterStart", { day: dayName(invalid.day) })); return; }
+    repository.saveOpeningHours(rows); showToast(t("settings.hoursSavedLocal"));
   });
-  document.getElementById("resetHours").addEventListener("click", () => { repository.resetOpeningHours(); render(); showToast("Standardzeiten wurden wiederhergestellt."); });
+  document.getElementById("resetHours").addEventListener("click", () => { repository.resetOpeningHours(); render(); showToast(t("settings.standardHoursRestored")); });
   repository.subscribe("opening-hours", render);
+  window.addEventListener("openslot:backoffice-language-change", render);
   selectTab(tabs.find((tab) => tab.classList.contains("active"))?.dataset.settingsTab || "account");
   render();
 })();

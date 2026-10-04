@@ -700,11 +700,11 @@ window.OpenSlotI18n = {
     const key = `service.${service.id}`;
     return OPENSLOT_TRANSLATIONS[lang]?.[key] || service.name;
   },
-  setLanguage(nextLanguage) {
+  setLanguage(nextLanguage, options = {}) {
     const lockedLanguage = document.documentElement.dataset.languageLock;
     if (lockedLanguage) nextLanguage = lockedLanguage;
     if (!OPENSLOT_TRANSLATIONS[nextLanguage]) return;
-    localStorage.setItem(OPENSLOT_LANGUAGE_KEY, nextLanguage);
+    if (options.persist !== false) localStorage.setItem(OPENSLOT_LANGUAGE_KEY, nextLanguage);
     window.OpenSlotI18n.language = nextLanguage;
     translatePage();
     window.dispatchEvent(new CustomEvent("openslot:language-change"));

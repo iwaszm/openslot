@@ -14,18 +14,20 @@
   let selectedCatalog = { type: "", id: "" };
   let catalogDraft = null;
   let toastTimer;
+  const bo = global.OpenSlotBackofficeI18n;
+  const t = (key, values) => bo?.t(key, values) || key;
 
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[character]);
-  const onlineIcon = () => `<span class="online-status-icon" aria-label="Online" title="Online"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>`;
+  const onlineIcon = () => `<span class="online-status-icon" aria-label="${escapeHtml(t("common.online"))}" title="${escapeHtml(t("common.online"))}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>`;
   const errorMessage = (error) => {
     const message = String(error?.message || error || "Unbekannter Fehler").replace(/^.*?: /, "");
     if (message.includes("reorder_service_catalog") && message.includes("schema cache")) {
-      return "Die Sortierfunktion ist in Supabase noch nicht aktiviert.";
+      return t("settings.sortUnavailable");
     }
-    if (message.includes("INVALID_SERVICE_SLOTS")) return "Die belegten Slots sind ungültig oder doppelt ausgewählt.";
-    if (message.includes("INVALID_SERVICE")) return "Bitte prüfen Sie Kurzname, Dauer, Preis und belegte Slots.";
+    if (message.includes("INVALID_SERVICE_SLOTS")) return t("settings.invalidSlots");
+    if (message.includes("INVALID_SERVICE")) return t("settings.invalidService");
     return message;
   };
 
@@ -53,8 +55,8 @@
   function renderAccount() {
     const staff = data.staff.find((employee) => employee.id === data.account.staffId);
     document.getElementById("accountEmail").textContent = data.account.email;
-    document.getElementById("accountRole").textContent = ({ admin: "Admin", owner: "Owner", staff: "Staff" })[data.account.role] || data.account.role;
-    document.getElementById("accountStaff").textContent = staff?.name || (data.account.role === "staff" ? "Nicht zugeordnet" : "Alle Bereiche");
+    document.getElementById("accountRole").textContent = t(`settings.role${data.account.role.charAt(0).toUpperCase()}${data.account.role.slice(1)}`);
+    document.getElementById("accountStaff").textContent = staff?.name || (data.account.role === "staff" ? t("settings.unassigned") : t("settings.allAreas"));
   }
 
   function initializeTabs() {
@@ -88,6 +90,7 @@
     document.getElementById("profileName").value = data.salon.name;
     document.getElementById("profileAddress").value = data.salon.address;
     document.getElementById("profilePhone").value = data.salon.phone;
+    document.getElementById("profileAdminLanguage").value = data.salon.adminLanguage;
     const theme = document.querySelector(`[name="profileTheme"][value="${CSS.escape(data.salon.themePreset)}"]`);
     if (theme) theme.checked = true;
     applyProfileTheme(data.salon.themePreset);
@@ -104,20 +107,19 @@
   });
 
   function renderHours() {
-    const labels = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
     const options = timeOptions();
     document.getElementById("hoursList").innerHTML = data.weeklyHours.map((hours) => `
       <div class="hours-row ${hours.isClosed ? "closed" : ""}" data-weekday="${hours.weekday}">
-        <strong>${labels[hours.weekday - 1]}</strong>
-        <label class="status-switch hours-switch"><span>${hours.isClosed ? "Geschlossen" : "Geöffnet"}</span><input type="checkbox" data-hours-open ${hours.isClosed ? "" : "checked"}><i aria-hidden="true"></i></label>
-        <label>Von<select data-hours-start>${options.map((value) => `<option value="${value}" ${value === hours.openTime ? "selected" : ""}>${value}</option>`).join("")}</select></label>
-        <label>Bis<select data-hours-end>${options.map((value) => `<option value="${value}" ${value === hours.closeTime ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+        <strong>${t(`weekday.${hours.weekday}`)}</strong>
+        <label class="status-switch hours-switch"><span>${hours.isClosed ? t("settings.closed") : t("settings.open")}</span><input type="checkbox" data-hours-open ${hours.isClosed ? "" : "checked"}><i aria-hidden="true"></i></label>
+        <label>${t("common.from")}<select data-hours-start>${options.map((value) => `<option value="${value}" ${value === hours.openTime ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+        <label>${t("common.until")}<select data-hours-end>${options.map((value) => `<option value="${value}" ${value === hours.closeTime ? "selected" : ""}>${value}</option>`).join("")}</select></label>
       </div>
     `).join("");
     document.querySelectorAll("[data-hours-open]").forEach((control) => control.addEventListener("change", () => {
       const row = control.closest(".hours-row");
       row.classList.toggle("closed", !control.checked);
-      row.querySelector(".hours-switch span").textContent = control.checked ? "Geöffnet" : "Geschlossen";
+      row.querySelector(".hours-switch span").textContent = control.checked ? t("settings.open") : t("settings.closed");
     }));
     applyReadOnlyState();
   }
@@ -130,7 +132,7 @@
     document.getElementById("settingsStaffList").innerHTML = data.staff.map((employee) => `
       <button class="staff-list-item ${employee.id === selectedStaffId ? "selected" : ""} ${employee.isActive ? "" : "inactive"}" type="button" data-staff-id="${employee.id}">
         <span class="staff-initial" style="--staff-color:${employee.color}">${escapeHtml(employee.shortName.slice(0, 2))}</span>
-        <span><strong>${escapeHtml(employee.name)}</strong><small>${escapeHtml(employee.shortName)} · 2 Lanes</small></span>
+        <span><strong>${escapeHtml(employee.name)}</strong><small>${escapeHtml(employee.shortName)} · ${escapeHtml(t("settings.twoLanes"))}</small></span>
         ${employee.acceptsOnline ? onlineIcon() : ""}
       </button>
     `).join("");
@@ -145,9 +147,9 @@
     document.getElementById("staffShortName").value = employee.shortName;
     document.getElementById("staffColor").value = employee.color;
     document.getElementById("staffActive").checked = employee.isActive;
-    document.getElementById("staffState").textContent = employee.isActive ? "Aktiv" : "Inaktiv";
+    document.getElementById("staffState").textContent = employee.isActive ? t("common.active") : t("common.inactive");
     document.getElementById("staffAcceptsOnline").checked = employee.acceptsOnline;
-    document.getElementById("staffOnlineState").textContent = employee.acceptsOnline ? "An" : "Aus";
+    document.getElementById("staffOnlineState").textContent = employee.acceptsOnline ? t("common.on") : t("common.off");
     const assigned = assignedServiceIds(employee.id);
     document.getElementById("staffServiceOptions").innerHTML = data.services.map((service) => `
       <label><input type="checkbox" name="staffService" value="${escapeHtml(service.id)}" ${assigned.has(service.id) ? "checked" : ""}><span>${escapeHtml(service.shortName)}</span></label>
@@ -175,13 +177,13 @@
       const children = (draft.serviceIdsByCategory[categoryId] || []).map((id) => services.get(id)).filter(Boolean);
       return `<section class="catalog-category ${category.isActive ? "" : "inactive"}" data-category-id="${category.id}">
         <button class="catalog-entry category-entry ${selectedCatalog.type === "category" && selectedCatalog.id === category.id ? "selected" : ""}" type="button" draggable="${!readOnly}" data-drag-type="category" data-item-id="${category.id}" data-edit-type="category">
-          <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="catalog-copy"><strong>${escapeHtml(category.shortName)}</strong><small>${escapeHtml(category.name)} · ${children.length} Services</small></span>${category.acceptsOnline ? onlineIcon() : ""}
+          <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="catalog-copy"><strong>${escapeHtml(category.shortName)}</strong><small>${escapeHtml(category.name)} · ${escapeHtml(t("settings.children", { count: children.length }))}</small></span>${category.acceptsOnline ? onlineIcon() : ""}
         </button>
         <div class="catalog-services" data-category-services="${category.id}">
           ${children.map((service) => `<button class="catalog-entry service-entry ${service.isActive ? "" : "inactive"} ${selectedCatalog.type === "service" && selectedCatalog.id === service.id ? "selected" : ""}" type="button" draggable="${!readOnly}" data-drag-type="service" data-item-id="${escapeHtml(service.id)}" data-edit-type="service">
-            <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="service-color-chip" style="--service-color:${escapeHtml(service.color || "#dfeee8")}" aria-hidden="true"></span><span class="catalog-copy"><strong>${escapeHtml(service.shortName)}</strong><small>${escapeHtml(service.name)} · ${service.duration} Min. · ${service.priceFrom ? "ab " : ""}${service.price.toFixed(0)} €</small></span>${service.acceptsOnline ? onlineIcon() : ""}
+            <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="service-color-chip" style="--service-color:${escapeHtml(service.color || "#dfeee8")}" aria-hidden="true"></span><span class="catalog-copy"><strong>${escapeHtml(service.shortName)}</strong><small>${escapeHtml(service.name)} · ${escapeHtml(t("settings.minutes", { count: service.duration }))} · ${service.priceFrom ? escapeHtml(t("settings.priceFromPrefix")) : ""}${service.price.toFixed(0)} €</small></span>${service.acceptsOnline ? onlineIcon() : ""}
           </button>`).join("")}
-          <div class="catalog-drop-end" data-drop-category="${category.id}"><span>Am Ende ablegen</span></div>
+          <div class="catalog-drop-end" data-drop-category="${category.id}"><span>${escapeHtml(t("settings.dropAtEnd"))}</span></div>
         </div>
       </section>`;
     }).join("");
@@ -213,7 +215,7 @@
       const service = data.services.find((item) => item.id === id);
       document.getElementById("serviceSettingsForm").reset();
       document.getElementById("serviceId").value = service?.id || "";
-      document.getElementById("serviceEditorTitle").textContent = service ? "Service bearbeiten" : "Neuer Service";
+      document.getElementById("serviceEditorTitle").textContent = service ? t("settings.editService") : t("settings.newService");
       document.getElementById("serviceName").value = service?.name || "";
       document.getElementById("serviceNameEn").value = service?.nameEn || "";
       document.getElementById("serviceNameZh").value = service?.nameZh || "";
@@ -224,23 +226,23 @@
       document.getElementById("servicePrice").value = String(service?.price ?? 0);
       document.getElementById("servicePriceFrom").checked = service?.priceFrom || false;
       document.getElementById("serviceActive").checked = service?.isActive ?? true;
-      document.getElementById("serviceState").textContent = service?.isActive === false ? "Inaktiv" : "Aktiv";
+      document.getElementById("serviceState").textContent = service?.isActive === false ? t("common.inactive") : t("common.active");
       document.getElementById("serviceAcceptsOnline").checked = service?.acceptsOnline ?? true;
-      document.getElementById("serviceOnlineState").textContent = service?.acceptsOnline === false ? "Aus" : "An";
+      document.getElementById("serviceOnlineState").textContent = service?.acceptsOnline === false ? t("common.off") : t("common.on");
       renderOccupiedSlots(service?.bookedSlots || [1]);
     } else {
       const category = data.categories.find((item) => item.id === id);
       document.getElementById("categorySettingsForm").reset();
       document.getElementById("categoryId").value = category?.id || "";
-      document.getElementById("categoryEditorTitle").textContent = category ? "Kategorie bearbeiten" : "Neue Kategorie";
+      document.getElementById("categoryEditorTitle").textContent = category ? t("settings.editCategory") : t("settings.newCategory");
       document.getElementById("categoryName").value = category?.name || "";
       document.getElementById("categoryNameEn").value = category?.nameEn || "";
       document.getElementById("categoryNameZh").value = category?.nameZh || "";
       document.getElementById("categoryShortName").value = category?.shortName || "";
       document.getElementById("categoryActive").checked = category?.isActive ?? true;
-      document.getElementById("categoryState").textContent = category?.isActive === false ? "Inaktiv" : "Aktiv";
+      document.getElementById("categoryState").textContent = category?.isActive === false ? t("common.inactive") : t("common.active");
       document.getElementById("categoryAcceptsOnline").checked = category?.acceptsOnline ?? true;
-      document.getElementById("categoryOnlineState").textContent = category?.acceptsOnline === false ? "Aus" : "An";
+      document.getElementById("categoryOnlineState").textContent = category?.acceptsOnline === false ? t("common.off") : t("common.on");
     }
     renderCatalog();
     applyReadOnlyState();
@@ -292,12 +294,13 @@
 
   async function refreshAfterWrite(message) {
     data = repository.getSettingsSnapshot();
+    bo?.setLanguage(data.salon.adminLanguage);
     renderAll();
     showToast(message);
   }
 
   function renderAll() {
-    document.title = `${data.salon.name} · Einstellungen`;
+    document.title = `${data.salon.name} · ${t("settings.title")}`;
     readOnly = data.account.role === "staff";
     renderAccount();
     renderProfile();
@@ -306,6 +309,7 @@
     if (!selectedStaffId || !data.staff.some((employee) => employee.id === selectedStaffId)) selectedStaffId = data.staff[0]?.id || "";
     renderCatalog();
     applyReadOnlyState();
+    bo?.translatePage();
   }
 
   function bindForms() {
@@ -316,7 +320,7 @@
         setBusy(form, true);
         await repository.updatePassword(document.getElementById("newPassword").value);
         form.reset();
-        showToast("Passwort wurde geändert.");
+        showToast(t("settings.passwordChanged"));
       } catch (error) { showToast(errorMessage(error), "error"); }
       finally { setBusy(form, false); }
     });
@@ -332,13 +336,15 @@
           address: document.getElementById("profileAddress").value.trim(),
           phone: document.getElementById("profilePhone").value.trim(),
           themePreset: document.querySelector('[name="profileTheme"]:checked')?.value,
+          adminLanguage: document.getElementById("profileAdminLanguage").value,
           languages: data.salon.languages,
         });
-        await refreshAfterWrite("Shopprofil wurde gespeichert.");
+        await refreshAfterWrite(t("settings.profileSaved"));
       } catch (error) { showToast(errorMessage(error), "error"); }
       finally { setBusy(form, false); }
     });
     document.getElementById("resetProfile").addEventListener("click", renderProfile);
+    document.getElementById("profileAdminLanguage").addEventListener("change", (event) => bo?.setLanguage(event.target.value));
     document.querySelectorAll('[name="profileTheme"]').forEach((input) => input.addEventListener("change", () => applyProfileTheme(input.value)));
 
     document.getElementById("hoursSettingsForm").addEventListener("submit", async (event) => {
@@ -350,11 +356,11 @@
         closeTime: row.querySelector("[data-hours-end]").value,
         isClosed: !row.querySelector("[data-hours-open]").checked,
       }));
-      if (hours.some((entry) => !entry.isClosed && entry.closeTime <= entry.openTime)) { showToast("Die Schließzeit muss nach der Öffnungszeit liegen.", "error"); return; }
+      if (hours.some((entry) => !entry.isClosed && entry.closeTime <= entry.openTime)) { showToast(t("settings.hoursInvalid"), "error"); return; }
       try {
         setBusy(form, true);
         await repository.updateWeeklyHours(hours);
-        await refreshAfterWrite("Öffnungszeiten wurden gespeichert.");
+        await refreshAfterWrite(t("settings.hoursSaved"));
       } catch (error) { showToast(errorMessage(error), "error"); }
       finally { setBusy(form, false); }
     });
@@ -364,8 +370,8 @@
       const button = event.target.closest("[data-staff-id]");
       if (button) editStaff(button.dataset.staffId);
     });
-    document.getElementById("staffActive").addEventListener("change", (event) => { document.getElementById("staffState").textContent = event.target.checked ? "Aktiv" : "Inaktiv"; });
-    document.getElementById("staffAcceptsOnline").addEventListener("change", (event) => { document.getElementById("staffOnlineState").textContent = event.target.checked ? "An" : "Aus"; });
+    document.getElementById("staffActive").addEventListener("change", (event) => { document.getElementById("staffState").textContent = event.target.checked ? t("common.active") : t("common.inactive"); });
+    document.getElementById("staffAcceptsOnline").addEventListener("change", (event) => { document.getElementById("staffOnlineState").textContent = event.target.checked ? t("common.on") : t("common.off"); });
     document.getElementById("cancelStaffEdit").addEventListener("click", () => {
       if (selectedStaffId) editStaff(selectedStaffId, { open: false });
       staffDialog?.close();
@@ -388,14 +394,14 @@
           acceptsOnline: document.getElementById("staffAcceptsOnline").checked,
         });
         await repository.updateStaffServices(employee.id, serviceIds);
-        await refreshAfterWrite("Mitarbeiter wurde gespeichert.");
+        await refreshAfterWrite(t("settings.staffSaved"));
         staffDialog?.close();
       } catch (error) { showToast(errorMessage(error), "error"); }
       finally { setBusy(form, false); }
     });
 
     const duration = document.getElementById("serviceDuration");
-    duration.innerHTML = Array.from({ length: 16 }, (_, index) => `<option value="${(index + 1) * 30}">${(index + 1) * 30} Min.</option>`).join("");
+    duration.innerHTML = Array.from({ length: 16 }, (_, index) => `<option value="${(index + 1) * 30}">${escapeHtml(t("settings.minutes", { count: (index + 1) * 30 }))}</option>`).join("");
     duration.addEventListener("change", () => {
       const selected = [...document.querySelectorAll('[name="occupiedSlot"]:checked')].map((input) => Number(input.value));
       renderOccupiedSlots(selected.filter((slot) => slot <= Number(duration.value) / 30));
@@ -415,10 +421,10 @@
     document.querySelectorAll("[data-close-catalog]").forEach((button) => button.addEventListener("click", () => catalogDialog.close()));
     document.getElementById("cancelServiceEdit").addEventListener("click", () => catalogDialog.close());
     document.getElementById("cancelCategoryEdit").addEventListener("click", () => catalogDialog.close());
-    document.getElementById("serviceActive").addEventListener("change", (event) => { document.getElementById("serviceState").textContent = event.target.checked ? "Aktiv" : "Inaktiv"; });
-    document.getElementById("serviceAcceptsOnline").addEventListener("change", (event) => { document.getElementById("serviceOnlineState").textContent = event.target.checked ? "An" : "Aus"; });
-    document.getElementById("categoryActive").addEventListener("change", (event) => { document.getElementById("categoryState").textContent = event.target.checked ? "Aktiv" : "Inaktiv"; });
-    document.getElementById("categoryAcceptsOnline").addEventListener("change", (event) => { document.getElementById("categoryOnlineState").textContent = event.target.checked ? "An" : "Aus"; });
+    document.getElementById("serviceActive").addEventListener("change", (event) => { document.getElementById("serviceState").textContent = event.target.checked ? t("common.active") : t("common.inactive"); });
+    document.getElementById("serviceAcceptsOnline").addEventListener("change", (event) => { document.getElementById("serviceOnlineState").textContent = event.target.checked ? t("common.on") : t("common.off"); });
+    document.getElementById("categoryActive").addEventListener("change", (event) => { document.getElementById("categoryState").textContent = event.target.checked ? t("common.active") : t("common.inactive"); });
+    document.getElementById("categoryAcceptsOnline").addEventListener("change", (event) => { document.getElementById("categoryOnlineState").textContent = event.target.checked ? t("common.on") : t("common.off"); });
 
     document.getElementById("serviceSettingsForm").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -429,12 +435,12 @@
       const shortName = shortNameInput.value.trim();
       const bookedSlots = [...form.querySelectorAll('[name="occupiedSlot"]:checked')].map((input) => Number(input.value));
       if (shortName.length > 12) {
-        showToast("Der Kurzname darf höchstens 12 Zeichen enthalten.", "error");
+        showToast(t("settings.shortNameLimit"), "error");
         shortNameInput.focus();
         return;
       }
       if (bookedSlots.length === 0) {
-        showToast("Bitte wählen Sie mindestens einen belegten Slot.", "error");
+        showToast(t("settings.chooseOccupied"), "error");
         return;
       }
       try {
@@ -460,8 +466,8 @@
         renderAll();
         catalogDialog.close();
         showToast(existing
-          ? "Service wurde gespeichert."
-          : "Service wurde gespeichert. Bitte weisen Sie ihn unter Mitarbeiter mindestens einer Person zu.");
+          ? t("settings.serviceSaved")
+          : t("settings.serviceSavedAssign"));
       } catch (error) { showToast(errorMessage(error), "error"); }
       finally { setBusy(form, false); }
     });
@@ -484,7 +490,7 @@
         catalogDraft = null;
         renderAll();
         catalogDialog.close();
-        showToast("Kategorie wurde gespeichert.");
+        showToast(t("settings.categorySaved"));
       } catch (error) { showToast(errorMessage(error), "error"); }
       finally { setBusy(form, false); }
     });
@@ -506,8 +512,17 @@
         data = repository.getSettingsSnapshot();
         catalogDraft = null;
         renderAll();
-        showToast("Reihenfolge wurde gespeichert.");
+        showToast(t("settings.orderSaved"));
       } catch (error) { button.disabled = false; showToast(errorMessage(error), "error"); }
+    });
+    global.addEventListener("openslot:backoffice-language-change", () => {
+      const selectedDuration = duration.value;
+      duration.innerHTML = Array.from({ length: 16 }, (_, index) => `<option value="${(index + 1) * 30}">${escapeHtml(t("settings.minutes", { count: (index + 1) * 30 }))}</option>`).join("");
+      duration.value = selectedDuration;
+      document.title = `${data.salon.name} · ${t("settings.title")}`;
+      renderAccount();
+      renderStaffList();
+      renderCatalog();
     });
     bindCatalogDrag();
   }
@@ -516,13 +531,14 @@
     try {
       data = await repository.initialize(slug);
       if (!data) { denied.hidden = false; return; }
+      bo?.setLanguage(data.salon.adminLanguage);
       initializeTabs();
       bindForms();
       renderAll();
       main.hidden = false;
     } catch (error) {
       denied.hidden = false;
-      denied.querySelector("h2").textContent = "Einstellungen nicht verfügbar";
+      denied.querySelector("h2").textContent = t("settings.unavailable");
       denied.querySelector("p").textContent = errorMessage(error);
     }
   }

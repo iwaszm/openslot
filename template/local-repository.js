@@ -49,7 +49,7 @@
     { day: 0, openMinutes: null, closeMinutes: null, isOpen: false },
   ];
   const themePresets = Object.freeze({ lime: "#dfff2f", pink: "#fbc8bf", glacier: "#67cbef" });
-  const defaultProfile = { name: "Berlin Hair Salon", address: "Niebuhrstraße 66, 10629 Berlin", phone: "0176 41164231", email: "info@openslotberlin.de", themePreset: "lime", languages: ["de", "en", "zh"] };
+  const defaultProfile = { name: "Berlin Hair Salon", address: "Niebuhrstraße 66, 10629 Berlin", phone: "0176 41164231", email: "info@openslotberlin.de", themePreset: "lime", adminLanguage: "de", languages: ["de", "en", "zh"] };
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const read = (key, fallback) => {
@@ -218,6 +218,7 @@
       name: String(input.name || "").trim().slice(0, 80), address: String(input.address ?? current.address).trim().slice(0, 120),
       phone: String(input.phone || "").trim().slice(0, 30), email: String(input.email ?? current.email).trim().slice(0, 80),
       themePreset: themePresets[input.themePreset] ? input.themePreset : normalizeThemePreset(current),
+      adminLanguage: ["de", "en", "zh"].includes(input.adminLanguage) ? input.adminLanguage : current.adminLanguage,
       languages: Array.isArray(input.languages) ? input.languages.filter((value, index, all) => ["de", "en", "zh"].includes(value) && all.indexOf(value) === index) : [],
     };
     if (profile.name.length < 2 || !profile.address || !profile.phone || !profile.email || profile.languages.length !== 3) throw new Error("Ungültige Shop-Daten.");

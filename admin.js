@@ -81,8 +81,14 @@ let dayRefreshSequence = 0;
 let logRefreshSequence = 0;
 let dateOptionsRefreshSequence = 0;
 let toastTimeout = null;
+let manualEditorEntry = null;
+let manualEditorContext = null;
+let manualEditorRequestId = 0;
+let ownerLoginPending = false;
+let ownerTurnstileToken = "";
+let ownerTurnstileWaiters = [];
 
-const t = (key, values) => window.OpenSlotI18n?.t(key, values) || key;
+const t = (key, values) => window.OpenSlotBackofficeI18n?.t(key, values) || window.OpenSlotI18n?.t(key, values) || key;
 const getAdminLocale = () => ({ zh: "zh-CN", en: "en-GB", de: "de-DE" })[window.OpenSlotI18n?.language] || "de-DE";
 const getServiceName = (service) => service.name;
 const confirmMessages = {
@@ -130,11 +136,12 @@ const els = {
   availabilityPanel: document.querySelector("#availabilityPanel"),
   showAllStaff: document.querySelector("#showAllStaff"),
   visibleStaffOptions: document.querySelector("#visibleStaffOptions"),
-  staffVisibilityHint: document.querySelector("#staffVisibilityHint"),
+  staffVisibilityLimit: document.querySelector("#staffVisibilityLimit"),
   existingTimeBlocks: document.querySelector("#existingTimeBlocks"),
   addBookingButton: document.querySelector("#addBookingButton"),
   bookingDialog: document.querySelector("#bookingDialog"),
   manualBookingForm: document.querySelector("#manualBookingForm"),
+  bookingDate: document.querySelector("#bookingDate"),
   bookingEmployee: document.querySelector("#bookingEmployee"),
   bookingCategory: document.querySelector("#bookingCategory"),
   bookingService: document.querySelector("#bookingService"),
@@ -145,6 +152,7 @@ const els = {
   detailTitle: document.querySelector("#detailTitle"),
   detailList: document.querySelector("#detailList"),
   detailActions: document.querySelector("#detailActions"),
+  detailEdit: document.querySelector("#detailEdit"),
   detailDelete: document.querySelector("#detailDelete"),
   actionToast: document.querySelector("#actionToast"),
   toastMessage: document.querySelector("#toastMessage"),
@@ -304,11 +312,29 @@ function bindEvents() {
     renderSlotManager();
   });
   els.visibleStaffOptions?.addEventListener("change", handleVisibleStaffChange);
-  els.addBookingButton?.addEventListener("click", openManualBookingDialog);
+  els.addBookingButton?.addEventListener("click", () => openManualBookingDialog());
   els.manualBookingForm?.addEventListener("submit", submitManualBooking);
-  els.bookingEmployee?.addEventListener("change", updateManualServiceOptions);
-  els.bookingCategory?.addEventListener("change", updateManualServiceOptions);
-  els.bookingService?.addEventListener("change", updateManualBookingTimes);
+  els.bookingEmployee?.addEventListener("change", () => {
+    setManualCategories();
+    renderManualServiceOptions();
+    renderManualBookingTimes({ filterByService: false });
+    updateManualSubmitState();
+  });
+  els.bookingCategory?.addEventListener("change", () => {
+    renderManualServiceOptions({ filterByTime: Boolean(els.bookingStart.value) });
+    renderManualBookingTimes({ preferred: Number(els.bookingStart.value), filterByService: false });
+    updateManualSubmitState();
+  });
+  els.bookingService?.addEventListener("change", () => {
+    renderManualBookingTimes({ preferred: Number(els.bookingStart.value), filterByService: Boolean(els.bookingService.value) });
+    updateManualSubmitState();
+  });
+  els.bookingStart?.addEventListener("change", () => {
+    renderManualServiceOptions({ preferred: els.bookingService.value, filterByTime: Boolean(els.bookingStart.value) });
+    updateManualSubmitState();
+  });
+  els.bookingDate?.addEventListener("change", () => loadManualEditorDate());
+  els.detailEdit?.addEventListener("click", editSelectedManualEntry);
   els.detailDelete?.addEventListener("click", deleteSelectedManualEntry);
   document.querySelectorAll("[data-close-admin-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog")?.close()));
   els.dayBlockButton?.addEventListener("click", handleToggleDayBlock);
@@ -598,7 +624,7 @@ async function refreshUpcomingLog({ onlyIfChanged = false } = {}) {
     }
   } catch (error) {
     if (requestId !== logRefreshSequence) return true;
-    setAdminMessage(`读取预约记录失败：${error.message}`);
+    setAdminMessage(t("admin.loadBookingsFailed", { message: error.message }));
     console.warn("Booking log refresh failed:", error);
     return false;
   }
@@ -612,12 +638,13 @@ function render() {
   renderSlotManager();
   renderUpcomingLog();
   renderCollapseState();
+  window.OpenSlotBackofficeI18n?.translatePage();
 }
 
 function applyShopProfile() {
   if (!state.salon) return;
   if (els.adminShopName) els.adminShopName.textContent = state.salon.name || "OpenSlot";
-  document.title = `${state.salon.name || "OpenSlot"} · Tagesplan`;
+  document.title = `${state.salon.name || "OpenSlot"} · ${t("admin.titleSuffix")}`;
   document.documentElement.dataset.shopTheme = state.salon.theme_preset || "lime";
 }
 
@@ -759,7 +786,7 @@ function handleVisibleStaffChange(event) {
     const limit = window.matchMedia("(orientation: portrait) and (max-width: 700px)").matches ? 2 : 4;
     if (state.selectedVisibleStaffKeys.size >= limit) {
       input.checked = false;
-      showToast(`In dieser Ansicht können maximal ${limit} Mitarbeiter angezeigt werden.`, "error");
+      showToast(t("admin.maxVisibleError", { count: limit }), "error");
       return;
     }
     state.selectedVisibleStaffKeys.add(input.value);
@@ -768,7 +795,7 @@ function handleVisibleStaffChange(event) {
     if (state.selectedVisibleStaffKeys.size === 0) {
       input.checked = true;
       state.selectedVisibleStaffKeys.add(input.value);
-      showToast("Mindestens ein Mitarbeiter muss sichtbar bleiben.", "error");
+      showToast(t("admin.minVisibleError"), "error");
       return;
     }
   }
@@ -899,6 +926,7 @@ function groupLanesByStaff(lanes) {
       fullName: lane.staffName,
       color: lane.staffColor || "#d7ef57",
       staffId: lane.staffId || null,
+      acceptsOnline: lane.staffAcceptsOnline === true,
       start: index,
       lanes: [lane],
     });
@@ -943,11 +971,12 @@ function renderOutlookSchedule(slots, lanes) {
       ? `<div class="availability-shade" style="top:0;height:${totalHeight}px"></div>`
       : scopedBlocks.map((block) => `<div class="availability-shade" style="top:${at(block.startMinutes)}px;height:${Math.max(1, at(block.endMinutes) - at(block.startMinutes))}px"></div>`).join("");
     const blockMarkup = state.daySettings.isBlockedDay
-      ? `<article class="calendar-block day-block" style="top:0;height:${totalHeight}px"><div class="block-heading"><strong>Tag blockiert</strong></div></article>`
+      ? `<article class="calendar-block day-block" style="top:0;height:${totalHeight}px"><div class="block-heading"><strong>${escapeHtml(t("admin.dayBlocked"))}</strong></div></article>`
       : scopedBlocks.map((block) => renderStaffTimeBlock(block, at, group)).join("");
     const eventMarkup = staffEvents.map((event) => renderStaffCalendarEvent(event, staffEvents, at)).join("");
     const editable = group.lanes.some(canEditLane);
-    return `<section class="staff-column ${editable ? "is-editable" : "is-readonly"}" aria-label="${escapeAttribute(group.name)}${editable ? "" : ", nur lesen"}"><div class="staff-name"><span class="staff-avatar" style="--staff-color:${escapeAttribute(group.color)}">${escapeHtml(String(group.name || "M").slice(0, 2))}</span><strong>${escapeHtml(group.name)}</strong>${editable ? "" : `<span class="readonly-label">Nur lesen</span>`}</div><div class="staff-timeline" style="height:${totalHeight}px">${shades}${rows}${blockMarkup}${eventMarkup}${renderNowLine(at)}</div></section>`;
+    const onlineStatus = group.acceptsOnline ? `<span class="staff-online-indicator" aria-label="${escapeAttribute(t("common.online"))}" title="${escapeAttribute(t("common.online"))}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>` : "";
+    return `<section class="staff-column ${editable ? "is-editable" : "is-readonly"}" aria-label="${escapeAttribute(group.name)}${editable ? "" : `, ${escapeAttribute(t("common.readOnly"))}`}"><div class="staff-name"><span class="staff-avatar" style="--staff-color:${escapeAttribute(group.color)}">${escapeHtml(String(group.name || "M").slice(0, 2))}</span><strong>${escapeHtml(group.name)}</strong>${onlineStatus}${editable ? "" : `<span class="readonly-label">${escapeHtml(t("common.readOnly"))}</span>`}</div><div class="staff-timeline" style="height:${totalHeight}px">${shades}${rows}${blockMarkup}${eventMarkup}${renderNowLine(at)}</div></section>`;
   }).join("");
   return `<div class="time-gutter"><div class="gutter-heading"></div><div class="time-labels" style="height:${totalHeight}px">${hours.join("")}</div></div><div class="staff-columns ${staffGroups.length === 1 ? "single-staff" : ""}" style="--staff-count:${Math.max(1, staffGroups.length)}">${staffMarkup}</div>`;
 }
@@ -965,7 +994,7 @@ function renderStaffTimeBlock(block, at, group) {
   const height = Math.max(34, at(block.endMinutes) - top);
   const canDelete = canManageTimeBlock(block, group);
   const menu = canDelete ? `<details class="service-block-menu lane-menu time-block-menu"><summary aria-label="Sperre verwalten"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary><div class="service-block-options" role="menu"><button type="button" role="menuitem" class="clear-lane-option" data-time-block-delete="${escapeAttribute(block.id)}">Löschen</button></div></details>` : "";
-  return `<article class="calendar-block time-block" style="top:${top}px;height:${height}px"><div class="block-heading"><strong>Blockiert</strong>${menu}</div><span>${escapeHtml(formatMinutes(block.startMinutes))}-${escapeHtml(formatMinutes(block.endMinutes))}</span></article>`;
+  return `<article class="calendar-block time-block" style="top:${top}px;height:${height}px"><div class="block-heading"><strong>${escapeHtml(t("admin.blocked"))}</strong>${menu}</div><span>${escapeHtml(formatMinutes(block.startMinutes))}-${escapeHtml(formatMinutes(block.endMinutes))}</span></article>`;
 }
 
 function canManageTimeBlock(block, group = null) {
@@ -976,7 +1005,7 @@ function canManageTimeBlock(block, group = null) {
 
 function renderStaffCalendarEvent(event, staffEvents, at) {
   const top = at(event.startMinutes);
-  const height = Math.max(34, at(event.endMinutes) - top);
+  const height = Math.max(34, at(event.endMinutes) - top - 4);
   const overlapsOtherLane = staffEvents.some((other) => other !== event && other.laneIndex !== event.laneIndex && hasTimeRangeOverlap(event, [other]));
   const service = serviceForItem(event);
   const label = service ? getServiceAbbrev(service) : t("admin.blockedSlot");
@@ -1253,12 +1282,12 @@ async function clearManualItem(lane, item) {
   await Promise.all(group.map((slot) => state.repository.deleteStaffSlot(els.adminDateInput.value, staffKey, slot.startMinutes)));
 }
 
-async function saveManualService(lane, startMinutes, service, existing = null, note = "") {
+async function saveManualService(lane, startMinutes, service, existing = null, note = "", date = els.adminDateInput.value) {
   if (state.useUnifiedScheduleEntries) {
     const laneConfig = state.laneLayout.find((item) => item.storageKey === lane);
     if (!laneConfig?.staffLaneId) throw new Error("Für diesen Bereich fehlt eine aktive Lane-Konfiguration.");
     await state.repository.createManualScheduleEntry({
-      date: els.adminDateInput.value,
+      date,
       startMinutes,
       serviceId: service.id,
       staffLaneId: laneConfig.staffLaneId,
@@ -1269,7 +1298,7 @@ async function saveManualService(lane, startMinutes, service, existing = null, n
   }
   if (lane === "primary") {
     await state.repository.createBlockedSlot({
-      date: els.adminDateInput.value,
+      date,
       startMinutes,
       endMinutes: startMinutes + service.duration,
       occupiedMinutes: getServiceOccupiedMinutes(service, startMinutes),
@@ -1280,7 +1309,7 @@ async function saveManualService(lane, startMinutes, service, existing = null, n
     return;
   }
   await Promise.all(getServiceCoveredMinutes(service, startMinutes).map((coveredStart) => state.repository.saveStaffSlot({
-    date: els.adminDateInput.value,
+    date,
     startMinutes: coveredStart,
     serviceId: service.id,
     serviceStartMinutes: startMinutes,
@@ -1325,32 +1354,102 @@ function canPlaceManualService(service, startMinutes, lane, ignoredItem = null) 
 
 async function handleOwnerLogin(event) {
   event.preventDefault();
+  if (ownerLoginPending) return;
+  const submit = els.ownerLoginForm?.querySelector('[type="submit"]');
+  ownerLoginPending = true;
+  if (submit) submit.disabled = true;
   try {
-    const captchaToken = getOwnerTurnstileToken();
-    if (els.ownerTurnstile && !captchaToken) {
-      throw new Error("Bitte schliesse die Sicherheitspruefung ab.");
-    }
-    if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = "正在登录...";
+    if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = t("admin.verifying");
+    const captchaToken = await getOwnerTurnstileToken();
     await state.repository.signIn(els.ownerEmail.value.trim(), els.ownerPassword.value, captchaToken);
     els.ownerPassword.value = "";
+    ownerTurnstileToken = "";
   } catch (error) {
-    if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = `登录失败：${error.message}`;
+    if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = t("admin.loginFailed", { message: error.message });
     resetOwnerTurnstile();
+  } finally {
+    ownerLoginPending = false;
+    if (submit) submit.disabled = false;
   }
 }
 
-function getOwnerTurnstileToken() {
+async function getOwnerTurnstileToken() {
   if (!els.ownerTurnstile) return "";
   const formToken = els.ownerLoginForm?.querySelector('input[name="cf-turnstile-response"]')?.value || "";
-  return formToken || window.turnstile?.getResponse?.(els.ownerTurnstile) || window.turnstile?.getResponse?.() || "";
+  const existingToken = ownerTurnstileToken || formToken
+    || window.turnstile?.getResponse?.(els.ownerTurnstile)
+    || window.turnstile?.getResponse?.()
+    || "";
+  if (existingToken) return existingToken;
+
+  await waitForOwnerTurnstileApi();
+  return new Promise((resolve, reject) => {
+    let waiter;
+    const timeoutId = window.setTimeout(() => {
+      ownerTurnstileWaiters = ownerTurnstileWaiters.filter((item) => item !== waiter);
+      reject(new Error(t("admin.securityFailed")));
+    }, 120_000);
+    waiter = {
+      resolve: (token) => { window.clearTimeout(timeoutId); resolve(token); },
+      reject: (error) => { window.clearTimeout(timeoutId); reject(error); },
+    };
+    ownerTurnstileWaiters.push(waiter);
+    try {
+      window.turnstile.execute(els.ownerTurnstile);
+    } catch (error) {
+      settleOwnerTurnstileWaiters("", error);
+    }
+  });
 }
 
+function waitForOwnerTurnstileApi() {
+  if (window.turnstile?.execute) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      if (window.turnstile?.execute) {
+        window.clearInterval(timer);
+        resolve();
+      } else if (Date.now() - startedAt >= 10_000) {
+        window.clearInterval(timer);
+        reject(new Error(t("admin.securityFailed")));
+      }
+    }, 100);
+  });
+}
+
+function settleOwnerTurnstileWaiters(token = "", error = null) {
+  const waiters = ownerTurnstileWaiters;
+  ownerTurnstileWaiters = [];
+  waiters.forEach((waiter) => {
+    if (error) waiter.reject(error);
+    else waiter.resolve(token);
+  });
+}
+
+window.onOwnerTurnstileSuccess = (token) => {
+  ownerTurnstileToken = token;
+  settleOwnerTurnstileWaiters(token);
+};
+
+window.onOwnerTurnstileError = () => {
+  ownerTurnstileToken = "";
+  settleOwnerTurnstileWaiters("", new Error(t("admin.securityFailed")));
+  return true;
+};
+
+window.onOwnerTurnstileExpired = () => { ownerTurnstileToken = ""; };
+
 function resetOwnerTurnstile() {
+  ownerTurnstileToken = "";
+  const response = els.ownerLoginForm?.querySelector('input[name="cf-turnstile-response"]');
+  if (response) response.value = "";
   if (els.ownerTurnstile) window.turnstile?.reset?.(els.ownerTurnstile);
 }
 
 async function handleOwnerLogout() {
   await state.repository.signOut();
+  resetOwnerTurnstile();
 }
 
 async function handleToggleDayBlock() {
@@ -1358,7 +1457,7 @@ async function handleToggleDayBlock() {
   const globalScope = isGlobalAvailabilityScope();
   if (!globalScope && state.daySettings.isBlockedDay) return;
   if (!globalScope && targetStaff.length === 0) {
-    showToast("Bitte waehlen Sie in der Ansicht mindestens einen Mitarbeiter aus.", "error");
+    showToast(t("admin.selectVisibleEmployee"), "error");
     return;
   }
   const staffDayBlocks = targetStaff.map((staff) => state.timeBlocks.find((block) => (
@@ -1371,9 +1470,9 @@ async function handleToggleDayBlock() {
     : staffDayBlocks.length !== targetStaff.length;
   const message = nextBlocked ? confirmMessages.blockDay : confirmMessages.unblockDay;
   const confirmed = await window.OpenSlotConfirm.ask({
-    title: nextBlocked ? "Tag blockieren" : "Tag freigeben",
+    title: nextBlocked ? t("admin.blockDay") : t("admin.releaseDay"),
     message,
-    confirmLabel: nextBlocked ? "Tag blockieren" : "Freigeben",
+    confirmLabel: nextBlocked ? t("admin.blockDay") : t("admin.release"),
     tone: nextBlocked ? "danger" : "neutral",
   });
   if (!confirmed) return;
@@ -1414,21 +1513,21 @@ async function handleToggleDayBlock() {
 
 async function cancelAppointmentById(appointmentId) {
   const confirmed = await window.OpenSlotConfirm.ask({
-    title: "Termin stornieren",
+    title: t("admin.cancelBooking"),
     message: confirmMessages.cancelAppointment,
-    confirmLabel: "Stornieren",
+    confirmLabel: t("admin.cancel"),
     tone: "danger",
   });
   if (!confirmed) return;
   try {
     await state.repository.cancelAppointment(appointmentId);
     const mailMessage = await state.repository.sendBookingEmail(appointmentId, "cancelled");
-    setAdminMessage(mailMessage || "预约已取消。");
+    setAdminMessage(mailMessage || t("admin.cancelled"));
     await refreshDateOptions();
     await refreshDayData();
     await refreshUpcomingLog();
   } catch (error) {
-    setAdminMessage(`取消失败：${error.message}`);
+    setAdminMessage(t("admin.cancelFailed", { message: error.message }));
   }
 }
 
@@ -1506,18 +1605,33 @@ function closeAvailabilityPanel() {
   closeTimeBlockPanel();
 }
 
-function openManualBookingDialog() {
+async function openManualBookingDialog(entry = null) {
   if (!els.bookingDialog || !state.isOwner) return;
-  const staffGroups = groupLanesByStaff(getVisibleLaneLayout()).filter((group) => (
-    state.accessRole !== "staff" || group.lanes.some((lane) => lane.staffId === state.accessStaffId)
+  manualEditorEntry = entry;
+  const service = entry ? serviceForItem(entry) : null;
+  const currentLane = entry ? state.laneLayout.find((lane) => lane.laneKey === entry.laneKey) : null;
+  const staffGroups = groupLanesByStaff(state.laneLayout).filter((group) => (
+    state.accessRole !== "staff" || group.staffId === state.accessStaffId
   ));
   els.bookingEmployee.innerHTML = staffGroups.map((group) => `<option value="${escapeAttribute(group.key)}">${escapeHtml(group.name)}</option>`).join("");
-  const categories = [...new Set(getManualServicesForStaff(els.bookingEmployee.value).map((service) => service.category))];
-  els.bookingCategory.innerHTML = categories.map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(formatServiceCategory(category))}</option>`).join("");
-  if (els.bookingNote) els.bookingNote.value = "";
+  if (currentLane?.staffKey && staffGroups.some((group) => group.key === currentLane.staffKey)) {
+    els.bookingEmployee.value = currentLane.staffKey;
+  }
+  els.bookingEmployee.disabled = state.accessRole === "staff";
+  els.bookingDate.value = entry?.date || els.adminDateInput.value;
+  els.bookingDate.min = toDateInputValue(new Date());
+  els.bookingDate.max = buildDateRange().at(-1);
+  if (entry?.date && entry.date < els.bookingDate.min) els.bookingDate.min = entry.date;
+  if (els.bookingNote) els.bookingNote.value = entry?.note || entry?.reason || "";
   if (els.bookingFormMessage) els.bookingFormMessage.textContent = "";
-  updateManualServiceOptions();
+  const title = entry ? t("admin.editAppointment") : t("admin.addAppointment");
+  document.querySelector("#bookingDialogTitle").textContent = title;
+  setManualCategories(service?.category || "");
   els.bookingDialog.showModal();
+  await loadManualEditorDate({
+    preferredServiceId: service?.id || entry?.serviceId || "",
+    preferredStart: entry?.startMinutes ?? null,
+  });
 }
 
 function formatServiceCategory(category) {
@@ -1526,20 +1640,25 @@ function formatServiceCategory(category) {
     || ({ cut: "Schnitt", color: "Farbe", care: "Pflege", shape: "Form" })[category] || category;
 }
 
-function updateManualServiceOptions() {
-  if (!els.bookingService || !els.bookingCategory) return;
-  const availableServices = getManualServicesForStaff(els.bookingEmployee?.value);
-  const categories = [...new Set(availableServices.map((service) => service.category))];
-  if (!categories.includes(els.bookingCategory.value)) {
-    els.bookingCategory.innerHTML = categories.map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(formatServiceCategory(category))}</option>`).join("");
-  }
-  const services = availableServices.filter((service) => service.category === els.bookingCategory.value);
-  els.bookingService.innerHTML = services.map((service) => `<option value="${escapeAttribute(service.id)}">${escapeHtml(`${getServiceAbbrev(service)} · ${service.duration} Min.`)}</option>`).join("");
+function setManualCategories(preferred = "") {
+  const categories = [...new Set(getManualServicesForStaff(els.bookingEmployee?.value).map((service) => service.category))];
+  els.bookingCategory.innerHTML = categories.map((category) => `<option value="${escapeAttribute(category)}">${escapeHtml(formatServiceCategory(category))}</option>`).join("");
+  if (categories.includes(preferred)) els.bookingCategory.value = preferred;
+}
+
+function getManualEditorServices() {
+  return getManualServicesForStaff(els.bookingEmployee?.value)
+    .filter((service) => service.category === els.bookingCategory?.value);
+}
+
+function renderManualServiceOptions({ preferred = "", filterByTime = false } = {}) {
+  const startMinutes = Number(els.bookingStart?.value);
+  const services = getManualEditorServices().filter((service) => (
+    !filterByTime || !Number.isFinite(startMinutes) || canPlaceManualEditorService(service, startMinutes)
+  ));
+  els.bookingService.innerHTML = `<option value="">${escapeHtml(t("admin.chooseService"))}</option>${services.map((service) => `<option value="${escapeAttribute(service.id)}">${escapeHtml(`${getServiceAbbrev(service)} · ${service.duration} Min.`)}</option>`).join("")}`;
+  if (services.some((service) => service.id === preferred)) els.bookingService.value = preferred;
   els.bookingService.disabled = services.length === 0;
-  if (!services.length) {
-    els.bookingService.innerHTML = `<option value="">Keine passenden Services</option>`;
-  }
-  updateManualBookingTimes();
 }
 
 function getManualServicesForStaff(staffKey) {
@@ -1553,59 +1672,145 @@ function getSelectedStaffLanes() {
   return state.laneLayout.filter((lane) => lane.staffKey === els.bookingEmployee?.value);
 }
 
-function updateManualBookingTimes() {
-  if (!els.bookingStart) return;
-  if (!els.bookingService?.value) {
-    els.bookingStart.innerHTML = `<option value="">Keine freie Uhrzeit</option>`;
-    els.bookingStart.disabled = true;
-    const submit = els.manualBookingForm?.querySelector('[type="submit"]');
-    if (submit) submit.disabled = true;
-    if (els.bookingFormMessage) els.bookingFormMessage.textContent = "Diesem Mitarbeiter ist kein aktiver Service zugeordnet.";
-    return;
+function currentManualContext() {
+  return {
+    appointments: state.appointments,
+    daySettings: state.daySettings,
+    manualEntries: state.manualEntries,
+    timeBlocks: state.timeBlocks,
+  };
+}
+
+async function fetchManualContext(date) {
+  if (date === els.adminDateInput.value) return currentManualContext();
+  const snapshot = await state.repository.getDaySnapshot?.(date);
+  if (snapshot) {
+    return {
+      appointments: snapshot.appointments,
+      daySettings: snapshot.daySettings,
+      manualEntries: snapshot.manualSchedule.allEntries || [],
+      timeBlocks: snapshot.timeBlocks,
+    };
   }
-  const service = findService(els.bookingService?.value);
-  const lanes = getSelectedStaffLanes();
-  const starts = [];
-  for (let minute = state.daySettings.openMinutes; minute < state.daySettings.closeMinutes; minute += SLOT_STEP) {
-    const staffId = lanes[0]?.staffId || null;
-    if (state.timeBlocks.some((block) => (!block.staffId || block.staffId === staffId)
-      && minute < block.endMinutes && minute + service.duration > block.startMinutes)) continue;
-    if (lanes.some((lane) => canPlaceManualService(service, minute, lane.storageKey))) starts.push(minute);
-  }
-  els.bookingStart.innerHTML = starts.length
-    ? starts.map((minute) => `<option value="${minute}">${escapeHtml(formatMinutes(minute))}</option>`).join("")
-    : `<option value="">Keine freie Uhrzeit</option>`;
-  els.bookingStart.disabled = starts.length === 0;
+  const [appointments, daySettings, manualSchedule, timeBlocks] = await Promise.all([
+    state.repository.listAppointments(date),
+    state.repository.getDaySettings(date),
+    loadManualSchedule(date),
+    state.repository.listTimeBlocks(date),
+  ]);
+  return { appointments, daySettings, manualEntries: manualSchedule.allEntries || [], timeBlocks };
+}
+
+async function loadManualEditorDate({ preferredServiceId = els.bookingService?.value || "", preferredStart = Number(els.bookingStart?.value) } = {}) {
+  const requestId = ++manualEditorRequestId;
   const submit = els.manualBookingForm?.querySelector('[type="submit"]');
-  if (submit) submit.disabled = starts.length === 0;
-  if (els.bookingFormMessage) els.bookingFormMessage.textContent = starts.length ? "" : "Für diesen Service ist bei diesem Mitarbeiter keine Startzeit frei.";
+  if (submit) submit.disabled = true;
+  if (els.bookingFormMessage) els.bookingFormMessage.textContent = t("admin.checkingTimes");
+  try {
+    const context = await fetchManualContext(els.bookingDate.value);
+    if (requestId !== manualEditorRequestId) return;
+    manualEditorContext = context;
+    renderManualServiceOptions({ preferred: preferredServiceId });
+    renderManualBookingTimes({ preferred: preferredStart, filterByService: Boolean(preferredServiceId) });
+    updateManualSubmitState();
+  } catch (error) {
+    if (requestId !== manualEditorRequestId) return;
+    manualEditorContext = null;
+    if (els.bookingFormMessage) els.bookingFormMessage.textContent = t("admin.loadTimesFailed", { message: error.message });
+  }
+}
+
+function canPlaceManualEditorService(service, startMinutes) {
+  if (!service || !manualEditorContext || !Number.isFinite(startMinutes)) return false;
+  const { daySettings, appointments, manualEntries, timeBlocks } = manualEditorContext;
+  if (daySettings?.isBlockedDay || startMinutes < daySettings.openMinutes || startMinutes >= daySettings.closeMinutes) return false;
+  const endMinutes = startMinutes + service.duration;
+  const lanes = getSelectedStaffLanes();
+  const staffId = lanes[0]?.staffId || null;
+  if (timeBlocks.some((block) => (!block.staffId || block.staffId === staffId)
+    && startMinutes < block.endMinutes && endMinutes > block.startMinutes)) return false;
+  return lanes.some((lane) => canPlaceManualEditorServiceOnLane(service, startMinutes, lane, { appointments, manualEntries }));
+}
+
+function canPlaceManualEditorServiceOnLane(service, startMinutes, lane, context = manualEditorContext) {
+  if (!service || !lane || !context) return false;
+  const candidate = { startMinutes, endMinutes: startMinutes + service.duration };
+  const allocated = allocateAppointmentsByLane(
+    context.appointments.filter((item) => item.status !== "cancelled"),
+    state.laneLayout,
+  );
+  const online = allocated.get(lane.laneKey) || [];
+  const manual = context.manualEntries.filter((item) => (
+    item.laneKey === lane.laneKey
+    && String(item.id || item.scheduleEntryId) !== String(manualEditorEntry?.id || manualEditorEntry?.scheduleEntryId || "")
+  ));
+  return !hasTimeRangeOverlap(candidate, online) && !hasTimeRangeOverlap(candidate, manual);
+}
+
+function renderManualBookingTimes({ preferred = null, filterByService = true } = {}) {
+  if (!els.bookingStart || !manualEditorContext) return;
+  const selectedService = findService(els.bookingService?.value);
+  const services = filterByService && selectedService ? [selectedService] : getManualEditorServices();
+  const starts = [];
+  for (let minute = manualEditorContext.daySettings.openMinutes; minute < manualEditorContext.daySettings.closeMinutes; minute += SLOT_STEP) {
+    if (services.some((service) => canPlaceManualEditorService(service, minute))) starts.push(minute);
+  }
+  els.bookingStart.innerHTML = `<option value="">${escapeHtml(t("admin.chooseTime"))}</option>${starts.map((minute) => `<option value="${minute}">${escapeHtml(formatMinutes(minute))}</option>`).join("")}`;
+  if (starts.includes(Number(preferred))) els.bookingStart.value = String(preferred);
+  els.bookingStart.disabled = starts.length === 0;
+  if (els.bookingFormMessage) els.bookingFormMessage.textContent = starts.length ? "" : t("admin.noMatchingTime");
+}
+
+function updateManualSubmitState() {
+  const submit = els.manualBookingForm?.querySelector('[type="submit"]');
+  const service = findService(els.bookingService?.value);
+  const startMinutes = Number(els.bookingStart?.value);
+  const valid = Boolean(els.bookingDate?.value && service && els.bookingStart?.value
+    && canPlaceManualEditorService(service, startMinutes));
+  if (submit) submit.disabled = !valid;
+  if (valid && els.bookingFormMessage) els.bookingFormMessage.textContent = "";
 }
 
 async function submitManualBooking(event) {
   event.preventDefault();
   if (!els.bookingService?.value) {
-    els.bookingFormMessage.textContent = "Bitte wählen Sie einen verfügbaren Service.";
+    els.bookingFormMessage.textContent = t("admin.chooseAvailableService");
     return;
   }
   const service = findService(els.bookingService.value);
   const startMinutes = Number(els.bookingStart.value);
-  const lane = getSelectedStaffLanes().find((candidate) => canPlaceManualService(service, startMinutes, candidate.storageKey));
+  const lane = getSelectedStaffLanes().find((candidate) => (
+    canPlaceManualEditorService(service, startMinutes)
+    && canPlaceManualEditorServiceOnLane(service, startMinutes, candidate)
+  ));
   if (!lane) {
-    els.bookingFormMessage.textContent = "Die gewählte Uhrzeit ist nicht mehr frei.";
-    updateManualBookingTimes();
+    els.bookingFormMessage.textContent = t("admin.timeNoLongerFree");
+    renderManualBookingTimes({ filterByService: true });
     return;
   }
   const submit = els.manualBookingForm.querySelector('[type="submit"]');
   submit.disabled = true;
   try {
-    await saveManualService(lane.storageKey, startMinutes, service, null, els.bookingNote?.value.trim() || "");
+    await saveManualService(
+      lane.storageKey,
+      startMinutes,
+      service,
+      manualEditorEntry ? { scheduleEntryId: manualEditorEntry.id || manualEditorEntry.scheduleEntryId } : null,
+      els.bookingNote?.value.trim() || "",
+      els.bookingDate.value,
+    );
     els.bookingDialog.close();
+    els.adminDateInput.value = els.bookingDate.value;
+    const selectedIndex = state.dateOptions.findIndex((option) => option.date === els.bookingDate.value);
+    if (selectedIndex >= 0) state.datePageStart = getCalendarPageStart(selectedIndex);
     await refreshDateOptions();
     await refreshDayData();
-    showToast(`${getServiceAbbrev(service)} um ${formatMinutes(startMinutes)} wurde für ${lane.staffShortName || lane.staffName} eingetragen.`);
+    showToast(t("admin.appointmentSaved", { service: getServiceAbbrev(service), time: formatMinutes(startMinutes), staff: lane.staffShortName || lane.staffName, action: t(manualEditorEntry ? "admin.updated" : "admin.created") }));
+    manualEditorEntry = null;
+    manualEditorContext = null;
   } catch (error) {
     els.bookingFormMessage.textContent = "";
-    showToast(`Termin konnte nicht gespeichert werden: ${error.message}`, "error");
+    showToast(t("admin.saveFailed", { message: error.message }), "error");
   } finally {
     submit.disabled = false;
   }
@@ -1620,18 +1825,21 @@ function openScheduleDetail(id, kind) {
   const service = serviceForItem(item);
   const lane = state.laneLayout.find((entry) => entry.laneKey === item.laneKey);
   const rows = [
-    ["Service", service.shortName || service.name],
-    ["Datum", formatLogDate(item.date || els.adminDateInput.value)],
-    ["Uhrzeit", `${formatMinutes(item.startMinutes)}-${formatMinutes(item.endMinutes)}`],
-    ["Mitarbeiter", lane?.staffShortName || lane?.staffName || ""],
-    kind === "online" ? ["Kunde", item.name || ""] : ["Notiz", item.note || item.reason || ""],
-    kind === "online" ? ["Telefon", item.phone || ""] : null,
-    kind === "online" ? ["E-Mail", item.email || ""] : null,
+    [t("admin.service"), service.shortName || service.name],
+    [t("common.date"), formatLogDate(item.date || els.adminDateInput.value)],
+    [t("common.time"), `${formatMinutes(item.startMinutes)}-${formatMinutes(item.endMinutes)}`],
+    [t("admin.employee"), lane?.staffShortName || lane?.staffName || ""],
+    kind === "online" ? [t("admin.customer"), item.name || ""] : [t("common.note"), item.note || item.reason || ""],
+    kind === "online" ? [t("common.phone"), item.phone || ""] : null,
+    kind === "online" ? [t("common.email"), item.email || ""] : null,
   ].filter((row) => row && row[1]);
   els.detailTitle.textContent = service.shortName || service.name;
   els.detailList.innerHTML = rows.map(([label, value]) => `<div class="detail-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
   const canDelete = kind === "manual" && canEditLane(lane || {});
   if (els.detailActions) els.detailActions.hidden = !canDelete;
+  if (els.detailEdit) {
+    els.detailEdit.dataset.entryId = canDelete ? String(item.id || item.scheduleEntryId || "") : "";
+  }
   if (els.detailDelete) {
     els.detailDelete.dataset.entryId = canDelete ? String(item.id || item.scheduleEntryId || "") : "";
     els.detailDelete.dataset.laneKey = canDelete ? String(item.laneKey || "") : "";
@@ -1639,13 +1847,25 @@ function openScheduleDetail(id, kind) {
   els.detailDialog.showModal();
 }
 
+function editSelectedManualEntry() {
+  const entryId = els.detailEdit?.dataset.entryId;
+  if (!entryId) return;
+  const entry = state.manualEntries.find((item) => String(item.id || item.scheduleEntryId) === entryId);
+  if (!entry) {
+    showToast(t("admin.appointmentMissing"), "error");
+    return;
+  }
+  els.detailDialog?.close();
+  openManualBookingDialog(entry);
+}
+
 async function deleteSelectedManualEntry() {
   const entryId = els.detailDelete?.dataset.entryId;
   if (!entryId) return;
   const confirmed = await window.OpenSlotConfirm.ask({
-    title: "Termin löschen",
-    message: "Dieser manuell angelegte Termin wird aus dem Tagesplan entfernt.",
-    confirmLabel: "Löschen",
+    title: t("admin.manualDeleteTitle"),
+    message: t("admin.manualDeleteMessage"),
+    confirmLabel: t("common.delete"),
     tone: "danger",
   });
   if (!confirmed) return;
@@ -1653,9 +1873,9 @@ async function deleteSelectedManualEntry() {
     await state.repository.deleteManualScheduleEntry(entryId);
     els.detailDialog?.close();
     await Promise.all([refreshDateOptions(), refreshDayData()]);
-    showToast("Der manuelle Termin wurde gelöscht.");
+    showToast(t("admin.manualDeleted"));
   } catch (error) {
-    showToast(`Termin konnte nicht gelöscht werden: ${error.message}`, "error");
+    showToast(t("admin.manualDeleteFailed", { message: error.message }), "error");
   }
 }
 
@@ -1703,9 +1923,9 @@ function renderTimeBlockControls() {
   els.timeBlockAction.disabled = scopeBlocked || overlapsAnotherBlock || selectedEnd <= selectedStart;
   if (els.timeBlockHint) {
     els.timeBlockHint.textContent = scopeBlocked
-      ? "Der gesamte Tag ist bereits blockiert."
+      ? t("admin.wholeDayBlocked")
       : overlapsAnotherBlock
-      ? "Die Auswahl überschneidet eine bestehende Sperre."
+      ? t("admin.blockOverlap")
         : "";
   }
   if (els.existingTimeBlocks) {
@@ -1727,9 +1947,9 @@ function renderAvailabilityStaffOptions() {
       return `<label><input type="checkbox" value="${escapeAttribute(group.key)}" ${checked ? "checked" : ""}><span><i style="--staff-color:${escapeAttribute(group.color)}">${escapeHtml(String(group.name || "M").slice(0, 2))}</i>${escapeHtml(group.name || group.fullName || group.key)}</span></label>`;
     }).join("");
   }
-  if (els.staffVisibilityHint) {
+  if (els.staffVisibilityLimit) {
     const limit = window.matchMedia("(orientation: portrait) and (max-width: 700px)").matches ? 2 : 4;
-    els.staffVisibilityHint.textContent = `Maximal ${limit} Mitarbeiter in dieser Ansicht`;
+    els.staffVisibilityLimit.textContent = t("admin.maxEmployees", { count: limit });
   }
   els.availabilityToggle?.classList.toggle("is-filtered", !state.showAllStaff);
 }
@@ -1763,9 +1983,9 @@ async function handleCreateTimeBlock() {
   if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) return;
   if (getScopedTimeBlocks().some((block) => startMinutes < block.endMinutes && endMinutes > block.startMinutes)) return;
   const confirmed = await window.OpenSlotConfirm.ask({
-    title: "Uhrzeit blockieren",
-    message: `${formatMinutes(startMinutes)}-${formatMinutes(endMinutes)} für neue Buchungen blockieren?`,
-    confirmLabel: "Blockieren",
+    title: t("admin.blockTime"),
+    message: t("admin.blockTimeConfirm", { start: formatMinutes(startMinutes), end: formatMinutes(endMinutes) }),
+    confirmLabel: t("admin.block"),
     tone: "danger",
   });
   if (!confirmed) return;
@@ -1774,7 +1994,7 @@ async function handleCreateTimeBlock() {
   try {
     const targets = getAvailabilityStaffGroups();
     if (!isGlobalAvailabilityScope() && targets.length === 0) {
-      showToast("Bitte waehlen Sie in der Ansicht mindestens einen Mitarbeiter aus.", "error");
+      showToast(t("admin.selectVisibleEmployee"), "error");
       return;
     }
     await Promise.all((isGlobalAvailabilityScope() ? [null] : targets).map((staff) => (
@@ -1790,7 +2010,7 @@ async function handleCreateTimeBlock() {
     closeTimeBlockPanel();
     showToast(`${formatMinutes(startMinutes)}-${formatMinutes(endMinutes)} wurde erfolgreich blockiert.`);
   } catch (error) {
-    await showAvailabilityError(error, "Die Uhrzeit konnte nicht blockiert werden.");
+    await showAvailabilityError(error, t("admin.timeBlockFailed"));
   } finally {
     renderTimeBlockControls();
   }
@@ -1903,7 +2123,7 @@ function createSupabaseRepository(client) {
       const salon = await salonPromise;
       const { data, error } = await client
         .from("staff_lanes")
-        .select("id, lane_key, label, sort_order, salon_staff!inner(id, staff_key, name, short_name, display_color, sort_order, is_active)")
+        .select("id, lane_key, label, sort_order, salon_staff!inner(id, staff_key, name, short_name, display_color, sort_order, is_active, accepts_online_bookings)")
         .eq("salon_id", salon.id)
         .eq("is_active", true)
         .eq("salon_staff.is_active", true)
@@ -1919,6 +2139,7 @@ function createSupabaseRepository(client) {
         staffName: row.salon_staff?.name,
         staffShortName: row.salon_staff?.short_name || row.salon_staff?.name,
         staffColor: row.salon_staff?.display_color || "#d7ef57",
+        staffAcceptsOnline: row.salon_staff?.accepts_online_bookings === true,
         staffSortOrder: row.salon_staff?.sort_order,
       })).sort((left, right) => (
         Number(left.staffSortOrder || 0) - Number(right.staffSortOrder || 0)
@@ -1990,7 +2211,7 @@ function createSupabaseRepository(client) {
         p_replace_entry_id: entry.replaceEntryId || null,
       });
       if (error) throw error;
-      if (entry.note && data) {
+      if (data && entry.note != null) {
         const { error: noteError } = await client.from("schedule_entries").update({ note: entry.note }).eq("id", data);
         if (noteError) throw noteError;
       }
@@ -2158,15 +2379,24 @@ function createSupabaseRepository(client) {
 
 async function loadCurrentSalon(client) {
   const slug = getCurrentSalonSlug();
-  const { data, error } = await client
+  let { data, error } = await client
     .from("salons")
-    .select("id, slug, name, address, phone, timezone, opening_hours, theme_preset, languages")
+    .select("id, slug, name, address, phone, timezone, opening_hours, theme_preset, admin_language, languages")
     .eq("slug", slug)
     .eq("is_active", true)
     .maybeSingle();
+  if (error && /admin_language/i.test(String(error.message || ""))) {
+    ({ data, error } = await client
+      .from("salons")
+      .select("id, slug, name, address, phone, timezone, opening_hours, theme_preset, languages")
+      .eq("slug", slug)
+      .eq("is_active", true)
+      .maybeSingle());
+  }
   if (error) throw error;
   if (!data) throw new Error(`找不到店铺：${slug}`);
   state.salon = data;
+  window.OpenSlotBackofficeI18n?.setLanguage(data.admin_language || "de");
   return data;
 }
 
@@ -2192,6 +2422,7 @@ function createDefaultLaneLayout() {
       staffName: isDemoSalon ? (["Linda", "Tony"][staffIndex] || `M${staffIndex + 1}`) : `M${staffIndex + 1}`,
       staffShortName: isDemoSalon ? (["L", "T"][staffIndex] || `M${staffIndex + 1}`) : `M${staffIndex + 1}`,
       staffColor: ["#f8c7ff", "#b8d9d0", "#d7ef57", "#c9c3e6"][staffIndex % 4],
+      staffAcceptsOnline: true,
       staffId: `demo-staff-${staffIndex + 1}`,
     };
   });
@@ -2217,6 +2448,7 @@ function normalizeLaneLayout(rows) {
         staffName: row.staffName || "Mitarbeiter 1",
         staffShortName: row.staffShortName || row.staffName || "M",
         staffColor: row.staffColor || "#d7ef57",
+      staffAcceptsOnline: row.staffAcceptsOnline === true,
         staffSortOrder: Number(row.staffSortOrder || 0),
       };
     })
