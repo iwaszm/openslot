@@ -1,5 +1,7 @@
-const OFFLINE_CACHE = "lisa-admin-offline-v1";
-const OFFLINE_URL = new URL("./offline.html", self.registration.scope).href;
+// Cloudflare Pages redirects the .html variant to this canonical URL. Cache the
+// canonical response: a redirected Response cannot be returned from a fetch event.
+const OFFLINE_CACHE = "lisa-admin-offline-v2";
+const OFFLINE_URL = new URL("./offline", self.registration.scope).href;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(OFFLINE_CACHE).then((cache) => cache.add(OFFLINE_URL)).then(() => self.skipWaiting()));
