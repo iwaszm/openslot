@@ -98,7 +98,7 @@ async function triggerCancellationEmail(env: { supabaseUrl: string; serviceRoleK
       Authorization: `Bearer ${env.serviceRoleKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ booking_id: bookingId, event_type: "cancelled" }),
+    body: JSON.stringify({ booking_id: bookingId }),
   }).catch(() => null);
 }
 

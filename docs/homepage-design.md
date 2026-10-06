@@ -1,13 +1,32 @@
-# OpenSlotBerlin Homepage
+# OpenSlot Homepage
 
-Scope: the root marketing page only. Existing customer and admin pages keep their own design.
+Updated: 2026-10-05
 
-The German page addresses small Berlin businesses that need browser-based appointment management. It combines a photographic neighborhood storefront, Space Grotesk lettering, white and near-black sections, and acid-yellow accents. The primary action opens the interactive booking demonstration.
+The root page presents OpenSlot as a browser-based appointment system for local service businesses. It is separate from tenant Booking, Admin and Settings routes.
 
-The demo uses synthetic data and local memory only, with dates relative to the current Berlin date. It never creates appointments, collects contact information, or sends email. The homepage loads no Supabase configuration or third-party resources.
+## Visual Direction
 
-Database location in Europe is a user-supplied fact, not independently verified by this change. Copy describes Turnstile without promising absolute security or blanket GDPR compliance. Consultation links use info@openslotberlin.de.
+- Berlin storefront photography rather than abstract illustration.
+- Space Grotesk display typography with a restrained black/white layout and fluorescent accent.
+- Responsive device previews and motion demonstrating Booking and Admin workflows.
+- Direct navigation to the interactive demo and contact channel.
 
-The management demo lists synthetic appointments, filters by date and status, opens details, and confirms cancellations in a dialog. Booking-demo confirmations appear in this list. Reset restores the sample appointments; reloading clears all demo changes. Both demos remain isolated from production.
+Assets are stored under `home/assets/` with source and license notes. The Cloudflare build publishes them under `/assets/home/` and publishes `home/index.html` at `/`.
 
-Validation: local build, Playwright interaction checks and screenshots at 1440, 390, and 320 pixels. Impeccable's engine and separate reviewer were unavailable; review used the skill's in-thread fallback.
+## Product Demonstration
+
+The homepage demonstration is explanatory UI, not the production tenant application. It must not collect customer information, create Supabase rows, send email or reuse authenticated Admin state.
+
+The deployable demo shop lives on its own `/demo/`, `/demo/admin/` and `/demo/settings/` routes and uses Supabase. Do not confuse that environment with homepage animations or with the isolated `template/` UI prototype.
+
+## Content Constraints
+
+- Do not promise absolute protection, uninterrupted delivery or blanket GDPR compliance.
+- State capabilities in terms of current product behavior.
+- Do not expose real customer, employee or shop credentials.
+- Keep individual production-shop names out of general product copy.
+- Keep support links and legal/privacy navigation functional.
+
+## Validation
+
+Before release, verify the built `dist/` version at desktop and narrow mobile widths, including reduced-motion behavior, image loading, device-preview clipping, navigation and the German copy.

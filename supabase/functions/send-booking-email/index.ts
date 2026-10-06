@@ -22,6 +22,7 @@ type BookingRow = {
     gender: string;
   } | null;
   salons: {
+    id: string;
     name: string;
     address: string;
     phone: string;
@@ -40,9 +41,8 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const { booking_id, event_type } = await req.json();
+    const { booking_id } = await req.json();
     if (!isUuid(booking_id)) return json({ error: "Invalid booking_id" }, 400);
-    if (!isMailEvent(event_type)) return json({ error: "Invalid event_type" }, 400);
 
     const env = readEnv();
     const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, {
@@ -51,6 +51,8 @@ Deno.serve(async (req) => {
 
     const booking = await loadBooking(supabase, booking_id);
     if (!booking.customers || !booking.services || !booking.salons) return json({ error: "Booking details are incomplete" }, 404);
+    await authorizeCaller(req, env, supabase, booking.salons.id);
+    const event = eventForBookingStatus(booking.status);
 
     const result = await sendOnce({
       supabase,
@@ -58,15 +60,28 @@ Deno.serve(async (req) => {
       from: env.mailFrom,
       supabaseUrl: env.supabaseUrl,
       booking,
-      event: event_type,
+      event,
       recipientEmail: booking.customers.email,
     });
 
-    return json({ ok: true, results: [result] });
+    const emailStatus = result.status === "skipped" ? "sent" : result.status;
+    return json({ ok: true, email_status: emailStatus, results: [result] });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+    console.error("Booking email failed", error);
+    if (error instanceof HttpError) return json({ error: error.publicMessage, code: error.code }, error.status);
+    return json({ error: "Email delivery failed", code: "EMAIL_DELIVERY_FAILED" }, 500);
   }
 });
+
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    readonly publicMessage: string,
+  ) {
+    super(publicMessage);
+  }
+}
 
 function readEnv() {
   const env = {
@@ -86,11 +101,44 @@ function readEnv() {
 async function loadBooking(supabase: ReturnType<typeof createClient>, bookingId: string): Promise<BookingRow> {
   const { data, error } = await supabase
     .from("appointments")
-    .select("id, appointment_date, start_time, end_time, status, cancellation_token, cancelled_by, services:services!appointments_service_salon_fkey(name, duration_minutes, price), customers:customers!appointments_customer_salon_fkey(name, phone, email, gender), salons(name, address, phone, opening_hours)")
+    .select("id, appointment_date, start_time, end_time, status, cancellation_token, cancelled_by, services:services!appointments_service_salon_fkey(name, duration_minutes, price), customers:customers!appointments_customer_salon_fkey(name, phone, email, gender), salons(id, name, address, phone, opening_hours)")
     .eq("id", bookingId)
     .single();
   if (error) throw error;
   return data as unknown as BookingRow;
+}
+
+async function authorizeCaller(
+  req: Request,
+  env: ReturnType<typeof readEnv>,
+  supabase: ReturnType<typeof createClient>,
+  salonId: string,
+) {
+  const authorization = req.headers.get("Authorization") || "";
+  if (authorization === `Bearer ${env.serviceRoleKey}`) return;
+
+  const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1] || "";
+  if (!token) throw new HttpError(401, "AUTH_REQUIRED", "Authentication required");
+
+  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  if (userError || !userData.user) throw new HttpError(401, "AUTH_REQUIRED", "Authentication required");
+
+  const { data: memberships, error: membershipError } = await supabase
+    .from("salon_members")
+    .select("salon_id, role")
+    .eq("user_id", userData.user.id);
+  if (membershipError) throw membershipError;
+
+  const allowed = (memberships || []).some((membership) =>
+    ["admin", "super_admin"].includes(membership.role) || membership.salon_id === salonId
+  );
+  if (!allowed) throw new HttpError(403, "ACCESS_DENIED", "Access denied");
+}
+
+function eventForBookingStatus(status: string): MailEvent {
+  if (status === "confirmed") return "created";
+  if (status === "cancelled") return "cancelled";
+  throw new HttpError(409, "EMAIL_EVENT_NOT_ALLOWED", "The booking state does not allow an email event");
 }
 
 async function sendOnce(options: {
@@ -289,10 +337,6 @@ function formatBerlinTime(value: string) {
     hour12: false,
     timeZone: "Europe/Berlin",
   }).format(new Date(value));
-}
-
-function isMailEvent(value: unknown): value is MailEvent {
-  return value === "created" || value === "cancelled";
 }
 
 function isUuid(value: unknown) {

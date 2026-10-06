@@ -1,54 +1,57 @@
 # OpenSlot
 
-OpenSlot is a lightweight appointment booking website for salon-style service businesses. It provides a public booking flow, an owner admin area, email notifications, and multi-tenant data separation through Supabase.
+OpenSlot is a multi-tenant appointment booking system for service businesses. Each shop receives a public booking page, a protected daily schedule, and an owner settings area under its own URL slug.
 
 ## Features
 
-- German brand homepage with an isolated interactive booking demo
-- Public appointment booking by service, date, and available time slot
-- Salon profile display with address, phone number, and opening hours
-- Owner login through Supabase Auth
-- Admin view for appointments, cancellations, daily opening hours, and services
-- Service management for name, duration, price, and active status
-- Customer confirmation and cancellation emails through Resend
-- One-click cancellation links handled by a Supabase Edge Function
-- Multi-tenant database model using a salon slug and `salon_id`
+- Public booking in German, English, and Chinese
+- Configurable services, categories, prices, durations, and occupied time slots
+- Dynamic employee selection and server-side automatic assignment
+- Multi-employee daily scheduling with two parallel lanes per employee
+- Platform administrator, shop owner, and staff permissions
+- Shop settings for services, employees, opening hours, language, and theme
+- Installable admin PWA with network-first updates and booking push notifications
+- Confirmation and cancellation emails through Resend
+- Cloudflare Turnstile protection for booking and admin sign-in
+- Public-holiday blocking and scheduled historical-data cleanup
 
 ## Architecture
 
-The frontend is a static HTML/CSS/JavaScript site deployed with Cloudflare Pages. Runtime configuration is generated during the Cloudflare build from environment variables, so the local `config.js` file is not committed.
+The frontend is framework-free HTML, CSS, and JavaScript deployed as static output on Cloudflare Pages. All shop routes use the same shared Booking, Admin, and Settings code. Shop-specific differences come from the URL slug, static media, PWA metadata, and Supabase data.
 
-The brand homepage source is contained in `home/`. During the Cloudflare build it is published at the root URL, with its assets under `/assets/home/`. The homepage demo runs entirely in memory and does not connect to Supabase or send emails. Existing `/{salon-slug}/` and `/{salon-slug}/admin/` routes remain separate.
+Supabase provides PostgreSQL storage, Auth, Row Level Security, transactional RPC functions, scheduled jobs, and Edge Functions. Resend handles transactional email. Cloudflare Pages hosts the site, Turnstile protects public actions, and Web Push notifies subscribed admin devices about new bookings.
 
-Supabase provides:
+The local `template/` application is an isolated UI prototype. It uses synthetic data and `localStorage`, does not connect to Supabase, and must not be used as a production data layer.
 
-- PostgreSQL tables for salons, services, customers, appointments, opening hours, and blocked slots
-- Row Level Security policies for public booking and owner-only administration
-- RPC functions for validated public booking
-- Edge Functions for booking emails and cancellation links
-- Auth for owner access
+## Main Routes
 
-Resend is used for transactional customer emails.
+```text
+/{shop-slug}/             Public booking
+/{shop-slug}/admin/       Protected schedule and booking log
+/{shop-slug}/settings/    Account and shop settings
+/template/                Local UI prototype
+```
 
 ## Project Structure
 
 ```text
 /
-├─ archive/             Archived customer self-management page
-├─ home/                Brand homepage, interactive demo, and assets
-├─ docs/                Architecture and security notes
-├─ scripts/build.js     Cloudflare Pages build script
-├─ supabase/            SQL migrations and Edge Functions
-├─ template/            Isolated local UI theme sandbox
-├─ customer.js          Public booking page logic
-├─ admin.js             Admin page logic
-├─ styles.css           Shared UI styles
-└─ config.example.js    Local configuration example
+├─ assets/                Shared static assets
+├─ demo/                  Demo shop shell and PWA metadata
+├─ home/                  Public product homepage
+├─ info/                  Local project notes; excluded from deployment
+├─ scripts/build.js       Cloudflare Pages build script
+├─ supabase/              SQL migrations and Edge Functions
+├─ template/              Isolated localStorage UI prototype
+├─ shared/                Settings UI, repository adapters, and back-office i18n
+├─ customer.js            Shared public booking controller
+├─ admin.js               Shared schedule controller
+└─ styles.css             Shared Booking and Admin styles
 ```
 
 ## Local Development
 
-For direct development of the booking and admin pages, copy `config.example.js` to `config.js` and fill in your Supabase project URL and anon public key:
+Copy `config.example.js` to `config.js` and provide the public Supabase and Cloudflare keys:
 
 ```js
 window.OPENSLOT_SUPABASE = {
@@ -57,81 +60,21 @@ window.OPENSLOT_SUPABASE = {
 };
 ```
 
-To preview the complete Cloudflare Pages output, provide the build variables, build the site, and serve `dist/`:
+Build the same output used by Cloudflare Pages:
 
 ```powershell
 $env:OPENSLOT_SUPABASE_URL="https://your-project.supabase.co"
 $env:OPENSLOT_SUPABASE_ANON_KEY="your-anon-public-key"
+$env:OPENSLOT_TURNSTILE_SITE_KEY="your-turnstile-site-key"
+$env:OPENSLOT_VAPID_PUBLIC_KEY="your-vapid-public-key"
 npm run build
-python -m http.server 5173 --directory dist
 ```
 
-Open a salon route:
+Serve `dist/` with any static HTTP server, then open one of the routes above. Do not open the files directly because service workers, modules, and path routing require HTTP.
 
-```text
-http://127.0.0.1:5173/{salon-slug}/
-http://127.0.0.1:5173/{salon-slug}/admin/
-```
+## Deployment
 
-The first path segment is used as the salon slug. The frontend loads the matching salon record from Supabase and scopes all services, appointments, opening hours, and admin actions to that salon.
-
-### UI theme sandbox
-
-The `template/` pages mirror the current demo booking and admin markup but do not load `config.js`, Supabase, or Cloudflare Turnstile. They use an isolated localStorage namespace and synthetic data from `template/demo-data.js`, so UI experiments do not modify live salon or production data.
-
-```text
-http://127.0.0.1:5173/template/index.html
-http://127.0.0.1:5173/template/admin.html
-```
-
-Put experimental visual overrides in `template/theme.css`. Keep shared business logic in the root JavaScript files unless the experiment explicitly changes application behavior.
-Append `?reset=1` to either preview URL to restore the synthetic appointments and clear only the template sandbox data.
-
-## Supabase Setup
-
-For a new Supabase project, run the SQL files in this order:
-
-```text
-supabase/setup.sql
-supabase/multi-tenant-rpc.sql
-supabase/service-booked-slots.sql
-supabase/admin-service-blocks.sql
-supabase/staff-slot-overrides.sql
-supabase/staff-lane-configuration.sql
-supabase/three-lane-scheduling.sql
-supabase/unified-schedule-entries.sql
-supabase/migrations/20260913170000_admin_availability_blocks.sql
-supabase/migrations/20260914090000_history_retention.sql
-supabase/migrations/20260915090000_service_translations.sql
-```
-
-The history-retention migration installs a weekly Sunday Supabase Cron job. It keeps
-30 days of historical scheduling data, consolidates duplicate customer emails
-within each salon, removes orphan customer rows, and keeps retired scheduling
-tables empty. Cron execution history is available in the Supabase Cron dashboard.
-
-Then configure Supabase Edge Function secrets:
-
-```text
-RESEND_API_KEY=your-resend-api-key
-MAIL_FROM=Booking <booking@your-domain.example>
-PUBLIC_BASE_URL=https://your-production-domain.example
-TURNSTILE_SECRET_KEY=your-cloudflare-turnstile-secret-key
-```
-
-Deploy the Edge Functions:
-
-```powershell
-npx supabase functions deploy send-booking-email --project-ref YOUR_SUPABASE_PROJECT_REF
-npx supabase functions deploy create-booking --project-ref YOUR_SUPABASE_PROJECT_REF
-npx supabase functions deploy cancel-booking --project-ref YOUR_SUPABASE_PROJECT_REF
-```
-
-The `create-booking` and `cancel-booking` functions must allow public requests. The local `supabase/config.toml` sets `verify_jwt = false` for these functions. Public booking requests are protected by Cloudflare Turnstile before the function calls the booking RPC.
-
-## Cloudflare Pages
-
-Cloudflare Pages should build from GitHub with:
+Cloudflare Pages configuration:
 
 ```text
 Framework preset: None
@@ -140,25 +83,40 @@ Build output directory: dist
 Root directory: /
 ```
 
-Add these Cloudflare Pages environment variables:
+Cloudflare Pages production variables:
 
 ```text
-OPENSLOT_SUPABASE_URL=https://your-project.supabase.co
-OPENSLOT_SUPABASE_ANON_KEY=your-anon-public-key
-OPENSLOT_TURNSTILE_SITE_KEY=your-cloudflare-turnstile-site-key
+OPENSLOT_SUPABASE_URL
+OPENSLOT_SUPABASE_ANON_KEY
+OPENSLOT_TURNSTILE_SITE_KEY
+OPENSLOT_VAPID_PUBLIC_KEY
 ```
 
-The build script creates `dist/config.js` from these variables and copies the static site into `dist/`. The generated `dist/` directory and local `config.js` are intentionally ignored by Git.
+Supabase Edge Function secrets:
 
-## Owner Mobile App
+```text
+RESEND_API_KEY
+MAIL_FROM
+PUBLIC_BASE_URL
+TURNSTILE_SECRET_KEY
+VAPID_PUBLIC_KEY
+VAPID_PRIVATE_KEY
+```
 
-The admin pages are currently responsive websites, not installable PWAs. A planned first step is an online-only PWA for each `/{salon-slug}/admin/` route, with a separate manifest, app icon, and home-screen launch path per salon. Supabase Auth and salon membership remain the access controls; installation does not grant access.
+Public booking depends on these Edge Functions:
 
-Admin actions and customer data must stay network-backed. Do not cache appointments, customer details, auth responses, or Supabase API results, and do not queue offline cancellations or schedule edits. Show an offline state and disable write actions instead. Web Push for new bookings would be a separate later feature requiring device subscriptions and server-side delivery; installing the PWA alone does not enable notifications.
+```text
+create-booking
+send-booking-email
+cancel-booking
+```
 
-## Notes
+Database changes are versioned in `supabase/migrations/`. Apply pending migrations before deploying frontend code that depends on new tables, columns, or RPC signatures.
 
-- Do not commit production secrets.
-- The Supabase anon key is public by design, but database access must be protected with RLS.
-- Customer booking writes should go through the public booking RPC instead of direct table inserts.
-- Owner-only data access should remain scoped by `salon_id` and Supabase Auth membership.
+## Security
+
+- Never commit service-role keys, private VAPID keys, Resend keys, or other production secrets.
+- The Supabase anon key is public by design; Row Level Security and RPC authorization are the security boundary.
+- Booking writes go through the validated `create-booking` Edge Function and database RPC.
+- Admin access is scoped by authenticated shop membership and role, not by URL secrecy.
+- Appointment, customer, authentication, and settings responses are not stored in the PWA cache.

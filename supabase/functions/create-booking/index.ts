@@ -56,6 +56,7 @@ Deno.serve(async (req) => {
     });
 
     if (error) throw error;
+    const emailStatus = await triggerBookingEmail(env, data);
     if (payload.salon_slug === "demo" || payload.salon_slug === "lisa") {
       try {
         await notifyNewBooking(supabase, data, env);
@@ -63,11 +64,57 @@ Deno.serve(async (req) => {
         console.error("Booking push failed:", pushError);
       }
     }
-    return json({ ok: true, booking_id: data });
+    return json({ ok: true, booking_id: data, email_status: emailStatus });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+    console.error("Booking creation failed", error);
+    const publicError = classifyBookingError(error);
+    return json({ error: publicError.message, code: publicError.code }, publicError.status);
   }
 });
+
+async function triggerBookingEmail(env: ReturnType<typeof readEnv>, bookingId: string) {
+  try {
+    const response = await fetch(`${env.supabaseUrl.replace(/\/$/, "")}/functions/v1/send-booking-email`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.serviceRoleKey}`,
+        apikey: env.serviceRoleKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ booking_id: bookingId }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error("Booking email request failed", response.status, payload);
+      return "pending";
+    }
+    return typeof payload?.email_status === "string" ? payload.email_status : "pending";
+  } catch (error) {
+    console.error("Booking email request failed", error);
+    return "pending";
+  }
+}
+
+function classifyBookingError(error: unknown) {
+  const message = error instanceof Error
+    ? error.message
+    : String((error as { message?: unknown })?.message || error || "");
+
+  if (/Too many booking attempts/i.test(message)) {
+    return { status: 429, code: "BOOKING_RATE_LIMITED", message: "Too many booking attempts" };
+  }
+  if (/No qualified staff lane|conflict|overlap|not available|outside working hours|blocked time/i.test(message)) {
+    return { status: 409, code: "SLOT_UNAVAILABLE", message: "The selected time is no longer available" };
+  }
+  if (/Unknown or inactive service/i.test(message)) {
+    return { status: 409, code: "SERVICE_UNAVAILABLE", message: "The selected service is no longer available" };
+  }
+  if (/Invalid |past date|30 minute increments/i.test(message)) {
+    return { status: 400, code: "INVALID_BOOKING", message: "The booking details are invalid" };
+  }
+  return { status: 500, code: "BOOKING_FAILED", message: "The booking could not be created" };
+}
 
 function readEnv() {
   const env = {

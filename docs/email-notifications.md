@@ -1,80 +1,69 @@
-# 真实邮件通知方案
+# Email Notifications
 
-## 推荐方案
+Updated: 2026-10-05
 
-使用 Supabase Edge Function + Resend。
+OpenSlot uses Supabase Edge Functions and Resend for transactional customer email. Resend credentials and the Supabase service-role key never enter browser configuration.
 
-原因：
-- 邮件 API key 必须放在服务端，不能放进浏览器前端。
-- 当前预约创建已经走 `create_public_booking(...)` RPC，适合在预约成功后由服务端触发邮件。
-- Resend 适合事务邮件：预约确认、取消确认。
+## Current Events
 
-## 发送场景
+- Booking created: German confirmation email with service, date, time, shop details, calendar attachment and a subdued cancellation text link.
+- Customer cancellation: confirmation email after a valid cancellation POST.
+- Owner cancellation: cancellation email after the authenticated Admin update.
 
-第一阶段只做三类邮件：
-- 顾客预约成功：发送德语确认邮件，包含 booking code、服务、日期、时间、店铺地址、电话、营业时间和一键取消链接。
-- 顾客点击邮件取消链接后：取消预约，并尝试发送取消确认。
-- 店主取消成功：发送取消通知。
+The owner does not receive email; new bookings are surfaced in Admin and through optional Web Push.
 
-暂不做：
-- 营销邮件
-- 批量群发
-- 自动提醒
-- 邮件模板后台编辑
+## Current Flow
 
-## 技术路径
+### Booking confirmation
 
-1. 在 Resend 添加并验证发信域名。
-2. 创建 Resend API key。
-3. 在 Supabase Edge Function Secrets 里保存：
-   - `RESEND_API_KEY`
-   - `MAIL_FROM`
-   - `PUBLIC_BASE_URL`
-4. 新建 Edge Function：`send-booking-email`。
-5. 新建公开 Edge Function：`cancel-booking`。
-6. 修改预约链路：
-   - 保留 `create_public_booking(...)` 负责数据库事务和防重。
-   - 预约成功后，由前端调用 Edge Function 发送邮件。
-   - Edge Function 使用 booking id 查询预约详情，再发邮件。
-   - 邮件里的 `Termin stornieren` 链接指向 `cancel-booking`，用随机 `cancellation_token` 取消预约。
+1. The browser calls `create-booking`.
+2. The Edge Function verifies Turnstile and calls `create_public_booking_for_staff`.
+3. In the same database transaction, an appointment trigger inserts an idempotent `email_events(status='pending')` row.
+4. `create-booking` invokes `send-booking-email` with the service-role credential.
+5. The email function derives the event from the canonical appointment status and sends through Resend.
+6. `create-booking` returns both `booking_id` and `email_status` to the browser.
 
-## 当前实现
+The browser makes only one booking request. If immediate delivery fails, the appointment remains valid and the pending/failed outbox event remains available for retry.
 
-已实现：
-- `supabase/functions/send-booking-email/index.ts`
-- `supabase/functions/cancel-booking/index.ts`
-- `supabase/config.toml` 中 `cancel-booking` 设置 `verify_jwt = false`
-- `email_events` 表，定义在 `supabase/setup.sql`
-- `appointments.cancellation_token`，用于邮件一键取消
-- 顾客预约成功后调用 `send-booking-email`
-- 顾客点击邮件取消链接后由 `cancel-booking` 取消预约
-- 店主取消预约后调用 `send-booking-email`
-- 只发送顾客邮件；店主不收邮件，直接看管理后台
-- 多店模式下，邮件店名、地址、电话和营业时间来自 `salons` 表，不再写死在模板里。
+### Customer cancellation
 
-部署命令：
+1. GET on `cancel-booking?token=...` validates the token and redirects to the public confirmation page; it does not modify data.
+2. The customer confirms through a POST form.
+3. `cancel-booking` updates only a currently confirmed appointment.
+4. The function invokes the cancellation email and redirects to the result page.
 
-```powershell
-npx supabase login
-npx supabase functions deploy send-booking-email --project-ref YOUR_SUPABASE_PROJECT_REF
-npx supabase functions deploy cancel-booking --project-ref YOUR_SUPABASE_PROJECT_REF
+This GET + POST design prevents mail scanners and link previews from cancelling appointments automatically.
+
+### Owner cancellation
+
+Admin changes the appointment state under authenticated RLS. The database transaction creates the cancellation outbox event, then the authenticated member invokes immediate delivery. If the second request fails, the cancellation remains valid and the email event remains recorded.
+
+## Idempotency
+
+`email_events` identifies an event by booking, event type and recipient. An already sent event is skipped. Failed events retain an error message and may be retried without intentionally duplicating successful delivery.
+
+## Required Secrets
+
+```text
+RESEND_API_KEY
+MAIL_FROM
+PUBLIC_BASE_URL
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
 ```
 
-部署后打开 `http://127.0.0.1:5173/diagnostics.html` 检查 `send-booking-email Edge Function`。
+The sending domain should have valid SPF, DKIM and DMARC configuration.
 
-## 后续更稳的路径
+## Known Risks
 
-当系统上线后，改成数据库事件触发：
-- `appointments insert` 触发顾客预约确认邮件。
-- `appointments update status = cancelled` 触发取消邮件。
+1. There is no scheduled retry worker or alert for persistent `email_events.status IN ('pending', 'failed')`.
+2. Owner cancellation still relies on an authenticated browser request for the immediate delivery attempt, although the outbox event is already durable.
+3. Resend bounce status is asynchronous and cannot be used as immediate customer identity verification.
 
-这样即使未来有多个客户端，例如 Web、微信小程序、后台手动创建预约，邮件逻辑也只维护一套。
+## Target Design
 
-## 关键约束
+1. Route owner cancellation through one server-side operation, matching customer cancellation.
+2. Add a retry job and operational view for pending/failed events.
+3. Add structured request IDs and delivery metrics.
 
-- Resend API key 只放 Supabase Secrets，不写入 `config.js`。
-- 发信域名需要配置 SPF、DKIM，建议用子域名，例如 `mail.example.com`。
-- 邮件发送要幂等，使用 booking id + event type + recipient 作为去重 key。
-- 一键取消链接只使用随机 `cancellation_token`，不在 URL 里暴露顾客邮箱。
-- 邮件失败不能回滚预约成功，应该记录失败状态或在 Edge Function 日志里排查。
-- MVP 已限制同一邮箱或同一电话 10 分钟内最多创建 3 条预约，避免刷预约造成邮件额度快速消耗。
+Email failure does not roll back an already committed appointment. The UI states that the booking exists while the email requires attention.

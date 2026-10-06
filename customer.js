@@ -694,7 +694,8 @@ async function handleSubmit(event) {
   }
 
   try {
-    const bookingId = await state.repository.createAppointment(appointment);
+    const bookingResult = await state.repository.createAppointment(appointment);
+    const emailStatus = bookingResult?.emailStatus || "pending";
     const selectedDate = els.dateInput.value;
     els.bookingForm.reset();
     els.dateInput.value = selectedDate;
@@ -703,8 +704,12 @@ async function handleSubmit(event) {
     state.selectedGender = requiresServiceSelection() ? "" : "male";
     els.genderInput.value = state.selectedGender;
     resetTurnstile();
-    const mailMessage = await state.repository.sendBookingEmail(bookingId, "created");
-    renderBookingResult();
+    const mailMessage = emailStatus === "sent"
+      ? ""
+      : emailStatus === "local"
+        ? t("customer.localNoEmail")
+        : t("customer.emailDeliveryFailed");
+    renderBookingResult(emailStatus);
     setFormMessage(mailMessage || "");
     await refreshDayData();
     renderServices();
@@ -715,11 +720,11 @@ async function handleSubmit(event) {
   }
 }
 
-function renderBookingResult() {
+function renderBookingResult(emailStatus = "sent") {
   els.bookingResult.hidden = false;
   els.bookingResult.innerHTML = `
     <strong>${t("customer.success")}</strong>
-    <span>${t("customer.checkEmail")}</span>
+    ${emailStatus === "sent" ? `<span>${t("customer.checkEmail")}</span>` : ""}
   `;
 }
 
@@ -829,17 +834,12 @@ function createSupabaseRepository(client) {
           turnstile_token: appointment.turnstileToken,
         },
       });
-      if (error) throw error;
+      if (error) throw await readFunctionError(error);
       if (data?.error) throw new Error(data.error);
-      return data?.booking_id;
-    },
-    async sendBookingEmail(bookingId, eventType) {
-      const { data, error } = await client.functions.invoke("send-booking-email", {
-        body: { booking_id: bookingId, event_type: eventType },
-      });
-      if (error) return t("customer.emailDeliveryFailed");
-      const failed = data?.results?.find((result) => result.status === "failed");
-      return failed ? t("customer.emailDeliveryFailed") : "";
+      return {
+        bookingId: data?.booking_id,
+        emailStatus: data?.email_status || "pending",
+      };
     },
     async getDaySettings(date) {
       const salon = await salonPromise;
@@ -924,10 +924,7 @@ function createLocalRepository() {
       } : null;
       appointments.push({ ...appointment, id, laneKey, ...(serviceSnapshot ? { serviceSnapshot } : {}) });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appointments));
-      return id;
-    },
-    async sendBookingEmail() {
-      return t("customer.localNoEmail");
+      return { bookingId: id, emailStatus: "local" };
     },
     async getDaySettings(date) {
       const defaults = createDefaultDaySettings(date);
@@ -1486,12 +1483,28 @@ function isPastSlot(date, startMinutes) {
   return startMinutes <= now.getHours() * 60 + now.getMinutes();
 }
 
+async function readFunctionError(error) {
+  let payload = null;
+  try {
+    const response = error?.context;
+    payload = response?.clone ? await response.clone().json() : await response?.json?.();
+  } catch {
+    payload = null;
+  }
+  const normalized = new Error(payload?.error || error?.message || "Request failed");
+  normalized.code = payload?.code || error?.code || "";
+  return normalized;
+}
+
 function isConflictError(error) {
-  return ["23P01", "P0001", "23514"].includes(error.code) || /conflict|prevent_double_booking|not available|outside working hours|blocked/i.test(error.message || "");
+  return ["23P01", "P0001", "23514", "SLOT_UNAVAILABLE"].includes(error.code) || /conflict|prevent_double_booking|not available|outside working hours|blocked/i.test(error.message || "");
 }
 
 function getBookingErrorMessage(error) {
   const message = error.message || "";
+  if (error.code === "SLOT_UNAVAILABLE") return t("customer.bookingConflict");
+  if (error.code === "SERVICE_UNAVAILABLE") return t("customer.noServices");
+  if (error.code === "BOOKING_RATE_LIMITED") return t("customer.tooManyAttempts");
   if (/outside working hours/i.test(message)) return t("customer.timeOutsideHours");
   if (/This day is not available/i.test(message)) return t("customer.dayUnavailable");
   if (/blocked slot/i.test(message)) return t("customer.timeBlocked");

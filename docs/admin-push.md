@@ -1,14 +1,63 @@
-# Salon admin booking push
+# Admin Booking Push
 
-The production and demo admin PWAs can each receive a generic notification when `create-booking` confirms a new online appointment for that salon. No customer name, contact information, or appointment details are included. Subscriptions and dispatches remain isolated by salon.
+Updated: 2026-10-05
+
+Installed Admin PWAs can receive a generic notification after a new online appointment is confirmed. Notifications contain no customer name, contact information, service or appointment time.
+
+## Current Flow
+
+1. An authenticated admin/owner/staff member presses the bell beside Buchungslog.
+2. The browser requests notification permission and creates a Push API subscription.
+3. The subscription is stored in `push_subscriptions` with the authenticated user and shop.
+4. `create-booking` confirms an appointment, inserts a unique `booking_push_dispatches` row and loads subscriptions for that shop.
+5. Membership is checked again before each delivery.
+6. Expired subscriptions returning HTTP 404 or 410 are deleted.
+
+The dispatch row prevents duplicate push delivery for the same booking. Push failures do not roll back a valid appointment.
 
 ## Setup
 
-1. In the Supabase SQL Editor, run `supabase/migrations/20260917120000_liyong_push_subscriptions.sql` once. The subscription table stores browser push endpoints under the user's salon membership and RLS. A separate dispatch table prevents duplicate notifications for the same booking.
-2. Run `node scripts/generate-vapid-keys.js` locally. Keep the private key out of Git. Generate the pair only once; rotating it invalidates existing browser subscriptions until users enable notifications again.
-3. Add `OPENSLOT_VAPID_PUBLIC_KEY` to the Cloudflare Pages production build environment, using the generated public key. Trigger a new Pages build.
-4. Set `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` as Supabase Edge Function secrets, using the same pair. Redeploy `create-booking`. Existing `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `TURNSTILE_SECRET_KEY` remain required.
-5. Open `/lisa/admin/` or `/demo/admin/` on the owner's device and log in. Tap the crossed-out bell next to Buchungslog to enable notifications, then accept the browser's prompt. On iPhone/iPad, first add each PWA to the Home Screen and open it from there. Tap the bell again to disable notifications on that device; tap it later to re-enable them.
-6. Create a real test appointment through the corresponding customer page and confirm that the device receives **Neue Online-Buchung**. Tapping it should open that salon's admin page. Repeat for each salon.
+1. Generate one VAPID key pair:
 
-Push is optional: booking still succeeds if delivery fails. The Edge Function logs failed sends and removes endpoints rejected as expired. The subscription is device-specific and remains active after signing out until disabled from that device; notifications contain no booking details. If system permission was denied, change it in the browser/OS settings before tapping the bell again.
+   ```powershell
+   node scripts/generate-vapid-keys.js
+   ```
+
+2. Add the public key to the Cloudflare Pages production build environment:
+
+   ```text
+   OPENSLOT_VAPID_PUBLIC_KEY
+   ```
+
+3. Add the same pair to Supabase Edge Function secrets:
+
+   ```text
+   VAPID_PUBLIC_KEY
+   VAPID_PRIVATE_KEY
+   ```
+
+4. Deploy `create-booking` and trigger a new Pages build.
+
+One shared VAPID pair is sufficient for all shops on the same service origin. Do not generate a pair for each shop.
+
+## Device Behavior
+
+- On iPhone/iPad, the user must install the PWA on the Home Screen and open that installed app before iOS exposes notification permission for it.
+- Denied browser permission cannot always be reopened programmatically; the bell explains or retries where the platform permits it.
+- Reinstalling the PWA may be necessary when the operating system retains an obsolete icon or permission association.
+- A subscription is device/browser-profile specific. Enabling one phone does not enable another.
+
+## Security and Privacy
+
+- The private VAPID key exists only in Supabase Secrets.
+- Push endpoints are accepted only for known HTTPS push-service hosts.
+- The service checks current shop membership before delivery.
+- Generic payloads avoid exposing personal information on a lock screen.
+- PWA installation does not grant Admin access; Supabase Auth and RLS remain mandatory.
+
+## Current Limitations
+
+- Delivery is best effort; browsers and operating systems may delay or suppress notifications.
+- There is no admin delivery dashboard or retry queue.
+- Push delivery is currently enabled in the Edge Function for the explicitly deployed shop slugs. New shops require the function/build onboarding path to be generalized.
+- Notifications complement the network-first schedule; they are not the source of truth.

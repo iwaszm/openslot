@@ -1521,7 +1521,7 @@ async function cancelAppointmentById(appointmentId) {
   if (!confirmed) return;
   try {
     await state.repository.cancelAppointment(appointmentId);
-    const mailMessage = await state.repository.sendBookingEmail(appointmentId, "cancelled");
+    const mailMessage = await state.repository.sendBookingEmail(appointmentId);
     setAdminMessage(mailMessage || t("admin.cancelled"));
     await refreshDateOptions();
     await refreshDayData();
@@ -2297,11 +2297,14 @@ function createSupabaseRepository(client) {
         staffId: salonMembership?.staff_id || null,
       };
     },
-    async sendBookingEmail(bookingId, eventType) {
-      const { error } = await client.functions.invoke("send-booking-email", {
-        body: { booking_id: bookingId, event_type: eventType },
+    async sendBookingEmail(bookingId) {
+      const { data, error } = await client.functions.invoke("send-booking-email", {
+        body: { booking_id: bookingId },
       });
-      return error ? `预约已取消，但邮件发送失败：${error.message}` : "预约已取消，通知邮件已发送。";
+      if (error || !["sent", "skipped"].includes(data?.email_status)) {
+        return t("admin.cancelledEmailPending");
+      }
+      return "";
     },
     async getDaySettings(date) {
       const salon = await salonPromise;
