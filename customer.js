@@ -675,26 +675,26 @@ async function handleSubmit(event) {
   };
 
   els.bookingForm.dispatchEvent(new CustomEvent("openslot:booking-check-start"));
-  await refreshDayData({ shouldRender: false });
+  try {
+    await refreshDayData({ shouldRender: false });
 
-  const slotError = validateBookingSlot(appointment);
-  if (slotError) {
-    setFormMessage(() => validateBookingSlot(appointment));
-    state.selectedSlot = "";
-    renderSlots();
-    return;
-  }
-
-  if (state.repository.requiresTurnstile) {
-    appointment.turnstileToken = getTurnstileToken();
-    if (!appointment.turnstileToken) {
-      setFormMessage(() => t("customer.securityRequired"));
-      updateSubmitState();
+    const slotError = validateBookingSlot(appointment);
+    if (slotError) {
+      setFormMessage(() => validateBookingSlot(appointment));
+      state.selectedSlot = "";
+      renderSlots();
       return;
     }
-  }
 
-  try {
+    if (state.repository.requiresTurnstile) {
+      appointment.turnstileToken = getTurnstileToken();
+      if (!appointment.turnstileToken) {
+        setFormMessage(() => t("customer.securityRequired"));
+        updateSubmitState();
+        return;
+      }
+    }
+
     const bookingResult = await state.repository.createAppointment(appointment);
     const emailStatus = bookingResult?.emailStatus || "pending";
     const selectedDate = els.dateInput.value;

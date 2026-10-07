@@ -6,6 +6,11 @@
   const result = document.querySelector("#bookingResult");
   const close = document.querySelector("#bookingToastClose");
   const form = document.querySelector("#bookingForm");
+  const reservationDialog = document.querySelector("#reservationDialog");
+  const reservationDialogEyebrow = document.querySelector("#reservationDialogEyebrow");
+  const reservationDialogTitle = document.querySelector("#reservationDialogTitle");
+  const reservationDialogMessage = document.querySelector("#reservationDialogMessage");
+  const reservationDialogClose = document.querySelector("#reservationDialogClose");
   const employeePicker = document.querySelector(".employee-picker");
   let employeeOptions = [...document.querySelectorAll(".employee-option")];
   let staffRecords = [];
@@ -15,6 +20,8 @@
   let activeCategory = "";
   let activeEmployee = "any";
   let dismissTimer;
+  let reservationRequest = null;
+  let reservationSyncTimer;
 
   function syncCategories() {
     const groups = [...services.querySelectorAll(".service-group")];
@@ -128,6 +135,10 @@
     const hasResult = !result.hidden && Boolean(result.textContent.trim());
     const hasMessage = Boolean(message.textContent.trim());
     clearTimeout(dismissTimer);
+    if (reservationRequest) {
+      toast.hidden = true;
+      return;
+    }
     toast.hidden = !(hasResult || hasMessage);
     toast.classList.toggle("booking-toast-success", hasResult);
     if (hasMessage && !hasResult) dismissTimer = setTimeout(() => { toast.hidden = true; }, 7000);
@@ -150,6 +161,18 @@
   new MutationObserver(syncToast).observe(message, { childList: true, characterData: true, subtree: true });
   new MutationObserver(syncToast).observe(result, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
   close.addEventListener("click", () => { toast.hidden = true; });
+  reservationDialog?.addEventListener("cancel", (event) => {
+    if (reservationDialog.dataset.state === "pending") event.preventDefault();
+  });
+  reservationDialogClose?.addEventListener("click", () => {
+    reservationDialog.close();
+    reservationRequest = null;
+    result.hidden = true;
+    result.replaceChildren();
+    message.textContent = "";
+    syncToast();
+  });
+  form.addEventListener("openslot:booking-check-start", beginReservation);
   document.addEventListener("click", (event) => {
     if (languageMenu.open && !languageMenu.contains(event.target)) languageMenu.open = false;
   });
@@ -160,6 +183,84 @@
   syncCategories();
   renderEmployees();
   syncToast();
+
+  function reservationCopy() {
+    const language = window.OpenSlotI18n?.language || document.documentElement.lang || "de";
+    if (language === "zh") return {
+      eyebrow: "预约",
+      pendingTitle: "正在检查并预留时间",
+      pendingMessage: "请稍候，我们正在确认该时间是否仍可预约。",
+      successTitle: "预约成功",
+      successMessage: "请检查您的邮箱获取确认信息。",
+      errorTitle: "预约未完成",
+      close: "知道了",
+    };
+    if (language === "en") return {
+      eyebrow: "Appointment",
+      pendingTitle: "Checking your appointment",
+      pendingMessage: "Please wait while we confirm this time is still available.",
+      successTitle: "Appointment reserved",
+      successMessage: "Please check your email for confirmation.",
+      errorTitle: "Appointment not reserved",
+      close: "Understood",
+    };
+    return {
+      eyebrow: "Termin",
+      pendingTitle: "Termin wird geprüft",
+      pendingMessage: "Bitte warten Sie, während wir prüfen, ob diese Uhrzeit noch verfügbar ist.",
+      successTitle: "Termin erfolgreich reserviert",
+      successMessage: "Bitte prüfen Sie Ihr E-Mail-Postfach auf die Bestätigung.",
+      errorTitle: "Termin konnte nicht reserviert werden",
+      close: "Verstanden",
+    };
+  }
+
+  function updateReservationDialog(state, detail = "") {
+    if (!reservationDialog) return;
+    const copy = reservationCopy();
+    reservationDialog.dataset.state = state;
+    reservationDialogEyebrow.textContent = copy.eyebrow;
+    reservationDialogTitle.textContent = state === "pending"
+      ? copy.pendingTitle
+      : state === "success" ? copy.successTitle : copy.errorTitle;
+    reservationDialogMessage.textContent = detail || (state === "pending"
+      ? copy.pendingMessage
+      : state === "success" ? copy.successMessage : "");
+    reservationDialogClose.textContent = copy.close;
+    reservationDialogClose.hidden = state === "pending";
+  }
+
+  function beginReservation() {
+    if (!reservationDialog) return;
+    reservationRequest = { startedAt: performance.now(), settled: false };
+    result.hidden = true;
+    result.replaceChildren();
+    message.textContent = "";
+    updateReservationDialog("pending");
+    toast.hidden = true;
+    if (!reservationDialog.open) reservationDialog.showModal();
+  }
+
+  function settleReservation(state, detail) {
+    if (!reservationRequest || reservationRequest.settled) return;
+    reservationRequest.settled = true;
+    const delay = Math.max(0, 420 - (performance.now() - reservationRequest.startedAt));
+    window.setTimeout(() => updateReservationDialog(state, detail), delay);
+  }
+
+  function syncReservationResult() {
+    clearTimeout(reservationSyncTimer);
+    reservationSyncTimer = window.setTimeout(() => {
+      if (!reservationRequest || reservationRequest.settled) return;
+      const hasResult = !result.hidden && Boolean(result.textContent.trim());
+      const detail = message.textContent.trim();
+      if (hasResult) settleReservation("success", detail);
+      else if (detail) settleReservation("error", detail);
+    }, 0);
+  }
+
+  new MutationObserver(syncReservationResult).observe(message, { childList: true, characterData: true, subtree: true });
+  new MutationObserver(syncReservationResult).observe(result, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, (character) => ({
