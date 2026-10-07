@@ -273,8 +273,6 @@ body.preview-admin {
   .cancel-log { width: 27px; height: 27px; padding: 0; justify-content: center; }
   .cancel-log span { display: none; }
   .cancel-log svg { width: 16px; height: 16px; }
-  .form-fields { grid-template-columns: minmax(0, 1fr); }
-  .form-fields .wide-field { grid-column: auto; }
   .action-toast { right: 10px; bottom: 10px; width: min(286px, calc(100vw - 20px)); min-height: 40px; gap: 7px; padding: 6px 7px 6px 9px; font-size: 11px; }
   .toast-symbol { width: 18px; height: 18px; }
   .toast-symbol svg { width: 13px; height: 13px; }
