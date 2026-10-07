@@ -198,6 +198,8 @@ body.preview-admin {
 .form-fields .wide-field { grid-column: 1/-1; }
 .form-fields select, .form-fields textarea, .form-fields input { width: 100%; min-width: 0; border: 1px solid #cfd6cd; background: var(--theme-field); padding: 10px; font-size: 13px; color: #191b19; }
 .form-fields select, .form-fields input { height: 41px; }
+.form-fields input[type="date"] { display: block; max-width: 100%; }
+.form-fields input[type="date"]::-webkit-date-and-time-value { min-height: 1.2em; text-align: left; }
 .form-fields textarea { resize: vertical; }
 .dialog-message { min-height: 17px; margin: 10px 0 0; color: #9b3037; font-size: 12px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 16px; }
@@ -270,6 +272,8 @@ body.preview-admin {
   .cancel-log { width: 27px; height: 27px; padding: 0; justify-content: center; }
   .cancel-log span { display: none; }
   .cancel-log svg { width: 16px; height: 16px; }
+  .form-fields { grid-template-columns: minmax(0, 1fr); }
+  .form-fields .wide-field { grid-column: auto; }
   .action-toast { right: 10px; bottom: 10px; width: min(286px, calc(100vw - 20px)); min-height: 40px; gap: 7px; padding: 6px 7px 6px 9px; font-size: 11px; }
   .toast-symbol { width: 18px; height: 18px; }
   .toast-symbol svg { width: 13px; height: 13px; }
