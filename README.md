@@ -113,6 +113,22 @@ cancel-booking
 
 Database changes are versioned in `supabase/migrations/`. Apply pending migrations before deploying frontend code that depends on new tables, columns, or RPC signatures.
 
+## Database Operations
+
+With Docker Desktop running and the repository linked to Supabase, create a timestamped logical backup with:
+
+```powershell
+npm run backup:supabase
+```
+
+Backups are written to `info/backup/`, which is excluded from Git. They contain customer and authentication data and must be stored as sensitive files.
+
+Run the read-only schema audits in `supabase/audits/` when reconciling a linked project. The transactional demo scheduling regression suite can be run with:
+
+```powershell
+npm run test:db:linked
+```
+
 ## Security
 
 - Never commit service-role keys, private VAPID keys, Resend keys, or other production secrets.
