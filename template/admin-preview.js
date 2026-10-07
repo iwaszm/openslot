@@ -275,7 +275,9 @@
   const occupiedInRange = (startMinutes, endMinutes, staffIndex = null) => dayEvents().some((item) => (staffIndex == null || item.staffIndex === staffIndex) && occupiedSlots(item).some((minute) => minute < endMinutes && minute + slotStep > startMinutes));
   const bookingStatus = (date) => {
     const { openMinutes, closeMinutes } = workingHours(date);
-    const indexes = session?.role === "staff" ? [sessionStaffIndex()].filter((index) => index >= 0) : staffRecords.map((_, index) => index);
+    const indexes = staffRecords
+      .map((employee, index) => employee.acceptsOnline ? index : -1)
+      .filter((index) => index >= 0);
     const occupied = new Set();
     indexes.forEach((staffIndex) => {
       const entries = allocate(dayEvents(date).filter((item) => item.staffIndex === staffIndex));
@@ -291,7 +293,7 @@
       });
     });
     const slotCount = Math.max(0, (closeMinutes - openMinutes) / slotStep) * indexes.length * 2;
-    const count = dayEvents(date).filter((item) => indexes.includes(item.staffIndex)).length;
+    const count = dayEvents(date).length;
     return { count, percent: slotCount ? Math.min(100, occupied.size / slotCount * 100) : 0 };
   };
   const shiftDate = (value, days) => { const date = parseDate(value); date.setDate(date.getDate() + days); return dateValue(date); };

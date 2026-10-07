@@ -2851,18 +2851,16 @@ function countDaySlots(daySettings) {
   return Math.max(0, Math.floor((daySettings.closeMinutes - daySettings.openMinutes) / SLOT_STEP));
 }
 
-function getLoadLaneLayout() {
-  return state.accessRole === "staff" && state.accessStaffId
-    ? state.laneLayout.filter((lane) => lane.staffId === state.accessStaffId)
-    : state.laneLayout;
+function getOnlineLoadLaneLayout() {
+  return state.laneLayout.filter((lane) => lane.staffAcceptsOnline === true);
 }
 
 function countScheduleCapacity(daySettings) {
-  return countDaySlots(daySettings) * getLoadLaneLayout().length;
+  return countDaySlots(daySettings) * getOnlineLoadLaneLayout().length;
 }
 
 function calculateScheduleLoad(appointments, manualEntries, daySettings, timeBlocks) {
-  const lanes = getLoadLaneLayout();
+  const lanes = getOnlineLoadLaneLayout();
   const laneKeys = new Set(lanes.map((lane) => lane.laneKey));
   const occupied = new Set();
   const addOccupiedRanges = (laneKey, item) => {
