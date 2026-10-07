@@ -674,6 +674,7 @@ async function handleSubmit(event) {
     status: "confirmed",
   };
 
+  els.bookingForm.dispatchEvent(new CustomEvent("openslot:booking-check-start"));
   await refreshDayData({ shouldRender: false });
 
   const slotError = validateBookingSlot(appointment);
