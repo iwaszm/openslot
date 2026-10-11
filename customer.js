@@ -5,7 +5,7 @@ import {
 } from "./src/booking/scheduling.mjs";
 import { createSupabaseBookingRepository } from "./src/booking/supabase-booking-repository.mjs";
 import { createLocalBookingRepository } from "./src/booking/local-booking-repository.mjs";
-import { getBookingErrorKey, validateCustomerValues } from "./src/booking/booking-validation.mjs";
+import { canSubmitBooking, getBookingErrorKey, validateCustomerValues } from "./src/booking/booking-validation.mjs";
 import {
   buildBookingSlots,
   getNoSlotMessageKey,
@@ -161,24 +161,29 @@ window.onOpenSlotTurnstileChange = () => {
 init();
 
 async function init() {
-  els.dateInput.value = getInitialBookingDate();
-  els.dateInput.min = toDateInputValue(new Date());
-  state.repository = createRepository();
-  bindEvents();
-  await refreshServices();
-  await refreshLaneLayout();
-  await refreshStaffServices();
-  await refreshDateOptions();
-  await refreshDayData();
-  if (window.OPENSLOT_RUNTIME?.dataSource === "local" && window.OpenSlotLocalRepository) {
-    window.OpenSlotLocalRepository.subscribe("services", async () => {
-      await refreshServices();
-      await refreshDayData();
-    });
-    window.OpenSlotLocalRepository.subscribe("staff-services", async () => {
-      await refreshStaffServices();
-      await refreshDayData();
-    });
+  try {
+    els.dateInput.value = getInitialBookingDate();
+    els.dateInput.min = toDateInputValue(new Date());
+    state.repository = createRepository();
+    bindEvents();
+    await refreshServices();
+    await refreshLaneLayout();
+    await refreshStaffServices();
+    await refreshDateOptions();
+    await refreshDayData();
+    if (window.OPENSLOT_RUNTIME?.dataSource === "local" && window.OpenSlotLocalRepository) {
+      window.OpenSlotLocalRepository.subscribe("services", async () => {
+        await refreshServices();
+        await refreshDayData();
+      });
+      window.OpenSlotLocalRepository.subscribe("staff-services", async () => {
+        await refreshStaffServices();
+        await refreshDayData();
+      });
+    }
+  } finally {
+    document.body.classList.remove("booking-hydrating");
+    document.body.removeAttribute("aria-busy");
   }
 }
 
@@ -563,8 +568,13 @@ function renderSelectedSummaries() {
 function updateSubmitState() {
   if (!els.submitButton) return;
   const needsTurnstile = Boolean(els.turnstileWidget && state.repository?.requiresTurnstile);
-  const hasTurnstile = !needsTurnstile || Boolean(turnstileController.getToken({ silent: true }));
-  els.submitButton.disabled = !(getSelectedService() && els.dateInput.value && state.selectedSlot && hasTurnstile);
+  els.submitButton.disabled = !canSubmitBooking({
+    hasService: Boolean(getSelectedService()),
+    date: els.dateInput.value,
+    slot: state.selectedSlot,
+    requiresTurnstile: needsTurnstile,
+    turnstileToken: turnstileController.getToken({ silent: true }),
+  });
 }
 
 function renderBookingSummary() {

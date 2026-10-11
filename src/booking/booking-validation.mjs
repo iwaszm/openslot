@@ -19,6 +19,10 @@ export function validateCustomerValues({ name, phone, email, emailValid = true }
   return null;
 }
 
+export function canSubmitBooking({ hasService, date, slot, requiresTurnstile = false, turnstileToken = "" }) {
+  return Boolean(hasService && date && slot && (!requiresTurnstile || turnstileToken));
+}
+
 export function getBookingErrorKey(error) {
   const message = error?.message || "";
   if (error?.code === "SLOT_UNAVAILABLE") return "customer.bookingConflict";

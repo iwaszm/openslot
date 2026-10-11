@@ -27,6 +27,14 @@
   font-family: "Space Grotesk", Arial, sans-serif;
 }
 
+.booking-themed.booking-hydrating {
+  background: #fff;
+}
+
+.booking-themed.booking-hydrating .customer-page {
+  visibility: hidden;
+}
+
 .booking-themed :is(main, form, fieldset, aside, footer, button, input, label, span, strong, small, a, li, div, p, section, h1, h2, h3, legend) {
   font-family: "Space Grotesk", Arial, sans-serif;
   font-size: var(--type-medium) !important;
