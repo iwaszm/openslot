@@ -10,6 +10,9 @@ export function formatMinutes(totalMinutes) {
 }
 
 export function dateToMinutes(value) {
+  if (typeof value === "string" && /^\d{2}:\d{2}/.test(value)) {
+    return parseTime(value.slice(0, 5));
+  }
   const date = new Date(value);
   return date.getHours() * 60 + date.getMinutes();
 }

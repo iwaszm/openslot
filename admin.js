@@ -30,6 +30,9 @@ import {
   renderCollapseIcon,
   sortUpcomingAppointments,
 } from "./src/admin/booking-log-view.mjs";
+import { escapeAttribute, escapeHtml } from "./src/core/html.mjs";
+import { dateToMinutes, formatMinutes, parseTime, timeValueToMinutes } from "./src/core/time.mjs";
+import { getBerlinHolidayName, toDateInputValue } from "./src/booking/calendar.mjs";
 
 const DEFAULT_SERVICES = [
   { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
@@ -2361,41 +2364,6 @@ function previousCalendarPageDate(value) {
   return date < new Date(`${today}T00:00:00`) ? today : toDateInputValue(date);
 }
 
-function getBerlinHolidayName(value) {
-  const date = new Date(`${value}T12:00:00`);
-  const fixed = {
-    "01-01": "Neujahr",
-    "03-08": "Internationaler Frauentag",
-    "05-01": "Tag der Arbeit",
-    "10-03": "Tag der Deutschen Einheit",
-    "12-25": "1. Weihnachtstag",
-    "12-26": "2. Weihnachtstag",
-  };
-  if (fixed[value.slice(5)]) return fixed[value.slice(5)];
-  const year = date.getFullYear();
-  const a = year % 19;
-  const b = Math.floor(year / 100);
-  const c = year % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31);
-  const day = ((h + l - 7 * m + 114) % 31) + 1;
-  const easter = new Date(year, month - 1, day, 12);
-  for (const [offset, name] of [[-2, "Karfreitag"], [1, "Ostermontag"], [39, "Christi Himmelfahrt"], [50, "Pfingstmontag"]]) {
-    const holiday = new Date(easter);
-    holiday.setDate(holiday.getDate() + offset);
-    if (toDateInputValue(holiday) === value) return name;
-  }
-  return "";
-}
-
 async function scrollDateStrip(direction) {
   let dateRow = els.adminDateStrip?.querySelector(".date-row");
   if (!dateRow) return;
@@ -2516,11 +2484,6 @@ function isMissingUnifiedSchedule(error) {
   return ["42P01", "42703", "PGRST200", "PGRST204", "PGRST205"].includes(error?.code);
 }
 
-function timeValueToMinutes(value) {
-  const text = String(value || "");
-  return text.includes("T") ? dateToMinutes(text) : parseTime(text.slice(0, 5));
-}
-
 function fromSupabaseDaySettings(row) {
   return {
     date: row.setting_date,
@@ -2576,36 +2539,4 @@ function loadLocalServices() {
       gender: service.gender || fallback?.gender || legacy?.gender || "unisex",
     };
   });
-}
-
-function toDateInputValue(date) {
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return offsetDate.toISOString().slice(0, 10);
-}
-
-function dateToMinutes(value) {
-  if (typeof value === "string" && /^\d{2}:\d{2}/.test(value)) {
-    return parseTime(value.slice(0, 5));
-  }
-  const date = new Date(value);
-  return date.getHours() * 60 + date.getMinutes();
-}
-
-function parseTime(time) {
-  const [hours, minutes] = time.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-function formatMinutes(totalMinutes) {
-  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
-  const minutes = String(totalMinutes % 60).padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
-function escapeHtml(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-}
-
-function escapeAttribute(value) {
-  return escapeHtml(value).replaceAll("`", "&#096;");
 }
