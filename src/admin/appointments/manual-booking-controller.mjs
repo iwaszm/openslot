@@ -6,6 +6,17 @@ export function createManualBookingController({ elements, handlers }) {
   function bind() {
     elements.add?.addEventListener("click", () => handlers.open());
     elements.form?.addEventListener("submit", handlers.submit);
+    elements.dialog?.addEventListener("click", (event) => {
+      const bounds = elements.dialog.getBoundingClientRect();
+      const outside = event.clientX < bounds.left || event.clientX > bounds.right
+        || event.clientY < bounds.top || event.clientY > bounds.bottom;
+      if (event.target === elements.dialog && outside) elements.dialog.close();
+    });
+    elements.dialog?.addEventListener("close", () => {
+      entry = null;
+      context = null;
+      handlers.close?.();
+    });
     elements.employee?.addEventListener("change", () => {
       handlers.setCategories();
       handlers.renderServices();

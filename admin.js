@@ -243,7 +243,7 @@ const liveRefreshController = createLiveRefreshController({
 });
 let sessionController = null;
 const manualBookingController = createManualBookingController({
-  elements: { add: els.addBookingButton, form: els.manualBookingForm, employee: els.bookingEmployee,
+  elements: { add: els.addBookingButton, dialog: els.bookingDialog, form: els.manualBookingForm, employee: els.bookingEmployee,
     category: els.bookingCategory, service: els.bookingService, start: els.bookingStart, date: els.bookingDate },
   handlers: { open: openManualBookingDialog, submit: submitManualBooking, setCategories: setManualCategories,
     renderServices: renderManualServiceOptions, renderTimes: renderManualBookingTimes,
@@ -294,15 +294,15 @@ function translateStaticAdminUi() {
   setLeadingText("label:has(#bookingStart)", "admin.begin");
   setLeadingText("label:has(#bookingNote)", "admin.note");
   document.querySelector("#bookingNote")?.setAttribute("placeholder", t("admin.optional"));
-  setText("#manualBookingForm .text-button", "admin.cancel");
-  setText("#manualBookingForm .solid-button", "admin.saveAppointment");
+  setText("#manualBookingForm .text-button", "common.cancel");
+  setText("#manualBookingForm .solid-button", "common.save");
   setLabel("#availabilityToggle", "admin.manageAvailability");
   setLabel("#addBookingButton", "admin.addAppointment");
   setLabel("#ownerLogoutButton", "admin.logout");
   setLabel("#pushToggleButton", "admin.enableNotifications");
   setLabel("#logCollapseButton", "admin.collapseLog");
   setLabel("#toastClose", "admin.close");
-  document.querySelectorAll("[data-close-admin-dialog]").forEach((button) => button.setAttribute("aria-label", t("admin.close")));
+  document.querySelectorAll(".dialog-close").forEach((button) => button.setAttribute("aria-label", t("admin.close")));
 }
 
 function setAdminMessage(message) {

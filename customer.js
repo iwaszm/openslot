@@ -148,7 +148,7 @@ const submissionController = createBookingSubmissionController({
     activeServices, buildSlots, formatError: getBookingErrorMessage,
     getNoSlotMessage, getOccupiedMinutes: getServiceOccupiedMinutes, getSelectedService,
     parseTime, refreshDay: refreshDayData, renderResult: renderBookingResult,
-    renderServices, renderSlots, requireServiceSelection, setMessage: setFormMessage,
+    renderServices, renderSlots, requireServiceSelection: requiresServiceSelection, setMessage: setFormMessage,
     t, turnstile: turnstileController, updateSubmit: updateSubmitState,
     validateCustomerFields, validateSlot: validateBookingSlot,
   },
