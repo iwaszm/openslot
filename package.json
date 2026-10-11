@@ -1,6 +1,8 @@
 {
   "scripts": {
     "build": "node scripts/build.js",
+    "test": "node --test tests/unit/*.test.mjs",
+    "test:unit": "node --test tests/unit/*.test.mjs",
     "backup:supabase": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backup-supabase.ps1",
     "test:db:linked": "npx --yes supabase@latest db query --linked --file supabase/tests/demo-scheduling-regression.sql"
   }

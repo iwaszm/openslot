@@ -42,8 +42,10 @@ for (const dir of ["datenschutz", "stornierung", "lisa", "demo"]) {
   copyDir(dir);
 }
 copyDir("shared");
+copyDir("src");
 copyDir(path.join("home", "assets"), path.join("assets", "home"));
 replaceTurnstileSiteKeys(dist);
+stampJavaScriptModuleImports();
 stampAdminAssetUrls();
 stampCustomerAssetUrls();
 stampSettingsAssetUrls();
@@ -137,6 +139,27 @@ function stampSettingsAssetUrls() {
     });
     if (count !== 6) throw new Error(`Expected six settings assets in ${file}, found ${count}`);
     fs.writeFileSync(file, updated, "utf8");
+  }
+}
+
+function stampJavaScriptModuleImports() {
+  const files = [path.join(dist, "customer.js")];
+  collectModuleFiles(path.join(dist, "src"), files);
+  for (const file of files) {
+    const source = fs.readFileSync(file, "utf8");
+    const updated = source.replace(
+      /(from\s+["'])(\.\.?\/[^"']+\.mjs)(?:\?v=[^"']+)?(["'])/g,
+      `$1$2?v=${buildId}$3`,
+    );
+    fs.writeFileSync(file, updated, "utf8");
+  }
+}
+
+function collectModuleFiles(directory, files) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) collectModuleFiles(entryPath, files);
+    else if (entry.name.endsWith(".mjs")) files.push(entryPath);
   }
 }
 
