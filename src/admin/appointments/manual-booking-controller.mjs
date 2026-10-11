@@ -20,15 +20,16 @@ export function createManualBookingController({ elements, handlers }) {
     elements.employee?.addEventListener("change", () => {
       handlers.setCategories();
       handlers.renderServices();
-      handlers.renderTimes({ filterByService: false });
+      handlers.renderTimes({ filterByService: true });
       handlers.updateSubmit();
     });
     elements.category?.addEventListener("change", () => {
       handlers.renderServices({ filterByTime: Boolean(elements.start.value) });
-      handlers.renderTimes({ preferred: Number(elements.start.value), filterByService: false });
+      handlers.renderTimes({ preferred: Number(elements.start.value), filterByService: true });
       handlers.updateSubmit();
     });
     elements.service?.addEventListener("change", () => {
+      handlers.updateServiceColor();
       handlers.renderTimes({ preferred: Number(elements.start.value), filterByService: Boolean(elements.service.value) });
       handlers.updateSubmit();
     });
@@ -36,7 +37,10 @@ export function createManualBookingController({ elements, handlers }) {
       handlers.renderServices({ preferred: elements.service.value, filterByTime: Boolean(elements.start.value) });
       handlers.updateSubmit();
     });
-    elements.date?.addEventListener("change", () => handlers.loadDate());
+    elements.date?.addEventListener("change", () => {
+      handlers.normalizeDate?.();
+      handlers.loadDate();
+    });
   }
 
   return Object.freeze({

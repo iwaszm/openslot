@@ -43,6 +43,12 @@
   Object.assign(dictionaries.de, { "settings.themeGray": "Graphitgrau" });
   Object.assign(dictionaries.en, { "settings.themeGray": "Graphite gray" });
   Object.assign(dictionaries.zh, { "settings.themeGray": "石墨灰" });
+  Object.assign(dictionaries.de, { "admin.cancelBookingMessage": "Diese Online-Buchung wirklich stornieren? Der Kunde wird per E-Mail benachrichtigt." });
+  Object.assign(dictionaries.en, { "admin.cancelBookingMessage": "Cancel this online booking? The customer will be notified by email." });
+  Object.assign(dictionaries.zh, { "admin.cancelBookingMessage": "确定取消这项线上预约吗？系统将通过电子邮件通知顾客。" });
+  Object.assign(dictionaries.de, { "admin.chooseDateRequired": "Bitte wählen Sie ein Datum." });
+  Object.assign(dictionaries.en, { "admin.chooseDateRequired": "Choose a date." });
+  Object.assign(dictionaries.zh, { "admin.chooseDateRequired": "请选择日期。" });
 
   const interpolate = (text, values = {}) => Object.entries(values)
     .reduce((result, [name, value]) => result.replaceAll(`{${name}}`, value), text);

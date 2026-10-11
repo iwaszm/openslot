@@ -82,4 +82,18 @@ test("renders employee columns and appointment details", () => {
   assert.match(html, /Cut/);
   assert.match(html, /Ada/);
   assert.match(html, /data-event-detail="a1"/);
+  assert.match(html, /class="calendar-event full"/);
+  assert.match(html, /data-create-staff="linda" data-create-start="600"/);
+});
+
+test("does not render quick-create targets on a blocked day", () => {
+  const html = renderAdminSchedule({
+    slots: [{ startMinutes: 600, endMinutes: 630 }],
+    lanes: [{ ...lanes[0], staffName: "Linda", appointments: [], manual: [] }],
+    daySettings: { openMinutes: 600, closeMinutes: 630, isBlockedDay: true },
+    timeBlocks: [], selectedDate: "2026-10-12", translate: (key) => key,
+    canEditLane: () => true, canManageTimeBlock: () => true,
+    serviceForItem: () => null, getServiceAbbrev: () => "", toDateInputValue: () => "2026-10-11",
+  });
+  assert.doesNotMatch(html, /data-create-staff/);
 });

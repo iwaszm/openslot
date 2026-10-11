@@ -16,7 +16,7 @@ import {
 } from "./src/admin/schedule-model.mjs";
 import { createTurnstileController } from "./src/admin/turnstile-controller.mjs";
 import { createLocalAdminRepository } from "./src/admin/local-admin-repository.mjs";
-import { renderAdminSchedule } from "./src/admin/schedule-view.mjs";
+import { renderAdminSchedule } from "./src/admin/schedule-view.mjs?v=20261011-quick-create-1";
 import {
   canPlaceManualService as canPlaceManualEditorServiceInContext,
   canPlaceManualServiceOnLane as canPlaceManualEditorServiceOnLaneInContext,
@@ -40,7 +40,7 @@ import { createAdminState } from "./src/admin/admin-state.mjs";
 import { createAdminMappers } from "./src/admin/admin-mappers.mjs";
 import { createAdminSessionController } from "./src/admin/auth/session-controller.mjs";
 import { createDateNavigationController } from "./src/admin/schedule/date-navigation.mjs";
-import { createManualBookingController } from "./src/admin/appointments/manual-booking-controller.mjs";
+import { createManualBookingController } from "./src/admin/appointments/manual-booking-controller.mjs?v=20261011-manual-dialog-1";
 
 const DEFAULT_SERVICES = [
   { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
@@ -125,7 +125,6 @@ const t = (key, values) => window.OpenSlotBackofficeI18n?.t(key, values) || wind
 const getAdminLocale = () => ({ zh: "zh-CN", en: "en-GB", de: "de-DE" })[window.OpenSlotI18n?.language] || "de-DE";
 const getServiceName = (service) => service.name;
 const confirmMessages = {
-  cancelAppointment: "Diesen Termin wirklich stornieren?",
   blockDay: "Diesen ganzen Tag wirklich blockieren?",
   unblockDay: "Diesen ganzen Tag wieder freigeben?",
   unblockSlot: "Diesen Block wirklich freigeben?",
@@ -247,7 +246,8 @@ const manualBookingController = createManualBookingController({
     category: els.bookingCategory, service: els.bookingService, start: els.bookingStart, date: els.bookingDate },
   handlers: { open: openManualBookingDialog, submit: submitManualBooking, setCategories: setManualCategories,
     renderServices: renderManualServiceOptions, renderTimes: renderManualBookingTimes,
-    updateSubmit: updateManualSubmitState, loadDate: loadManualEditorDate },
+    updateServiceColor: updateManualServiceColor, updateSubmit: updateManualSubmitState,
+    normalizeDate: normalizeManualBookingDate, loadDate: loadManualEditorDate },
 });
 const dateNavigation = createDateNavigationController({
   elements: { input: els.adminDateInput, strip: els.adminDateStrip, month: els.calendarMonth,
@@ -296,6 +296,8 @@ function translateStaticAdminUi() {
   document.querySelector("#bookingNote")?.setAttribute("placeholder", t("admin.optional"));
   setText("#manualBookingForm .text-button", "common.cancel");
   setText("#manualBookingForm .solid-button", "common.save");
+  setText("#detailEdit span", "admin.editAppointment");
+  setText("#detailDelete span", "admin.deleteAppointment");
   setLabel("#availabilityToggle", "admin.manageAvailability");
   setLabel("#addBookingButton", "admin.addAppointment");
   setLabel("#ownerLogoutButton", "admin.logout");
@@ -845,6 +847,12 @@ function renderSlotManager() {
   els.appointmentList.querySelectorAll("[data-event-detail]").forEach((button) => {
     button.addEventListener("click", () => openScheduleDetail(button.dataset.eventDetail, button.dataset.eventKind));
   });
+  els.appointmentList.querySelectorAll("[data-create-staff]").forEach((button) => {
+    button.addEventListener("click", () => openManualBookingDialog(null, {
+      staffKey: button.dataset.createStaff,
+      startMinutes: Number(button.dataset.createStart),
+    }));
+  });
 }
 
 function formatAdminDaySummary(value, count) {
@@ -928,6 +936,8 @@ function renderLogAppointment(appointment) {
     serviceLabel: getServiceAbbrev(service),
     canCancel,
     unnamedCustomer: t("admin.unnamedCustomer"),
+    cancelLabel: t("admin.cancel"),
+    cancelAriaLabel: t("admin.cancelBooking"),
   });
 }
 
@@ -1183,8 +1193,9 @@ async function handleToggleDayBlock() {
 async function cancelAppointmentById(appointmentId) {
   const confirmed = await window.OpenSlotConfirm.ask({
     title: t("admin.cancelBooking"),
-    message: confirmMessages.cancelAppointment,
+    message: t("admin.cancelBookingMessage"),
     confirmLabel: t("admin.cancel"),
+    cancelLabel: t("common.cancel"),
     tone: "danger",
   });
   if (!confirmed) return;
@@ -1245,7 +1256,7 @@ function getScopedTimeBlocks() {
   return state.timeBlocks.filter((block) => !block.staffId || staffIds.has(block.staffId));
 }
 
-async function openManualBookingDialog(entry = null) {
+async function openManualBookingDialog(entry = null, preset = {}) {
   if (!els.bookingDialog || !state.isOwner) return;
   manualBookingController.entry = entry;
   const service = entry ? serviceForItem(entry) : null;
@@ -1254,8 +1265,9 @@ async function openManualBookingDialog(entry = null) {
     state.accessRole !== "staff" || group.staffId === state.accessStaffId
   ));
   els.bookingEmployee.innerHTML = staffGroups.map((group) => `<option value="${escapeAttribute(group.key)}">${escapeHtml(group.name)}</option>`).join("");
-  if (currentLane?.staffKey && staffGroups.some((group) => group.key === currentLane.staffKey)) {
-    els.bookingEmployee.value = currentLane.staffKey;
+  const preferredStaffKey = currentLane?.staffKey || preset.staffKey || "";
+  if (preferredStaffKey && staffGroups.some((group) => group.key === preferredStaffKey)) {
+    els.bookingEmployee.value = preferredStaffKey;
   }
   els.bookingEmployee.disabled = state.accessRole === "staff";
   els.bookingDate.value = entry?.date || els.adminDateInput.value;
@@ -1270,7 +1282,7 @@ async function openManualBookingDialog(entry = null) {
   els.bookingDialog.showModal();
   await loadManualEditorDate({
     preferredServiceId: service?.id || entry?.serviceId || "",
-    preferredStart: entry?.startMinutes ?? null,
+    preferredStart: entry?.startMinutes ?? preset.startMinutes ?? null,
   });
 }
 
@@ -1296,9 +1308,25 @@ function renderManualServiceOptions({ preferred = "", filterByTime = false } = {
   const services = getManualEditorServices().filter((service) => (
     !filterByTime || !Number.isFinite(startMinutes) || canPlaceManualEditorService(service, startMinutes)
   ));
-  els.bookingService.innerHTML = `<option value="">${escapeHtml(t("admin.chooseService"))}</option>${services.map((service) => `<option value="${escapeAttribute(service.id)}">${escapeHtml(`${getServiceAbbrev(service)} · ${service.duration} Min.`)}</option>`).join("")}`;
+  els.bookingService.innerHTML = services.length
+    ? services.map((service) => {
+      const color = service.slotColor || service.color || "#e7ece8";
+      return `<option value="${escapeAttribute(service.id)}" style="background-color:color-mix(in srgb, ${escapeAttribute(color)} 28%, white)">${escapeHtml(`${getServiceAbbrev(service)} · ${service.duration} Min.`)}</option>`;
+    }).join("")
+    : `<option value="">${escapeHtml(t("admin.chooseAvailableService"))}</option>`;
   if (services.some((service) => service.id === preferred)) els.bookingService.value = preferred;
+  else if (services[0]) els.bookingService.value = services[0].id;
   els.bookingService.disabled = services.length === 0;
+  updateManualServiceColor();
+}
+
+function updateManualServiceColor() {
+  const service = findService(els.bookingService?.value);
+  const color = service?.slotColor || service?.color;
+  if (!els.bookingService) return;
+  els.bookingService.style.backgroundColor = color
+    ? `color-mix(in srgb, ${color} 32%, var(--theme-field))`
+    : "var(--theme-field)";
 }
 
 function getManualServicesForStaff(staffKey) {
@@ -1346,13 +1374,26 @@ async function loadManualEditorDate({ preferredServiceId = els.bookingService?.v
   const requestId = manualBookingController.nextRequest();
   const submit = els.manualBookingForm?.querySelector('[type="submit"]');
   if (submit) submit.disabled = true;
+  if (!els.bookingDate?.value) {
+    manualBookingController.context = null;
+    if (els.bookingStart) {
+      els.bookingStart.innerHTML = `<option value="">${escapeHtml(t("admin.chooseTime"))}</option>`;
+      els.bookingStart.disabled = true;
+    }
+    if (els.bookingFormMessage) els.bookingFormMessage.textContent = t("admin.chooseDateRequired");
+    return;
+  }
   if (els.bookingFormMessage) els.bookingFormMessage.textContent = t("admin.checkingTimes");
   try {
     const context = await fetchManualContext(els.bookingDate.value);
     if (!manualBookingController.isCurrentRequest(requestId)) return;
     manualBookingController.context = context;
     renderManualServiceOptions({ preferred: preferredServiceId });
-    renderManualBookingTimes({ preferred: preferredStart, filterByService: Boolean(preferredServiceId) });
+    const hasPreferredStart = preferredStart !== null && preferredStart !== "" && Number.isFinite(Number(preferredStart));
+    renderManualBookingTimes({ preferred: preferredStart, filterByService: !hasPreferredStart || Boolean(preferredServiceId) });
+    if (hasPreferredStart && !preferredServiceId && els.bookingStart?.value) {
+      renderManualServiceOptions({ filterByTime: true });
+    }
     updateManualSubmitState();
   } catch (error) {
     if (!manualBookingController.isCurrentRequest(requestId)) return;
@@ -1406,7 +1447,7 @@ function updateManualSubmitState() {
   const submit = els.manualBookingForm?.querySelector('[type="submit"]');
   const service = findService(els.bookingService?.value);
   const startMinutes = Number(els.bookingStart?.value);
-  const valid = Boolean(els.bookingDate?.value && service && els.bookingStart?.value
+  const valid = Boolean(els.bookingDate?.value && els.bookingDate.checkValidity() && service && els.bookingStart?.value
     && canPlaceManualEditorService(service, startMinutes));
   if (submit) submit.disabled = !valid;
   if (valid && els.bookingFormMessage) els.bookingFormMessage.textContent = "";
@@ -1414,6 +1455,11 @@ function updateManualSubmitState() {
 
 async function submitManualBooking(event) {
   event.preventDefault();
+  normalizeManualBookingDate();
+  if (!els.bookingDate?.checkValidity()) {
+    els.bookingDate?.reportValidity();
+    return;
+  }
   if (!els.bookingService?.value) {
     els.bookingFormMessage.textContent = t("admin.chooseAvailableService");
     return;
@@ -1458,6 +1504,15 @@ async function submitManualBooking(event) {
   }
 }
 
+function normalizeManualBookingDate() {
+  if (!els.bookingDate?.value) return;
+  if (els.bookingDate.min && els.bookingDate.value < els.bookingDate.min) {
+    els.bookingDate.value = els.bookingDate.min;
+  } else if (els.bookingDate.max && els.bookingDate.value > els.bookingDate.max) {
+    els.bookingDate.value = els.bookingDate.max;
+  }
+}
+
 function openScheduleDetail(id, kind) {
   detailController.open(id, kind);
 }
@@ -1478,6 +1533,7 @@ async function deleteSelectedManualEntry(entry) {
     title: t("admin.manualDeleteTitle"),
     message: t("admin.manualDeleteMessage"),
     confirmLabel: t("common.delete"),
+    cancelLabel: t("common.cancel"),
     tone: "danger",
   });
   if (!confirmed) return;

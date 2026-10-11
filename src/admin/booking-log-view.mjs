@@ -12,9 +12,9 @@ export function renderBookingLog({ appointments, emptyLabel, renderAppointment }
   return `<div class="appointment-log-items">${appointments.map(renderAppointment).join("")}</div>`;
 }
 
-export function renderBookingLogAppointment({ appointment, serviceLabel, canCancel, unnamedCustomer, cancelLabel = "Stornieren" }) {
+export function renderBookingLogAppointment({ appointment, serviceLabel, canCancel, unnamedCustomer, cancelLabel = "Stornieren", cancelAriaLabel = cancelLabel }) {
   const isCancelled = appointment.status === "cancelled";
-  const cancelButton = isCancelled || !canCancel ? "" : `<button class="cancel-log" type="button" data-log-cancel="${escapeAttribute(appointment.id)}" aria-label="Buchung stornieren"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg><span>${escapeHtml(cancelLabel)}</span></button>`;
+  const cancelButton = isCancelled || !canCancel ? "" : `<button class="cancel-log" type="button" data-log-cancel="${escapeAttribute(appointment.id)}" aria-label="${escapeAttribute(cancelAriaLabel)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg><span>${escapeHtml(cancelLabel)}</span></button>`;
   return `
     <article class="log-entry ${isCancelled ? "cancelled" : ""}">
       <div class="log-actions">${cancelButton}</div>
