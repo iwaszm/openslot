@@ -1,3 +1,21 @@
+import { escapeHtml } from "../src/core/html.mjs";
+import {
+  buildCatalogOrder,
+  createCatalogDraft as createSettingsCatalogDraft,
+  findServiceCategory,
+  getAssignedServiceIds,
+  getDefaultServiceColor,
+  hasInvalidWeeklyHours,
+  moveCatalogItem as moveSettingsCatalogItem,
+} from "../src/settings/settings-model.mjs";
+import {
+  renderCatalogMarkup,
+  renderDurationOptionsMarkup,
+  renderHoursMarkup,
+  renderOccupiedSlotsMarkup,
+  renderStaffListMarkup,
+} from "../src/settings/settings-view.mjs";
+
 (function initializeSettingsUi(global) {
   "use strict";
 
@@ -17,10 +35,6 @@
   const bo = global.OpenSlotBackofficeI18n;
   const t = (key, values) => bo?.t(key, values) || key;
 
-  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  })[character]);
-  const onlineIcon = () => `<span class="online-status-icon" aria-label="${escapeHtml(t("common.online"))}" title="${escapeHtml(t("common.online"))}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>`;
   const errorMessage = (error) => {
     const message = String(error?.message || error || "Unbekannter Fehler").replace(/^.*?: /, "");
     if (message.includes("reorder_service_catalog") && message.includes("schema cache")) {
@@ -100,22 +114,8 @@
     document.documentElement.dataset.shopTheme = preset || "lime";
   }
 
-  const timeOptions = () => Array.from({ length: 48 }, (_, index) => {
-    const hours = String(Math.floor(index / 2)).padStart(2, "0");
-    const minutes = index % 2 ? "30" : "00";
-    return `${hours}:${minutes}`;
-  });
-
   function renderHours() {
-    const options = timeOptions();
-    document.getElementById("hoursList").innerHTML = data.weeklyHours.map((hours) => `
-      <div class="hours-row ${hours.isClosed ? "closed" : ""}" data-weekday="${hours.weekday}">
-        <strong>${t(`weekday.${hours.weekday}`)}</strong>
-        <label class="status-switch hours-switch"><span>${hours.isClosed ? t("settings.closed") : t("settings.open")}</span><input type="checkbox" data-hours-open ${hours.isClosed ? "" : "checked"}><i aria-hidden="true"></i></label>
-        <label>${t("common.from")}<select data-hours-start>${options.map((value) => `<option value="${value}" ${value === hours.openTime ? "selected" : ""}>${value}</option>`).join("")}</select></label>
-        <label>${t("common.until")}<select data-hours-end>${options.map((value) => `<option value="${value}" ${value === hours.closeTime ? "selected" : ""}>${value}</option>`).join("")}</select></label>
-      </div>
-    `).join("");
+    document.getElementById("hoursList").innerHTML = renderHoursMarkup(data.weeklyHours, t);
     document.querySelectorAll("[data-hours-open]").forEach((control) => control.addEventListener("change", () => {
       const row = control.closest(".hours-row");
       row.classList.toggle("closed", !control.checked);
@@ -125,17 +125,11 @@
   }
 
   function assignedServiceIds(staffId) {
-    return new Set(data.staffServices.filter((assignment) => assignment.staffId === staffId && assignment.isActive).map((assignment) => assignment.serviceId));
+    return getAssignedServiceIds(data.staffServices, staffId);
   }
 
   function renderStaffList() {
-    document.getElementById("settingsStaffList").innerHTML = data.staff.map((employee) => `
-      <button class="staff-list-item ${employee.id === selectedStaffId ? "selected" : ""} ${employee.isActive ? "" : "inactive"}" type="button" data-staff-id="${employee.id}">
-        <span class="staff-initial" style="--staff-color:${employee.color}">${escapeHtml(employee.shortName.slice(0, 2))}</span>
-        <span><strong>${escapeHtml(employee.name)}</strong><small>${escapeHtml(employee.shortName)} · ${escapeHtml(t("settings.twoLanes"))}</small></span>
-        ${employee.acceptsOnline ? onlineIcon() : ""}
-      </button>
-    `).join("");
+    document.getElementById("settingsStaffList").innerHTML = renderStaffListMarkup(data.staff, selectedStaffId, t);
   }
 
   function editStaff(id, { open = true } = {}) {
@@ -160,50 +154,26 @@
   }
 
   function createCatalogDraft() {
-    const categoryIds = data.categories.map((category) => category.id);
-    return {
-      categoryIds,
-      serviceIdsByCategory: Object.fromEntries(categoryIds.map((id) => [id, data.services.filter((service) => service.categoryId === id).map((service) => service.id)])),
-    };
+    return createSettingsCatalogDraft(data);
   }
 
   function renderCatalog() {
     const draft = catalogDraft || createCatalogDraft();
-    const categories = new Map(data.categories.map((category) => [category.id, category]));
-    const services = new Map(data.services.map((service) => [service.id, service]));
-    document.getElementById("settingsCatalogTree").innerHTML = draft.categoryIds.map((categoryId) => {
-      const category = categories.get(categoryId);
-      if (!category) return "";
-      const children = (draft.serviceIdsByCategory[categoryId] || []).map((id) => services.get(id)).filter(Boolean);
-      return `<section class="catalog-category ${category.isActive ? "" : "inactive"}" data-category-id="${category.id}">
-        <button class="catalog-entry category-entry ${selectedCatalog.type === "category" && selectedCatalog.id === category.id ? "selected" : ""}" type="button" draggable="${!readOnly}" data-drag-type="category" data-item-id="${category.id}" data-edit-type="category">
-          <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="catalog-copy"><strong>${escapeHtml(category.shortName)}</strong><small>${escapeHtml(category.name)} · ${escapeHtml(t("settings.children", { count: children.length }))}</small></span>${category.acceptsOnline ? onlineIcon() : ""}
-        </button>
-        <div class="catalog-services" data-category-services="${category.id}">
-          ${children.map((service) => `<button class="catalog-entry service-entry ${service.isActive ? "" : "inactive"} ${selectedCatalog.type === "service" && selectedCatalog.id === service.id ? "selected" : ""}" type="button" draggable="${!readOnly}" data-drag-type="service" data-item-id="${escapeHtml(service.id)}" data-edit-type="service">
-            <span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="service-color-chip" style="--service-color:${escapeHtml(service.color || "#dfeee8")}" aria-hidden="true"></span><span class="catalog-copy"><strong>${escapeHtml(service.shortName)}</strong><small>${escapeHtml(service.name)} · ${escapeHtml(t("settings.minutes", { count: service.duration }))} · ${service.priceFrom ? escapeHtml(t("settings.priceFromPrefix")) : ""}${service.price.toFixed(0)} €</small></span>${service.acceptsOnline ? onlineIcon() : ""}
-          </button>`).join("")}
-          <div class="catalog-drop-end" data-drop-category="${category.id}"><span>${escapeHtml(t("settings.dropAtEnd"))}</span></div>
-        </div>
-      </section>`;
-    }).join("");
+    document.getElementById("settingsCatalogTree").innerHTML = renderCatalogMarkup({ data, draft, selectedCatalog, readOnly, translate: t });
   }
 
   function categoryForService(serviceId) {
     const draft = catalogDraft || createCatalogDraft();
-    return draft.categoryIds.find((categoryId) => draft.serviceIdsByCategory[categoryId]?.includes(serviceId));
+    return findServiceCategory(draft, serviceId);
   }
 
   function defaultServiceColor(categoryId) {
-    return data.services.find((service) => service.categoryId === categoryId)?.color || "#dfeee8";
+    return getDefaultServiceColor(data, categoryId);
   }
 
   function renderOccupiedSlots(selected = []) {
     const duration = Number(document.getElementById("serviceDuration").value || 30);
-    document.getElementById("occupiedSlotOptions").innerHTML = Array.from({ length: duration / 30 }, (_, index) => {
-      const slot = index + 1;
-      return `<label><input type="checkbox" name="occupiedSlot" value="${slot}" ${selected.includes(slot) ? "checked" : ""}><span>${slot}</span></label>`;
-    }).join("");
+    document.getElementById("occupiedSlotOptions").innerHTML = renderOccupiedSlotsMarkup(duration, selected);
     applyReadOnlyState();
   }
 
@@ -252,24 +222,12 @@
   function moveCatalogItem(source, target) {
     if (readOnly || !target || source.id === target.dataset.itemId) return;
     catalogDraft ||= createCatalogDraft();
-    if (source.type === "category") {
-      if (target.dataset.dragType !== "category") return;
-      const from = catalogDraft.categoryIds.indexOf(source.id);
-      const to = catalogDraft.categoryIds.indexOf(target.dataset.itemId);
-      if (from < 0 || to < 0) return;
-      catalogDraft.categoryIds.splice(from, 1);
-      catalogDraft.categoryIds.splice(to, 0, source.id);
-    } else {
-      Object.values(catalogDraft.serviceIdsByCategory).forEach((ids) => {
-        const index = ids.indexOf(source.id);
-        if (index >= 0) ids.splice(index, 1);
-      });
-      const categoryId = target.dataset.dropCategory || target.closest("[data-category-id]")?.dataset.categoryId;
-      if (!categoryId) return;
-      const targetIds = catalogDraft.serviceIdsByCategory[categoryId];
-      const targetIndex = target.dataset.dragType === "service" ? targetIds.indexOf(target.dataset.itemId) : targetIds.length;
-      targetIds.splice(targetIndex < 0 ? targetIds.length : targetIndex, 0, source.id);
-    }
+    const categoryId = target.dataset.dropCategory || target.closest("[data-category-id]")?.dataset.categoryId;
+    catalogDraft = moveSettingsCatalogItem(catalogDraft, source, {
+      type: target.dataset.dragType || "end",
+      itemId: target.dataset.itemId || "",
+      categoryId,
+    });
     document.getElementById("saveCatalogOrder").disabled = false;
     renderCatalog();
   }
@@ -356,7 +314,7 @@
         closeTime: row.querySelector("[data-hours-end]").value,
         isClosed: !row.querySelector("[data-hours-open]").checked,
       }));
-      if (hours.some((entry) => !entry.isClosed && entry.closeTime <= entry.openTime)) { showToast(t("settings.hoursInvalid"), "error"); return; }
+      if (hasInvalidWeeklyHours(hours)) { showToast(t("settings.hoursInvalid"), "error"); return; }
       try {
         setBusy(form, true);
         await repository.updateWeeklyHours(hours);
@@ -401,7 +359,7 @@
     });
 
     const duration = document.getElementById("serviceDuration");
-    duration.innerHTML = Array.from({ length: 16 }, (_, index) => `<option value="${(index + 1) * 30}">${escapeHtml(t("settings.minutes", { count: (index + 1) * 30 }))}</option>`).join("");
+    duration.innerHTML = renderDurationOptionsMarkup(t);
     duration.addEventListener("change", () => {
       const selected = [...document.querySelectorAll('[name="occupiedSlot"]:checked')].map((input) => Number(input.value));
       renderOccupiedSlots(selected.filter((slot) => slot <= Number(duration.value) / 30));
@@ -498,17 +456,10 @@
     document.getElementById("saveCatalogOrder").addEventListener("click", async (event) => {
       if (!catalogDraft) return;
       const button = event.currentTarget;
-      const serviceIds = [];
-      const serviceCategoryIds = [];
-      catalogDraft.categoryIds.forEach((categoryId) => {
-        (catalogDraft.serviceIdsByCategory[categoryId] || []).forEach((serviceId) => {
-          serviceIds.push(serviceId);
-          serviceCategoryIds.push(categoryId);
-        });
-      });
+      const order = buildCatalogOrder(catalogDraft);
       try {
         button.disabled = true;
-        await repository.reorderCatalog({ categoryIds: catalogDraft.categoryIds, serviceIds, serviceCategoryIds });
+        await repository.reorderCatalog(order);
         data = repository.getSettingsSnapshot();
         catalogDraft = null;
         renderAll();
@@ -517,7 +468,7 @@
     });
     global.addEventListener("openslot:backoffice-language-change", () => {
       const selectedDuration = duration.value;
-      duration.innerHTML = Array.from({ length: 16 }, (_, index) => `<option value="${(index + 1) * 30}">${escapeHtml(t("settings.minutes", { count: (index + 1) * 30 }))}</option>`).join("");
+      duration.innerHTML = renderDurationOptionsMarkup(t);
       duration.value = selectedDuration;
       document.title = `${data.salon.name} · ${t("settings.title")}`;
       renderAccount();

@@ -143,7 +143,11 @@ function stampSettingsAssetUrls() {
 }
 
 function stampJavaScriptModuleImports() {
-  const files = [path.join(dist, "customer.js"), path.join(dist, "admin.js")];
+  const files = [
+    path.join(dist, "customer.js"),
+    path.join(dist, "admin.js"),
+    path.join(dist, "shared", "settings-ui.js"),
+  ];
   collectModuleFiles(path.join(dist, "src"), files);
   for (const file of files) {
     const source = fs.readFileSync(file, "utf8");
