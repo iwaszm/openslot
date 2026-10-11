@@ -1,3 +1,23 @@
+import { createSupabaseAdminRepository } from "./src/admin/supabase-admin-repository.mjs";
+import {
+  allocateAppointmentsByLane,
+  calculateScheduleLoad as calculateAdminScheduleLoad,
+  getCoverageEdgeClasses,
+  getCoverageStarts,
+  getDateLoadStatus,
+  getOccupiedEdgeClasses,
+  getOccupiedRanges,
+  getServiceCoveredMinutes,
+  getServiceOccupiedMinutes,
+  groupLanesByStaff,
+  hasOccupiedOverlap,
+  hasTimeRangeOverlap,
+  sortServices as sortAdminServices,
+} from "./src/admin/schedule-model.mjs";
+import { createTurnstileController } from "./src/admin/turnstile-controller.mjs";
+import { createLocalAdminRepository } from "./src/admin/local-admin-repository.mjs";
+import { renderAdminSchedule } from "./src/admin/schedule-view.mjs";
+
 const DEFAULT_SERVICES = [
   { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
   { id: "herren_haarschnitt", name: "Herren Haarschnitt", shortName: "SchnittH", duration: 30, bookedSlots: [1], price: 22, priceFrom: false, category: "cut", gender: "male", isActive: true },
@@ -81,12 +101,13 @@ let dayRefreshSequence = 0;
 let logRefreshSequence = 0;
 let dateOptionsRefreshSequence = 0;
 let toastTimeout = null;
+let previewSchedulePromise = null;
+const previewSchedulesByDate = new Map();
+const previewTimeBlocksByDate = new Map();
 let manualEditorEntry = null;
 let manualEditorContext = null;
 let manualEditorRequestId = 0;
 let ownerLoginPending = false;
-let ownerTurnstileToken = "";
-let ownerTurnstileWaiters = [];
 
 const t = (key, values) => window.OpenSlotBackofficeI18n?.t(key, values) || window.OpenSlotI18n?.t(key, values) || key;
 const getAdminLocale = () => ({ zh: "zh-CN", en: "en-GB", de: "de-DE" })[window.OpenSlotI18n?.language] || "de-DE";
@@ -158,6 +179,13 @@ const els = {
   toastMessage: document.querySelector("#toastMessage"),
   toastClose: document.querySelector("#toastClose"),
 };
+
+const ownerSecurity = createTurnstileController({
+  windowObject: window,
+  widget: els.ownerTurnstile,
+  form: els.ownerLoginForm,
+  errorMessage: () => t("admin.securityFailed"),
+});
 
 function translateStaticAdminUi() {
   const setText = (selector, key) => {
@@ -380,7 +408,25 @@ function createRepository() {
   }
   const client = window.supabase.createClient(config.url, config.anonKey);
   window.OpenSlotAdminClient = client;
-  return createSupabaseRepository(client);
+  window.dispatchEvent(new CustomEvent("openslot:admin-client-ready", { detail: { client } }));
+  return createSupabaseAdminRepository({
+    client,
+    salonSlug: getCurrentSalonSlug(),
+    appointmentPageSize: APPOINTMENT_PAGE_SIZE,
+    mapService: fromSupabaseService,
+    mapAppointment: fromSupabaseAppointment,
+    mapScheduleEntry: fromSupabaseScheduleEntry,
+    mapDaySettings: fromSupabaseDaySettings,
+    mapTimeBlock: fromSupabaseTimeBlock,
+    splitManualScheduleEntries,
+    isMissingUnifiedSchedule,
+    createDefaultDaySettings,
+    cancelledEmailPending: t("admin.cancelledEmailPending"),
+    onSalonLoaded: (salon) => {
+      state.salon = salon;
+      window.OpenSlotBackofficeI18n?.setLanguage(salon.admin_language || "de");
+    },
+  });
 }
 
 async function initializeAuth() {
@@ -857,17 +903,6 @@ function saveStaffViewPreference() {
   }
 }
 
-function allocateAppointmentsByLane(appointments, layout) {
-  const result = new Map(layout.map((lane) => [lane.laneKey, []]));
-  appointments.forEach((appointment) => {
-    const requested = String(appointment.laneKey || "").toLowerCase();
-    let lane = result.has(requested) ? requested : null;
-    if (!lane) lane = layout.find((candidate) => !hasTimeRangeOverlap(appointment, result.get(candidate.laneKey)))?.laneKey;
-    if (lane) result.get(lane).push(appointment);
-  });
-  return result;
-}
-
 function renderSlotManager() {
   if (!els.appointmentList) return;
   const appointments = [...state.appointments].sort((a, b) => a.startMinutes - b.startMinutes);
@@ -915,189 +950,30 @@ function formatAdminDaySummary(value, count) {
   return `${month}, ${String(date.getDate()).padStart(2, "0")}, ${weekday}. (${count})`;
 }
 
-function groupLanesByStaff(lanes) {
-  const groups = [];
-  lanes.forEach((lane, index) => {
-    const previous = groups.at(-1);
-    if (previous?.key === lane.staffKey) previous.lanes.push(lane);
-    else groups.push({
-      key: lane.staffKey,
-      name: lane.staffShortName || lane.staffName,
-      fullName: lane.staffName,
-      color: lane.staffColor || "#d7ef57",
-      staffId: lane.staffId || null,
-      acceptsOnline: lane.staffAcceptsOnline === true,
-      start: index,
-      lanes: [lane],
-    });
-  });
-  return groups;
-}
-
 function canEditLane(lane) {
   return state.accessRole !== "staff" || (state.accessStaffId && lane.staffId === state.accessStaffId);
 }
 
 function renderOutlookSchedule(slots, lanes) {
-  const staffGroups = groupLanesByStaff(lanes);
-  const allEvents = lanes.flatMap((lane) => [...lane.appointments, ...lane.manual]);
-  const positions = [0];
-  slots.forEach((slot) => {
-    const busy = allEvents.some((item) => item.startMinutes < slot.startMinutes + SLOT_STEP && item.endMinutes > slot.startMinutes);
-    positions.push(positions.at(-1) + (busy ? 62 : 34));
+  return renderAdminSchedule({
+    slots,
+    lanes,
+    daySettings: state.daySettings,
+    timeBlocks: state.timeBlocks,
+    selectedDate: els.adminDateInput?.value,
+    translate: t,
+    canEditLane,
+    canManageTimeBlock,
+    serviceForItem,
+    getServiceAbbrev,
+    toDateInputValue,
+    slotStep: SLOT_STEP,
   });
-  const openMinutes = state.daySettings.openMinutes;
-  const closeMinutes = state.daySettings.closeMinutes;
-  const at = (minute) => {
-    if (positions.length === 1) return 0;
-    const clamped = Math.max(openMinutes, Math.min(closeMinutes, minute));
-    const index = Math.min(positions.length - 2, Math.floor((clamped - openMinutes) / SLOT_STEP));
-    const fraction = (clamped - openMinutes - index * SLOT_STEP) / SLOT_STEP;
-    return positions[index] + (positions[index + 1] - positions[index]) * fraction;
-  };
-  const totalHeight = positions.at(-1) || 0;
-  const hours = [];
-  for (let minute = openMinutes; minute <= closeMinutes; minute += 60) {
-    hours.push(`<div class="hour-label" style="top:${at(minute)}px">${escapeHtml(String(Math.floor(minute / 60)).padStart(2, "0"))}</div>`);
-  }
-  const rows = slots.map((slot, index) => `<div class="time-row ${slot.startMinutes % 60 === 0 ? "hour-row" : "half-row"}" style="top:${positions[index]}px;height:${positions[index + 1] - positions[index]}px"></div>`).join("");
-  const staffMarkup = staffGroups.map((group) => {
-    const staffEvents = group.lanes.flatMap((lane, laneIndex) => [
-      ...lane.appointments.map((item) => ({ ...item, laneIndex, kind: "online", lane })),
-      ...lane.manual.map((item) => ({ ...item, laneIndex, kind: item.serviceId ? "manual" : "blocked", lane })),
-    ]).sort((left, right) => left.startMinutes - right.startMinutes || right.endMinutes - left.endMinutes);
-    const scopedBlocks = state.timeBlocks.filter((block) => !block.staffId || block.staffId === group.staffId);
-    const shades = state.daySettings.isBlockedDay
-      ? `<div class="availability-shade" style="top:0;height:${totalHeight}px"></div>`
-      : scopedBlocks.map((block) => `<div class="availability-shade" style="top:${at(block.startMinutes)}px;height:${Math.max(1, at(block.endMinutes) - at(block.startMinutes))}px"></div>`).join("");
-    const blockMarkup = state.daySettings.isBlockedDay
-      ? `<article class="calendar-block day-block" style="top:0;height:${totalHeight}px"><div class="block-heading"><strong>${escapeHtml(t("admin.dayBlocked"))}</strong></div></article>`
-      : scopedBlocks.map((block) => renderStaffTimeBlock(block, at, group)).join("");
-    const eventMarkup = staffEvents.map((event) => renderStaffCalendarEvent(event, staffEvents, at)).join("");
-    const editable = group.lanes.some(canEditLane);
-    const onlineStatus = group.acceptsOnline ? `<span class="staff-online-indicator" aria-label="${escapeAttribute(t("common.online"))}" title="${escapeAttribute(t("common.online"))}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>` : "";
-    return `<section class="staff-column ${editable ? "is-editable" : "is-readonly"}" aria-label="${escapeAttribute(group.name)}${editable ? "" : `, ${escapeAttribute(t("common.readOnly"))}`}"><div class="staff-name"><span class="staff-avatar" style="--staff-color:${escapeAttribute(group.color)}">${escapeHtml(String(group.name || "M").slice(0, 2))}</span><strong>${escapeHtml(group.name)}</strong>${onlineStatus}${editable ? "" : `<span class="readonly-label">${escapeHtml(t("common.readOnly"))}</span>`}</div><div class="staff-timeline" style="height:${totalHeight}px">${shades}${rows}${blockMarkup}${eventMarkup}${renderNowLine(at)}</div></section>`;
-  }).join("");
-  return `<div class="time-gutter"><div class="gutter-heading"></div><div class="time-labels" style="height:${totalHeight}px">${hours.join("")}</div></div><div class="staff-columns ${staffGroups.length === 1 ? "single-staff" : ""}" style="--staff-count:${Math.max(1, staffGroups.length)}">${staffMarkup}</div>`;
 }
-
-function renderNowLine(at) {
-  const now = new Date();
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  if (els.adminDateInput?.value !== toDateInputValue(now)
-    || minutes < state.daySettings.openMinutes || minutes > state.daySettings.closeMinutes) return "";
-  return `<div class="now-line" style="top:${at(minutes)}px" aria-hidden="true"></div>`;
-}
-
-function renderStaffTimeBlock(block, at, group) {
-  const top = at(block.startMinutes);
-  const height = Math.max(34, at(block.endMinutes) - top);
-  const canDelete = canManageTimeBlock(block, group);
-  const menu = canDelete ? `<details class="service-block-menu lane-menu time-block-menu"><summary aria-label="Sperre verwalten"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></summary><div class="service-block-options" role="menu"><button type="button" role="menuitem" class="clear-lane-option" data-time-block-delete="${escapeAttribute(block.id)}">Löschen</button></div></details>` : "";
-  return `<article class="calendar-block time-block" style="top:${top}px;height:${height}px"><div class="block-heading"><strong>${escapeHtml(t("admin.blocked"))}</strong>${menu}</div><span>${escapeHtml(formatMinutes(block.startMinutes))}-${escapeHtml(formatMinutes(block.endMinutes))}</span></article>`;
-}
-
 function canManageTimeBlock(block, group = null) {
   if (state.accessRole !== "staff") return true;
   const staffId = group?.staffId || state.accessStaffId || null;
   return Boolean(staffId && staffId === state.accessStaffId && block.staffId === state.accessStaffId);
-}
-
-function renderStaffCalendarEvent(event, staffEvents, at) {
-  const top = at(event.startMinutes);
-  const height = Math.max(34, at(event.endMinutes) - top - 4);
-  const overlapsOtherLane = staffEvents.some((other) => other !== event && other.laneIndex !== event.laneIndex && hasTimeRangeOverlap(event, [other]));
-  const service = serviceForItem(event);
-  const label = service ? getServiceAbbrev(service) : t("admin.blockedSlot");
-  const detail = event.kind === "online" ? (event.name || t("admin.unnamedCustomer")) : (event.note || "");
-  if (event.kind === "blocked") return "";
-  return `<article class="calendar-event ${overlapsOtherLane ? `split lane-${event.laneIndex}` : "full"}" style="--service-color:${escapeAttribute(service?.slotColor || service?.color || "#e7ece8")};top:${top}px;height:${height}px" title="${escapeAttribute(`${label} · ${formatMinutes(event.startMinutes)}-${formatMinutes(event.endMinutes)}`)}"><button class="event-main" type="button" data-event-detail="${escapeAttribute(event.id || event.scheduleEntryId || "")}" data-event-kind="${escapeAttribute(event.kind)}" aria-label="Termindetails: ${escapeAttribute(label)}"><strong>${escapeHtml(label)}</strong>${detail ? `<span class="event-detail">${escapeHtml(detail)}</span>` : ""}<span class="event-time">${escapeHtml(formatMinutes(event.startMinutes))}-${escapeHtml(formatMinutes(event.endMinutes))}</span>${event.kind === "online" ? `<span class="online-indicator" aria-label="Online" title="Online"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>` : ""}</button></article>`;
-}
-
-function renderCalendarDayBlock(rowCount) {
-  const detail = state.daySettings.holidayName || t("admin.dayBlockedEmpty");
-  return `
-    <article class="calendar-time-block calendar-day-block" style="grid-column:2 / -1;grid-row:1 / span ${rowCount}" aria-label="${escapeAttribute(`Tag blockiert: ${detail}`)}">
-      <strong>Tag blockiert</strong>
-      <span>${escapeHtml(detail)}</span>
-    </article>
-  `;
-}
-
-function renderCalendarTimeBlock(block, rowCount) {
-  const openMinutes = state.daySettings.openMinutes;
-  const startRow = Math.max(1, Math.floor((block.startMinutes - openMinutes) / SLOT_STEP) + 1);
-  const visibleEnd = Math.min(block.endMinutes, state.daySettings.closeMinutes);
-  const rowSpan = Math.max(1, Math.min(rowCount - startRow + 1, Math.ceil((visibleEnd - block.startMinutes) / SLOT_STEP)));
-  return `
-    <article
-      class="calendar-time-block"
-      style="grid-column:2 / -1;grid-row:${startRow} / span ${rowSpan}"
-      aria-label="${escapeAttribute(`Blockiert ${formatMinutes(block.startMinutes)}-${formatMinutes(block.endMinutes)}`)}"
-    >
-      <strong>Blockiert</strong>
-      <span>${escapeHtml(formatMinutes(block.startMinutes))}-${escapeHtml(formatMinutes(block.endMinutes))}</span>
-      <details class="service-block-menu lane-menu time-block-menu">
-        <summary aria-label="Sperre ${escapeAttribute(`${formatMinutes(block.startMinutes)}-${formatMinutes(block.endMinutes)}`)} verwalten" title="Sperre verwalten">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
-        </summary>
-        <div class="service-block-options" role="menu">
-          <button type="button" role="menuitem" class="clear-lane-option" data-time-block-delete="${escapeAttribute(block.id)}">Löschen</button>
-        </div>
-      </details>
-    </article>
-  `;
-}
-
-function renderCalendarEvent(item, lane, laneIndex, kind, rowCount, lanes) {
-  const openMinutes = state.daySettings.openMinutes;
-  const startRow = Math.max(1, Math.floor((item.startMinutes - openMinutes) / SLOT_STEP) + 1);
-  const visibleEnd = Math.min(item.endMinutes, state.daySettings.closeMinutes);
-  const rowSpan = Math.max(1, Math.min(rowCount - startRow + 1, Math.ceil((visibleEnd - item.startMinutes) / SLOT_STEP)));
-  const service = item.serviceId ? findService(item.serviceId) : null;
-  const customerName = kind === "online" ? (item.name || t("admin.unnamedCustomer")) : "";
-  const detail = kind === "online" ? customerName : (item.note || "");
-  const fullLabel = service ? getServiceName(service) : t("admin.blockedSlot");
-  const label = service ? getServiceAbbrev(service) : fullLabel;
-  const color = service?.slotColor || "#c98f86";
-  const menu = kind === "online" || !canEditLane(lane) ? "" : renderSlotMenu({ startMinutes: item.startMinutes, lane: lane.storageKey, item });
-  const placement = getStaffEventPlacement(item, lane, laneIndex, lanes);
-  return `
-    <article
-      class="calendar-event ${kind} ${rowSpan === 1 ? "duration-single" : ""} ${service ? "service-colored" : ""}"
-      data-slot-start="${item.startMinutes}"
-      style="grid-column:${placement.start + 2} / span ${placement.span};grid-row:${startRow} / span ${rowSpan};--slot-color:${escapeAttribute(color)}"
-      aria-label="${escapeAttribute(`${formatMinutes(item.startMinutes)}-${formatMinutes(item.endMinutes)} ${fullLabel}${customerName ? ` ${customerName}` : ""}`)}"
-    >
-      <button class="calendar-event-copy event-main" type="button" data-event-detail="${escapeAttribute(item.id || item.scheduleEntryId || "")}" data-event-kind="${kind}">
-        <strong>${escapeHtml(label)}</strong>
-        <span class="event-detail">${detail ? escapeHtml(detail) : "&nbsp;"}</span>
-        <span class="event-time">${escapeHtml(formatMinutes(item.startMinutes))}-${escapeHtml(formatMinutes(item.endMinutes))}</span>
-      </button>
-      ${kind === "online" ? `<span class="online-label">Online</span>` : ""}
-      ${menu}
-    </article>
-  `;
-}
-
-function getStaffEventPlacement(item, lane, laneIndex, lanes) {
-  const staffLaneIndexes = lanes.map((candidate, index) => ({ candidate, index })).filter(({ candidate }) => candidate.staffKey === lane.staffKey);
-  if (staffLaneIndexes.length < 2) return { start: laneIndex, span: 1 };
-  const conflicts = staffLaneIndexes.some(({ candidate }) => candidate.laneKey !== lane.laneKey
-    && [...candidate.appointments, ...candidate.manual].some((other) => hasTimeRangeOverlap(item, [other])));
-  return conflicts ? { start: laneIndex, span: 1 } : { start: staffLaneIndexes[0].index, span: staffLaneIndexes.length };
-}
-
-function renderStaffScheduleRow(slot) {
-  const isHour = slot.startMinutes % 60 === 0;
-  return `
-    <div class="staff-time-row ${isHour ? "hour-row" : "half-hour-row"}">
-      <div class="staff-time-marker" aria-hidden="true">${isHour ? `<span>${escapeHtml(formatMinutes(slot.startMinutes))}</span>` : ""}</div>
-      ${renderAdminSlot(slot)}
-      ${renderOverflowSlot(slot)}
-      ${renderFlexibleSlot(slot)}
-    </div>
-  `;
 }
 
 function closeServiceBlockMenus(except = null) {
@@ -1360,96 +1236,22 @@ async function handleOwnerLogin(event) {
   if (submit) submit.disabled = true;
   try {
     if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = t("admin.verifying");
-    const captchaToken = await getOwnerTurnstileToken();
+    const captchaToken = await ownerSecurity.getToken();
     await state.repository.signIn(els.ownerEmail.value.trim(), els.ownerPassword.value, captchaToken);
     els.ownerPassword.value = "";
-    ownerTurnstileToken = "";
+    ownerSecurity.clearToken();
   } catch (error) {
     if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = t("admin.loginFailed", { message: error.message });
-    resetOwnerTurnstile();
+    ownerSecurity.reset();
   } finally {
     ownerLoginPending = false;
     if (submit) submit.disabled = false;
   }
 }
 
-async function getOwnerTurnstileToken() {
-  if (!els.ownerTurnstile) return "";
-  const formToken = els.ownerLoginForm?.querySelector('input[name="cf-turnstile-response"]')?.value || "";
-  const existingToken = ownerTurnstileToken || formToken
-    || window.turnstile?.getResponse?.(els.ownerTurnstile)
-    || window.turnstile?.getResponse?.()
-    || "";
-  if (existingToken) return existingToken;
-
-  await waitForOwnerTurnstileApi();
-  return new Promise((resolve, reject) => {
-    let waiter;
-    const timeoutId = window.setTimeout(() => {
-      ownerTurnstileWaiters = ownerTurnstileWaiters.filter((item) => item !== waiter);
-      reject(new Error(t("admin.securityFailed")));
-    }, 120_000);
-    waiter = {
-      resolve: (token) => { window.clearTimeout(timeoutId); resolve(token); },
-      reject: (error) => { window.clearTimeout(timeoutId); reject(error); },
-    };
-    ownerTurnstileWaiters.push(waiter);
-    try {
-      window.turnstile.execute(els.ownerTurnstile);
-    } catch (error) {
-      settleOwnerTurnstileWaiters("", error);
-    }
-  });
-}
-
-function waitForOwnerTurnstileApi() {
-  if (window.turnstile?.execute) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const startedAt = Date.now();
-    const timer = window.setInterval(() => {
-      if (window.turnstile?.execute) {
-        window.clearInterval(timer);
-        resolve();
-      } else if (Date.now() - startedAt >= 10_000) {
-        window.clearInterval(timer);
-        reject(new Error(t("admin.securityFailed")));
-      }
-    }, 100);
-  });
-}
-
-function settleOwnerTurnstileWaiters(token = "", error = null) {
-  const waiters = ownerTurnstileWaiters;
-  ownerTurnstileWaiters = [];
-  waiters.forEach((waiter) => {
-    if (error) waiter.reject(error);
-    else waiter.resolve(token);
-  });
-}
-
-window.onOwnerTurnstileSuccess = (token) => {
-  ownerTurnstileToken = token;
-  settleOwnerTurnstileWaiters(token);
-};
-
-window.onOwnerTurnstileError = () => {
-  ownerTurnstileToken = "";
-  settleOwnerTurnstileWaiters("", new Error(t("admin.securityFailed")));
-  return true;
-};
-
-window.onOwnerTurnstileExpired = () => { ownerTurnstileToken = ""; };
-
-function resetOwnerTurnstile() {
-  ownerTurnstileToken = "";
-  const response = els.ownerLoginForm?.querySelector('input[name="cf-turnstile-response"]');
-  if (response) response.value = "";
-  if (els.ownerTurnstile) window.turnstile?.reset?.(els.ownerTurnstile);
-}
-
 async function handleOwnerLogout() {
   await state.repository.signOut();
-  resetOwnerTurnstile();
+  ownerSecurity.reset();
 }
 
 async function handleToggleDayBlock() {
@@ -2084,325 +1886,6 @@ async function handleUnblockSlot(blockId) {
   }
 }
 
-function createSupabaseRepository(client) {
-  const salonPromise = loadCurrentSalon(client);
-  return {
-    authSupported: true,
-    async getCurrentUser() {
-      const { data, error } = await client.auth.getUser();
-      if (error) return null;
-      return data.user;
-    },
-    onAuthChange(callback) {
-      client.auth.onAuthStateChange((_event, session) => callback(session?.user || null));
-    },
-    async signIn(email, password, captchaToken) {
-      const { error } = await client.auth.signInWithPassword({
-        email,
-        password,
-        options: { captchaToken },
-      });
-      if (error) throw error;
-    },
-    async signOut() {
-      const { error } = await client.auth.signOut();
-      if (error) throw error;
-    },
-    async listServices() {
-      const salon = await salonPromise;
-      const { data, error } = await client
-        .from("services")
-        .select("id, name, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, category_id, slot_color, sort_order, service_categories!services_category_salon_fkey(id, name, short_name, sort_order, is_active)")
-        .eq("salon_id", salon.id)
-        .order("sort_order", { ascending: true })
-        .order("id", { ascending: true });
-      if (error) throw error;
-      return (data || []).map(fromSupabaseService);
-    },
-    async listLaneLayout() {
-      const salon = await salonPromise;
-      const { data, error } = await client
-        .from("staff_lanes")
-        .select("id, lane_key, label, sort_order, salon_staff!inner(id, staff_key, name, short_name, display_color, sort_order, is_active, accepts_online_bookings)")
-        .eq("salon_id", salon.id)
-        .eq("is_active", true)
-        .eq("salon_staff.is_active", true)
-        .order("sort_order", { ascending: true });
-      if (error) throw error;
-      return (data || []).map((row) => ({
-        staffLaneId: row.id,
-        laneKey: row.lane_key,
-        label: row.label,
-        sortOrder: row.sort_order,
-        staffKey: row.salon_staff?.staff_key,
-        staffId: row.salon_staff?.id,
-        staffName: row.salon_staff?.name,
-        staffShortName: row.salon_staff?.short_name || row.salon_staff?.name,
-        staffColor: row.salon_staff?.display_color || "#d7ef57",
-        staffAcceptsOnline: row.salon_staff?.accepts_online_bookings === true,
-        staffSortOrder: row.salon_staff?.sort_order,
-      })).sort((left, right) => (
-        Number(left.staffSortOrder || 0) - Number(right.staffSortOrder || 0)
-        || Number(left.sortOrder || 0) - Number(right.sortOrder || 0)
-      ));
-    },
-    async listStaffServices() {
-      const salon = await salonPromise;
-      const { data, error } = await client
-        .from("staff_services")
-        .select("service_id, salon_staff!inner(staff_key)")
-        .eq("salon_id", salon.id)
-        .eq("is_active", true);
-      if (error) throw error;
-      return (data || []).map((row) => {
-        const staff = Array.isArray(row.salon_staff) ? row.salon_staff[0] : row.salon_staff;
-        return { staffKey: staff?.staff_key, serviceId: row.service_id };
-      }).filter((item) => item.staffKey && item.serviceId);
-    },
-    async listManualScheduleEntries(date) {
-      const salon = await salonPromise;
-      let { data, error } = await client
-        .from("schedule_entries")
-        .select("id, service_id, service_snapshot, entry_source, schedule_date, covered_start, covered_end, occupied_slots, note, staff_lanes!inner(lane_key)")
-        .eq("salon_id", salon.id)
-        .eq("schedule_date", date)
-        .eq("status", "active")
-        .neq("entry_source", "online")
-        .order("covered_start", { ascending: true });
-      if (error?.code === "42703") {
-        ({ data, error } = await client
-          .from("schedule_entries")
-          .select("id, service_id, service_snapshot, entry_source, schedule_date, covered_start, covered_end, occupied_slots, staff_lanes!inner(lane_key)")
-          .eq("salon_id", salon.id)
-          .eq("schedule_date", date)
-          .eq("status", "active")
-          .neq("entry_source", "online")
-          .order("covered_start", { ascending: true }));
-      }
-      if (error && isMissingUnifiedSchedule(error)) return null;
-      if (error) throw error;
-      return (data || []).map(fromSupabaseScheduleEntry);
-    },
-    async getDaySnapshot(date) {
-      const salon = await salonPromise;
-      const { data, error } = await client.rpc("get_admin_day_snapshot", {
-        p_salon_slug: salon.slug,
-        p_schedule_date: date,
-      });
-      if (error && ["42883", "PGRST202"].includes(error.code)) return null;
-      if (error) throw error;
-      if (!data?.day_settings?.setting_date) return null;
-      const entries = (data.manual_schedule_entries || []).map(fromSupabaseScheduleEntry);
-      return {
-        appointments: (data.appointments || []).map(fromSupabaseAppointment),
-        daySettings: fromSupabaseDaySettings(data.day_settings),
-        manualSchedule: { ...splitManualScheduleEntries(entries), isUnified: true },
-        timeBlocks: (data.time_blocks || []).map(fromSupabaseTimeBlock),
-      };
-    },
-    async createManualScheduleEntry(entry) {
-      const salon = await salonPromise;
-      const { data, error } = await client.rpc("create_admin_schedule_entry", {
-        p_salon_id: salon.id,
-        p_staff_lane_id: entry.staffLaneId,
-        p_schedule_date: entry.date,
-        p_start_time: `${formatMinutes(entry.startMinutes)}:00`,
-        p_service_id: entry.serviceId || null,
-        p_replace_entry_id: entry.replaceEntryId || null,
-      });
-      if (error) throw error;
-      if (data && entry.note != null) {
-        const { error: noteError } = await client.from("schedule_entries").update({ note: entry.note }).eq("id", data);
-        if (noteError) throw noteError;
-      }
-    },
-    async deleteManualScheduleEntry(entryId) {
-      const { error } = await client.rpc("cancel_admin_schedule_entry", { p_entry_id: entryId });
-      if (error) throw error;
-    },
-    async listAppointments(date) {
-      const salon = await salonPromise;
-      let { data, error } = await client
-        .from("appointments")
-        .select("id, service_id, service_snapshot, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)")
-        .eq("salon_id", salon.id)
-        .eq("appointment_date", date)
-        .order("start_time", { ascending: true });
-      if (error?.code === "42703") {
-        ({ data, error } = await client
-          .from("appointments")
-          .select("id, service_id, service_snapshot, appointment_date, start_time, end_time, occupied_slots, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)")
-          .eq("salon_id", salon.id)
-          .eq("appointment_date", date)
-          .order("start_time", { ascending: true }));
-      }
-      if (error) throw error;
-      return (data || []).map(fromSupabaseAppointment);
-    },
-    async listAppointmentsFrom(startDate) {
-      const salon = await salonPromise;
-      const rows = [];
-      let offset = 0;
-      let includeLane = true;
-
-      while (true) {
-        const columns = includeLane
-          ? "id, service_id, service_snapshot, appointment_date, start_time, end_time, occupied_slots, lane_key, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)"
-          : "id, service_id, service_snapshot, appointment_date, start_time, end_time, occupied_slots, status, customers:customers!appointments_customer_salon_fkey(name, phone, email, gender)";
-        const { data, error } = await client
-          .from("appointments")
-          .select(columns)
-          .eq("salon_id", salon.id)
-          .gte("appointment_date", startDate)
-          .order("appointment_date", { ascending: true })
-          .order("start_time", { ascending: true })
-          .order("id", { ascending: true })
-          .range(offset, offset + APPOINTMENT_PAGE_SIZE - 1);
-
-        if (error?.code === "42703" && includeLane && offset === 0) {
-          includeLane = false;
-          continue;
-        }
-        if (error) throw error;
-        rows.push(...(data || []));
-        if (!data || data.length < APPOINTMENT_PAGE_SIZE) break;
-        offset += APPOINTMENT_PAGE_SIZE;
-      }
-
-      return rows.map(fromSupabaseAppointment);
-    },
-    async cancelAppointment(id) {
-      const salon = await salonPromise;
-      const { error } = await client
-        .from("appointments")
-        .update({ status: "cancelled", cancelled_by: "owner", cancelled_at: new Date().toISOString() })
-        .eq("id", id)
-        .eq("salon_id", salon.id);
-      if (error) throw error;
-    },
-    async getSalonAccess(userId) {
-      const salon = await salonPromise;
-      const { data, error } = await client
-        .from("salon_members")
-        .select("salon_id, role, staff_id")
-        .eq("user_id", userId);
-      if (error) throw error;
-      const memberships = data || [];
-      const admin = memberships.find((membership) => ["admin", "super_admin"].includes(membership.role));
-      if (admin) return { allowed: true, role: "admin", staffId: null };
-      const salonMembership = memberships.find((membership) => membership.salon_id === salon.id);
-      return {
-        allowed: Boolean(salonMembership),
-        role: salonMembership?.role || null,
-        staffId: salonMembership?.staff_id || null,
-      };
-    },
-    async sendBookingEmail(bookingId) {
-      const { data, error } = await client.functions.invoke("send-booking-email", {
-        body: { booking_id: bookingId },
-      });
-      if (error || !["sent", "skipped"].includes(data?.email_status)) {
-        return t("admin.cancelledEmailPending");
-      }
-      return "";
-    },
-    async getDaySettings(date) {
-      const salon = await salonPromise;
-      const { data: effectiveData, error: effectiveError } = await client.rpc("get_effective_day_settings", {
-        p_salon_slug: salon.slug,
-        p_setting_date: date,
-      });
-      if (!effectiveError) {
-        const row = Array.isArray(effectiveData) ? effectiveData[0] : effectiveData;
-        if (row) return fromSupabaseDaySettings(row);
-      } else if (!["42883", "PGRST202"].includes(effectiveError.code)) {
-        throw effectiveError;
-      }
-      const { data, error } = await client
-        .from("shop_day_settings")
-        .select("setting_date, open_time, close_time, is_blocked_day")
-        .eq("salon_id", salon.id)
-        .eq("setting_date", date)
-        .maybeSingle();
-      if (error) throw error;
-      return data ? fromSupabaseDaySettings(data) : createDefaultDaySettings(date);
-    },
-    async listTimeBlocks(date) {
-      const salon = await salonPromise;
-      const { data, error } = await client
-        .from("admin_time_blocks")
-        .select("id, staff_id, block_date, start_time, end_time")
-        .eq("salon_id", salon.id)
-        .eq("block_date", date)
-        .order("start_time", { ascending: true });
-      if (error) throw error;
-      return (data || []).map(fromSupabaseTimeBlock);
-    },
-    async createTimeBlock(block) {
-      const salon = await salonPromise;
-      const { error } = await client.rpc("create_admin_time_block", {
-        p_salon_id: salon.id,
-        p_block_date: block.date,
-        p_start_time: `${formatMinutes(block.startMinutes)}:00`,
-        p_end_time: `${formatMinutes(block.endMinutes)}:00`,
-        p_staff_id: block.staffId || null,
-      });
-      if (error) throw error;
-    },
-    async deleteTimeBlock(blockId) {
-      const { error } = await client.rpc("delete_admin_time_block", { p_block_id: blockId });
-      if (error) throw error;
-    },
-    async saveDaySettings(settings) {
-      const salon = await salonPromise;
-      const { error } = await client
-        .from("shop_day_settings")
-        .upsert({
-          salon_id: salon.id,
-          setting_date: settings.date,
-          open_time: `${formatMinutes(settings.openMinutes)}:00`,
-          close_time: `${formatMinutes(settings.closeMinutes)}:00`,
-          is_blocked_day: settings.isBlockedDay,
-        }, { onConflict: "salon_id,setting_date" });
-      if (error) throw error;
-    },
-    async setDayBlocked(settings) {
-      const salon = await salonPromise;
-      const { error } = await client.rpc("set_admin_day_block", {
-        p_salon_id: salon.id,
-        p_block_date: settings.date,
-        p_is_blocked: settings.isBlockedDay,
-        p_open_time: `${formatMinutes(settings.openMinutes)}:00`,
-        p_close_time: `${formatMinutes(settings.closeMinutes)}:00`,
-      });
-      if (error) throw error;
-    },
-  };
-}
-
-async function loadCurrentSalon(client) {
-  const slug = getCurrentSalonSlug();
-  let { data, error } = await client
-    .from("salons")
-    .select("id, slug, name, address, phone, timezone, opening_hours, theme_preset, admin_language, languages")
-    .eq("slug", slug)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (error && /admin_language/i.test(String(error.message || ""))) {
-    ({ data, error } = await client
-      .from("salons")
-      .select("id, slug, name, address, phone, timezone, opening_hours, theme_preset, languages")
-      .eq("slug", slug)
-      .eq("is_active", true)
-      .maybeSingle());
-  }
-  if (error) throw error;
-  if (!data) throw new Error(`找不到店铺：${slug}`);
-  state.salon = data;
-  window.OpenSlotBackofficeI18n?.setLanguage(data.admin_language || "de");
-  return data;
-}
-
 function getCurrentSalonSlug() {
   const segment = window.location.pathname.split("/").filter(Boolean)[0];
   if (!segment || segment.endsWith(".html")) return "lisa";
@@ -2473,139 +1956,38 @@ function createLaneDefinition(laneKey, sortOrder) {
 }
 
 function createLocalRepository() {
-  return {
-    authSupported: false,
-    async getCurrentUser() { return { email: "local-demo" }; },
-    onAuthChange() {},
-    async signIn() {},
-    async signOut() {},
-    async listServices() { return loadLocalServices(); },
-    async listLaneLayout() { return createDefaultLaneLayout(); },
-    async listStaffServices() { return window.OpenSlotLocalRepository?.listStaffServices?.() || null; },
-    async listManualScheduleEntries() { return null; },
-    async getDaySnapshot() { return null; },
-    async createManualScheduleEntry() { throw new Error("Unified schedule entries are unavailable in local mode"); },
-    async deleteManualScheduleEntry() { throw new Error("Unified schedule entries are unavailable in local mode"); },
-    async listAppointments(date) {
-      const appointments = isLaneDemo() ? [] : loadLocalAppointments();
-      return appointments.filter((appointment) => appointment.date === date);
+  return createLocalAdminRepository({
+    storage: localStorage,
+    cryptoApi: crypto,
+    keys: {
+      appointments: STORAGE_KEY,
+      daySettings: SETTINGS_KEY,
+      blockedSlots: BLOCKS_KEY,
+      timeBlocks: TIME_BLOCKS_KEY,
     },
-    async listAppointmentsFrom(startDate) {
-      return loadLocalAppointments().filter((appointment) => appointment.date >= startDate);
-    },
-    async cancelAppointment(id) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(loadLocalAppointments().map((appointment) => appointment.id === id ? { ...appointment, status: "cancelled", cancelledBy: "owner" } : appointment)));
-    },
-    async sendBookingEmail() {
-      return "预约已取消。本地演示版不会发送邮件。";
-    },
-    async getDaySettings(date) {
-      const defaults = createDefaultDaySettings(date);
-      const saved = loadLocalSettings()[date];
-      return saved ? { ...defaults, ...saved, hasManualOverride: true } : defaults;
-    },
-    async listTimeBlocks(date) {
-      if (isLaneDemo()) return previewTimeBlocksByDate.get(date) || [];
-      return JSON.parse(localStorage.getItem(TIME_BLOCKS_KEY) || "[]").filter((block) => block.date === date);
-    },
-    async createTimeBlock(block) {
-      const occupied = [
-        ...state.appointments.filter((appointment) => appointment.status !== "cancelled"),
-        ...getAllManualGroups().filter((item) => item.serviceId),
-      ].flatMap((item) => getOccupiedRanges(item).map((range) => range.startMinutes));
-      if (occupied.some((minutes) => minutes >= block.startMinutes && minutes < block.endMinutes)) {
-        throw new Error("OCCUPIED_SLOTS_PRESENT");
-      }
-      if (isLaneDemo()) {
-        const blocks = previewTimeBlocksByDate.get(block.date) || [];
-        blocks.push({ ...block, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) });
-        previewTimeBlocksByDate.set(block.date, blocks);
-        return;
-      }
-      const blocks = JSON.parse(localStorage.getItem(TIME_BLOCKS_KEY) || "[]");
-      blocks.push({ ...block, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) });
-      localStorage.setItem(TIME_BLOCKS_KEY, JSON.stringify(blocks));
-    },
-    async deleteTimeBlock(blockId) {
-      if (isLaneDemo()) {
-        for (const [date, blocks] of previewTimeBlocksByDate.entries()) {
-          previewTimeBlocksByDate.set(date, blocks.filter((block) => block.id !== blockId));
-        }
-        return;
-      }
-      const blocks = JSON.parse(localStorage.getItem(TIME_BLOCKS_KEY) || "[]");
-      localStorage.setItem(TIME_BLOCKS_KEY, JSON.stringify(blocks.filter((block) => block.id !== blockId)));
-    },
-    async listBlockedSlots(date) {
-      if (isLaneDemo()) return (await loadPreviewSchedule(date)).laneA;
-      return loadLocalBlocks().filter((block) => block.date === date);
-    },
-    async listStaffSlots(date, staffKey) {
-      if (isLaneDemo()) {
-        const schedule = await loadPreviewSchedule(date);
-        return staffKey === "overflow" ? schedule.laneB : schedule.laneC;
-      }
-      return loadLocalStaffSlots(date, staffKey);
-    },
-    async saveStaffSlot(slot, staffKey) {
-      if (isLaneDemo()) {
-        const schedule = await loadPreviewSchedule(slot.date);
-        const lane = staffKey === "overflow" ? schedule.laneB : schedule.laneC;
-        const existingIndex = lane.findIndex((item) => item.startMinutes === slot.startMinutes);
-        const nextSlot = { ...slot, staffKey };
-        if (existingIndex >= 0) lane.splice(existingIndex, 1, nextSlot);
-        else lane.push(nextSlot);
-        return;
-      }
-      saveLocalStaffSlot(slot, staffKey);
-    },
-    async deleteStaffSlot(date, staffKey, startMinutes) {
-      if (isLaneDemo()) {
-        const schedule = await loadPreviewSchedule(date);
-        const lane = staffKey === "overflow" ? schedule.laneB : schedule.laneC;
-        const existingIndex = lane.findIndex((item) => item.startMinutes === startMinutes);
-        if (existingIndex >= 0) lane.splice(existingIndex, 1);
-        return;
-      }
-      deleteLocalStaffSlot(date, staffKey, startMinutes);
-    },
-    async createBlockedSlot(block) {
-      if (isLaneDemo()) {
-        const schedule = await loadPreviewSchedule(block.date);
-        schedule.laneA.push({ ...block, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) });
-        return;
-      }
-      const blocks = loadLocalBlocks();
-      blocks.push({ ...block, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) });
-      localStorage.setItem(BLOCKS_KEY, JSON.stringify(blocks));
-    },
-    async deleteBlockedSlot(blockId) {
-      if (isLaneDemo()) {
-        const schedule = await loadPreviewSchedule(els.adminDateInput.value);
-        const existingIndex = schedule.laneA.findIndex((block) => block.id === blockId);
-        if (existingIndex >= 0) schedule.laneA.splice(existingIndex, 1);
-        return;
-      }
-      localStorage.setItem(BLOCKS_KEY, JSON.stringify(loadLocalBlocks().filter((block) => block.id !== blockId)));
-    },
-    async saveDaySettings(settings) {
-      const values = loadLocalSettings();
-      values[settings.date] = settings;
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(values));
-    },
-    async setDayBlocked(settings) {
-      if (settings.isBlockedDay) {
-        const occupied = [
-          ...state.appointments.filter((appointment) => appointment.status !== "cancelled"),
-          ...getAllManualGroups().filter((item) => item.serviceId),
-        ].some((item) => getOccupiedRanges(item).length > 0);
-        if (occupied) throw new Error("OCCUPIED_SLOTS_PRESENT");
-      }
-      await this.saveDaySettings(settings);
-    },
-  };
+    isLaneDemo,
+    loadServices: loadLocalServices,
+    loadLaneLayout: createDefaultLaneLayout,
+    loadStaffServices: () => window.OpenSlotLocalRepository?.listStaffServices?.() || null,
+    loadAppointments: loadLocalAppointments,
+    loadDaySettings: loadLocalSettings,
+    saveDaySettings: (values) => localStorage.setItem(SETTINGS_KEY, JSON.stringify(values)),
+    loadTimeBlocks: () => JSON.parse(localStorage.getItem(TIME_BLOCKS_KEY) || "[]"),
+    saveTimeBlocks: (values) => localStorage.setItem(TIME_BLOCKS_KEY, JSON.stringify(values)),
+    previewTimeBlocksByDate,
+    loadPreviewSchedule,
+    loadBlockedSlots: loadLocalBlocks,
+    saveBlockedSlots: (values) => localStorage.setItem(BLOCKS_KEY, JSON.stringify(values)),
+    loadStaffSlots: loadLocalStaffSlots,
+    saveStaffSlot: saveLocalStaffSlot,
+    deleteStaffSlot: deleteLocalStaffSlot,
+    getSelectedDate: () => els.adminDateInput.value,
+    getActiveAppointments: () => state.appointments.filter((appointment) => appointment.status !== "cancelled"),
+    getManualGroups: getAllManualGroups,
+    getOccupiedRanges,
+    createDefaultDaySettings,
+  });
 }
-
 function buildAdminSlots() {
   const activeAppointments = state.appointments
     .filter((appointment) => appointment.status !== "cancelled")
@@ -2624,10 +2006,6 @@ function buildAdminSlots() {
   }
   return slots;
 }
-
-let previewSchedulePromise = null;
-const previewSchedulesByDate = new Map();
-const previewTimeBlocksByDate = new Map();
 
 function isLaneDemo() {
   return new URLSearchParams(window.location.search).get("demo") === "lanes";
@@ -2743,13 +2121,6 @@ function allocateAppointmentLanes(appointments) {
   return { laneA, laneB, laneC };
 }
 
-function hasTimeRangeOverlap(candidate, appointments) {
-  return appointments.some((appointment) => (
-    candidate.startMinutes < appointment.endMinutes
-    && candidate.endMinutes > appointment.startMinutes
-  ));
-}
-
 function findCoverageAt(appointments, startMinutes) {
   return appointments.find((appointment) => (
     startMinutes >= appointment.startMinutes
@@ -2815,35 +2186,12 @@ function isLaneCoveredGap(item, startMinutes) {
   return !getOccupiedRanges(item).some((range) => range.startMinutes === startMinutes);
 }
 
-function getCoverageStarts(item) {
-  const starts = [];
-  for (let start = item.startMinutes; start < item.endMinutes; start += SLOT_STEP) starts.push(start);
-  return starts;
-}
-
-function getCoverageEdgeClasses(item, startMinutes) {
-  const starts = getCoverageStarts(item);
-  return [
-    starts.length === 1 ? "booking-single" : "",
-    startMinutes === starts[0] ? "booking-first" : "",
-    startMinutes === starts[starts.length - 1] ? "booking-last" : "",
-    starts.includes(startMinutes - SLOT_STEP) ? "booking-contiguous-prev" : "",
-    starts.includes(startMinutes + SLOT_STEP) ? "booking-contiguous-next" : "",
-  ].filter(Boolean).join(" ");
-}
-
 function findOverlap(candidate, ranges) {
   return ranges.find((range) => hasOverlap(candidate, [range]));
 }
 
 function getDateStatus(option) {
-  if (!option.isBusinessDay || option.isBlockedDay) return "date-closed";
-  const ratio = option.totalSlotCount > 0 ? option.occupiedSlotCount / option.totalSlotCount : 0;
-  if (ratio >= 1) return "date-load-full";
-  if (ratio > 0.75) return "date-load-dark-red";
-  if (ratio > 0.5) return "date-load-red";
-  if (ratio > 0.25) return "date-load-yellow";
-  return "date-load-green";
+  return getDateLoadStatus(option);
 }
 
 function countDaySlots(daySettings) {
@@ -2860,51 +2208,18 @@ function countScheduleCapacity(daySettings) {
 }
 
 function calculateScheduleLoad(appointments, manualEntries, daySettings, timeBlocks) {
-  const lanes = getOnlineLoadLaneLayout();
-  const laneKeys = new Set(lanes.map((lane) => lane.laneKey));
-  const occupied = new Set();
-  const addOccupiedRanges = (laneKey, item) => {
-    if (!laneKeys.has(laneKey)) return;
-    getOccupiedRanges(item).forEach((range) => {
-      if (range.startMinutes < daySettings.openMinutes || range.startMinutes >= daySettings.closeMinutes) return;
-      occupied.add(`${laneKey}:${range.startMinutes}`);
-    });
-  };
-
-  const allocated = allocateAppointmentsByLane(
-    appointments.filter((appointment) => appointment.status !== "cancelled"),
-    state.laneLayout,
-  );
-  lanes.forEach((lane) => {
-    (allocated.get(lane.laneKey) || []).forEach((appointment) => addOccupiedRanges(lane.laneKey, appointment));
+  return calculateAdminScheduleLoad({
+    appointments,
+    manualEntries,
+    daySettings,
+    timeBlocks,
+    laneLayout: state.laneLayout,
+    slotStep: SLOT_STEP,
   });
-  manualEntries.forEach((entry) => addOccupiedRanges(entry.laneKey, entry));
-  timeBlocks.forEach((block) => {
-    lanes.filter((lane) => !block.staffId || lane.staffId === block.staffId).forEach((lane) => {
-      for (let startMinutes = block.startMinutes; startMinutes < block.endMinutes; startMinutes += SLOT_STEP) {
-        addOccupiedRanges(lane.laneKey, { startMinutes, endMinutes: startMinutes + SLOT_STEP });
-      }
-    });
-  });
-  return {
-    occupiedSlotCount: occupied.size,
-    totalSlotCount: countDaySlots(daySettings) * lanes.length,
-  };
 }
 
 function isScheduledBusinessDay(date) {
   return getWeeklyRule(new Date(`${date}T00:00:00`)).openMinutes !== null;
-}
-
-function getOccupiedEdgeClasses(item, startMinutes) {
-  const occupiedStarts = getOccupiedRanges(item).map((range) => range.startMinutes).sort((a, b) => a - b);
-  return [
-    occupiedStarts.length === 1 ? "booking-single" : "",
-    startMinutes === occupiedStarts[0] ? "booking-first" : "",
-    startMinutes === occupiedStarts[occupiedStarts.length - 1] ? "booking-last" : "",
-    occupiedStarts.includes(startMinutes - SLOT_STEP) ? "booking-contiguous-prev" : "",
-    occupiedStarts.includes(startMinutes + SLOT_STEP) ? "booking-contiguous-next" : "",
-  ].filter(Boolean).join(" ");
 }
 
 function getEditableServiceName(service) {
@@ -2953,27 +2268,7 @@ function findService(id) {
 }
 
 function sortServices(services) {
-  return services.slice().sort((left, right) => {
-    const leftCategory = Number.isFinite(left.categorySortOrder) ? left.categorySortOrder : 999;
-    const rightCategory = Number.isFinite(right.categorySortOrder) ? right.categorySortOrder : 999;
-    const leftService = Number.isFinite(left.sortOrder) ? left.sortOrder : getServiceSortIndex(left.id);
-    const rightService = Number.isFinite(right.sortOrder) ? right.sortOrder : getServiceSortIndex(right.id);
-    return (leftCategory - rightCategory) || (leftService - rightService) || left.name.localeCompare(right.name);
-  });
-}
-
-function getServiceOccupiedMinutes(service, startMinutes) {
-  const bookedSlots = Array.isArray(service.bookedSlots) && service.bookedSlots.length > 0
-    ? service.bookedSlots
-    : Array.from({ length: Math.ceil(service.duration / SLOT_STEP) }, (_, index) => index + 1);
-  return bookedSlots.map((slotNumber) => startMinutes + ((slotNumber - 1) * SLOT_STEP));
-}
-
-function getServiceCoveredMinutes(service, startMinutes) {
-  return Array.from(
-    { length: Math.ceil(service.duration / SLOT_STEP) },
-    (_, index) => startMinutes + (index * SLOT_STEP),
-  );
+  return sortAdminServices(services, getServiceSortIndex);
 }
 
 function getServiceSortIndex(id) {
@@ -2981,21 +2276,7 @@ function getServiceSortIndex(id) {
 }
 
 function hasOverlap(candidate, ranges) {
-  const candidateRanges = getOccupiedRanges(candidate);
-  return ranges.some((range) => (
-    range.status !== "cancelled"
-    && candidateRanges.some((candidateRange) => getOccupiedRanges(range).some((occupiedRange) => (
-      candidateRange.startMinutes < occupiedRange.endMinutes
-      && candidateRange.endMinutes > occupiedRange.startMinutes
-    )))
-  ));
-}
-
-function getOccupiedRanges(item) {
-  if (Array.isArray(item.occupiedMinutes) && item.occupiedMinutes.length > 0) {
-    return item.occupiedMinutes.map((startMinutes) => ({ startMinutes, endMinutes: startMinutes + SLOT_STEP }));
-  }
-  return [{ startMinutes: item.startMinutes, endMinutes: item.endMinutes }];
+  return hasOccupiedOverlap(candidate, ranges, SLOT_STEP);
 }
 
 function createDefaultDaySettings(date) {

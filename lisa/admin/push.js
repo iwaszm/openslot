@@ -2,7 +2,8 @@
   const button = document.querySelector("#pushToggleButton");
   const config = window.OPENSLOT_SUPABASE || {};
   const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  const client = window.OpenSlotAdminClient || null;
+  let client = window.OpenSlotAdminClient || null;
+  let authListenerAttached = false;
   let salonId = null;
   let userId = null;
   let registration = null;
@@ -10,6 +11,16 @@
   let enabled = false;
   let busy = false;
   let refreshId = 0;
+
+  function attachClient(nextClient) {
+    if (!nextClient || client === nextClient && authListenerAttached) return;
+    client = nextClient;
+    if (!authListenerAttached) {
+      client.auth.onAuthStateChange(() => setTimeout(refresh, 0));
+      authListenerAttached = true;
+    }
+    refresh();
+  }
 
   function render() {
     const label = enabled ? "Benachrichtigungen deaktivieren" : "Benachrichtigungen aktivieren";
@@ -180,6 +191,7 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refresh();
   });
-  if (client) client.auth.onAuthStateChange(() => setTimeout(refresh, 0));
+  window.addEventListener("openslot:admin-client-ready", (event) => attachClient(event.detail?.client));
+  if (client) attachClient(client);
   refresh();
 })();

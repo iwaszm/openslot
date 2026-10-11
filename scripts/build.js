@@ -143,7 +143,7 @@ function stampSettingsAssetUrls() {
 }
 
 function stampJavaScriptModuleImports() {
-  const files = [path.join(dist, "customer.js")];
+  const files = [path.join(dist, "customer.js"), path.join(dist, "admin.js")];
   collectModuleFiles(path.join(dist, "src"), files);
   for (const file of files) {
     const source = fs.readFileSync(file, "utf8");
