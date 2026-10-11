@@ -17,6 +17,19 @@ import {
 import { createTurnstileController } from "./src/admin/turnstile-controller.mjs";
 import { createLocalAdminRepository } from "./src/admin/local-admin-repository.mjs";
 import { renderAdminSchedule } from "./src/admin/schedule-view.mjs";
+import {
+  canPlaceManualService as canPlaceManualEditorServiceInContext,
+  canPlaceManualServiceOnLane as canPlaceManualEditorServiceOnLaneInContext,
+  findAvailableManualLane,
+  getAvailableManualStarts,
+  getManualServicesForStaff as filterManualServicesForStaff,
+} from "./src/admin/manual-booking-model.mjs";
+import {
+  renderBookingLog,
+  renderBookingLogAppointment,
+  renderCollapseIcon,
+  sortUpcomingAppointments,
+} from "./src/admin/booking-log-view.mjs";
 
 const DEFAULT_SERVICES = [
   { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
@@ -984,23 +997,16 @@ function closeServiceBlockMenus(except = null) {
 
 function renderUpcomingLog() {
   if (!els.upcomingLogList) return;
-  const appointments = [...state.upcomingAppointments].sort((a, b) => (
-    a.date.localeCompare(b.date) || a.startMinutes - b.startMinutes
-  ));
+  const appointments = sortUpcomingAppointments(state.upcomingAppointments);
   if (els.upcomingLogCount) els.upcomingLogCount.textContent = appointments.length;
   if (els.upcomingLogTitle) {
     els.upcomingLogTitle.textContent = t("admin.upcomingLog");
   }
-  if (appointments.length === 0) {
-    els.upcomingLogList.innerHTML = `<div class="empty-state">${t("admin.emptyUpcomingLog")}</div>`;
-    renderCollapseState();
-    return;
-  }
-  els.upcomingLogList.innerHTML = `
-    <div class="appointment-log-items">
-      ${appointments.map((appointment) => renderLogAppointment(appointment)).join("")}
-    </div>
-  `;
+  els.upcomingLogList.innerHTML = renderBookingLog({
+    appointments,
+    emptyLabel: t("admin.emptyUpcomingLog"),
+    renderAppointment: renderLogAppointment,
+  });
   els.upcomingLogList.querySelectorAll("[data-log-cancel]").forEach((button) => {
     button.addEventListener("click", () => cancelAppointmentById(button.dataset.logCancel));
   });
@@ -1010,7 +1016,7 @@ function renderUpcomingLog() {
 function renderCollapseState() {
   if (els.upcomingLogList && els.logCollapseButton) {
     els.upcomingLogList.hidden = state.logCollapsed;
-    els.logCollapseButton.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${state.logCollapsed ? "m6 9 6 6 6-6" : "m6 15 6-6 6 6"}"/></svg>`;
+    els.logCollapseButton.innerHTML = renderCollapseIcon(state.logCollapsed);
     els.logCollapseButton.setAttribute("aria-expanded", String(!state.logCollapsed));
   }
 }
@@ -1024,18 +1030,14 @@ function toggleSection(section) {
 
 function renderLogAppointment(appointment) {
   const service = serviceForItem(appointment);
-  const isCancelled = appointment.status === "cancelled";
   const appointmentLane = state.laneLayout.find((lane) => lane.laneKey === appointment.laneKey);
   const canCancel = state.accessRole !== "staff" || canEditLane(appointmentLane || {});
-  return `
-    <article class="log-entry ${isCancelled ? "cancelled" : ""}">
-      <div class="log-actions">${isCancelled || !canCancel ? "" : `<button class="cancel-log" type="button" data-log-cancel="${appointment.id}" aria-label="Buchung stornieren"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg><span>Stornieren</span></button>`}</div>
-      <div class="log-copy">
-        <div class="log-primary"><strong>${escapeHtml(appointment.name || t("admin.unnamedCustomer"))}</strong>${appointment.phone ? `<span class="log-phone">${escapeHtml(appointment.phone)}</span>` : ""}</div>
-        <span>${escapeHtml(getServiceAbbrev(service))} · ${escapeHtml(appointment.date)} · ${escapeHtml(formatMinutes(appointment.startMinutes))}</span>
-      </div>
-    </article>
-  `;
+  return renderBookingLogAppointment({
+    appointment,
+    serviceLabel: getServiceAbbrev(service),
+    canCancel,
+    unnamedCustomer: t("admin.unnamedCustomer"),
+  });
 }
 
 function renderAdminSlot(slot) {
@@ -1464,10 +1466,11 @@ function renderManualServiceOptions({ preferred = "", filterByTime = false } = {
 }
 
 function getManualServicesForStaff(staffKey) {
-  return state.services.filter((service) => (
-    service.isActive
-    && (!state.staffServiceKeys || state.staffServiceKeys.has(`${staffKey}:${service.id}`))
-  ));
+  return filterManualServicesForStaff({
+    services: state.services,
+    staffServiceKeys: state.staffServiceKeys,
+    staffKey,
+  });
 }
 
 function getSelectedStaffLanes() {
@@ -1524,39 +1527,39 @@ async function loadManualEditorDate({ preferredServiceId = els.bookingService?.v
 
 function canPlaceManualEditorService(service, startMinutes) {
   if (!service || !manualEditorContext || !Number.isFinite(startMinutes)) return false;
-  const { daySettings, appointments, manualEntries, timeBlocks } = manualEditorContext;
-  if (daySettings?.isBlockedDay || startMinutes < daySettings.openMinutes || startMinutes >= daySettings.closeMinutes) return false;
-  const endMinutes = startMinutes + service.duration;
-  const lanes = getSelectedStaffLanes();
-  const staffId = lanes[0]?.staffId || null;
-  if (timeBlocks.some((block) => (!block.staffId || block.staffId === staffId)
-    && startMinutes < block.endMinutes && endMinutes > block.startMinutes)) return false;
-  return lanes.some((lane) => canPlaceManualEditorServiceOnLane(service, startMinutes, lane, { appointments, manualEntries }));
+  return canPlaceManualEditorServiceInContext({
+    service,
+    startMinutes,
+    ...manualEditorContext,
+    staffLanes: getSelectedStaffLanes(),
+    laneLayout: state.laneLayout,
+    excludedEntryId: manualEditorEntry?.id || manualEditorEntry?.scheduleEntryId || "",
+  });
 }
 
 function canPlaceManualEditorServiceOnLane(service, startMinutes, lane, context = manualEditorContext) {
   if (!service || !lane || !context) return false;
-  const candidate = { startMinutes, endMinutes: startMinutes + service.duration };
-  const allocated = allocateAppointmentsByLane(
-    context.appointments.filter((item) => item.status !== "cancelled"),
-    state.laneLayout,
-  );
-  const online = allocated.get(lane.laneKey) || [];
-  const manual = context.manualEntries.filter((item) => (
-    item.laneKey === lane.laneKey
-    && String(item.id || item.scheduleEntryId) !== String(manualEditorEntry?.id || manualEditorEntry?.scheduleEntryId || "")
-  ));
-  return !hasTimeRangeOverlap(candidate, online) && !hasTimeRangeOverlap(candidate, manual);
+  return canPlaceManualEditorServiceOnLaneInContext({
+    service,
+    startMinutes,
+    lane,
+    appointments: context.appointments,
+    manualEntries: context.manualEntries,
+    laneLayout: state.laneLayout,
+    excludedEntryId: manualEditorEntry?.id || manualEditorEntry?.scheduleEntryId || "",
+  });
 }
 
 function renderManualBookingTimes({ preferred = null, filterByService = true } = {}) {
   if (!els.bookingStart || !manualEditorContext) return;
   const selectedService = findService(els.bookingService?.value);
   const services = filterByService && selectedService ? [selectedService] : getManualEditorServices();
-  const starts = [];
-  for (let minute = manualEditorContext.daySettings.openMinutes; minute < manualEditorContext.daySettings.closeMinutes; minute += SLOT_STEP) {
-    if (services.some((service) => canPlaceManualEditorService(service, minute))) starts.push(minute);
-  }
+  const starts = getAvailableManualStarts({
+    services,
+    daySettings: manualEditorContext.daySettings,
+    slotStep: SLOT_STEP,
+    canPlace: canPlaceManualEditorService,
+  });
   els.bookingStart.innerHTML = `<option value="">${escapeHtml(t("admin.chooseTime"))}</option>${starts.map((minute) => `<option value="${minute}">${escapeHtml(formatMinutes(minute))}</option>`).join("")}`;
   if (starts.includes(Number(preferred))) els.bookingStart.value = String(preferred);
   els.bookingStart.disabled = starts.length === 0;
@@ -1581,10 +1584,12 @@ async function submitManualBooking(event) {
   }
   const service = findService(els.bookingService.value);
   const startMinutes = Number(els.bookingStart.value);
-  const lane = getSelectedStaffLanes().find((candidate) => (
-    canPlaceManualEditorService(service, startMinutes)
-    && canPlaceManualEditorServiceOnLane(service, startMinutes, candidate)
-  ));
+  const lane = canPlaceManualEditorService(service, startMinutes)
+    ? findAvailableManualLane({
+      staffLanes: getSelectedStaffLanes(),
+      canPlaceOnLane: (candidate) => canPlaceManualEditorServiceOnLane(service, startMinutes, candidate),
+    })
+    : null;
   if (!lane) {
     els.bookingFormMessage.textContent = t("admin.timeNoLongerFree");
     renderManualBookingTimes({ filterByService: true });
