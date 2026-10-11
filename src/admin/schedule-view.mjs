@@ -55,7 +55,14 @@ export function renderAdminSchedule(options) {
     const eventMarkup = staffEvents.map((event) => renderEvent({ event, staffEvents, at, translate, serviceForItem, getServiceAbbrev })).join("");
     const editable = group.lanes.some(canEditLane);
     const slotActions = editable && !daySettings.isBlockedDay
-      ? slots.map((slot, index) => `<button class="schedule-slot-action" type="button" style="top:${positions[index]}px;height:${positions[index + 1] - positions[index]}px" data-create-staff="${escapeAttribute(group.key)}" data-create-start="${slot.startMinutes}" aria-label="${escapeAttribute(`${translate("admin.addAppointment")} · ${group.name} · ${formatMinutes(slot.startMinutes)}`)}"></button>`).join("")
+      ? slots.map((slot, index) => {
+        const slotEnd = slot.startMinutes + slotStep;
+        const allLanesOccupied = group.lanes.every((_, laneIndex) => staffEvents.some((event) => (
+          event.kind !== "blocked" && event.laneIndex === laneIndex
+          && event.startMinutes < slotEnd && event.endMinutes > slot.startMinutes
+        )));
+        return allLanesOccupied ? "" : `<button class="schedule-slot-action" type="button" style="top:${positions[index]}px;height:${positions[index + 1] - positions[index]}px" data-create-staff="${escapeAttribute(group.key)}" data-create-start="${slot.startMinutes}" aria-label="${escapeAttribute(`${translate("admin.addAppointment")} · ${group.name} · ${formatMinutes(slot.startMinutes)}`)}"></button>`;
+      }).join("")
       : "";
     const onlineStatus = group.acceptsOnline ? `<span class="staff-online-indicator" aria-label="${escapeAttribute(translate("common.online"))}" title="${escapeAttribute(translate("common.online"))}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>` : "";
     return `<section class="staff-column ${editable ? "is-editable" : "is-readonly"}" aria-label="${escapeAttribute(group.name)}${editable ? "" : `, ${escapeAttribute(translate("common.readOnly"))}`}"><div class="staff-name"><span class="staff-avatar" style="--staff-color:${escapeAttribute(group.color)}">${escapeHtml(String(group.name || "M").slice(0, 2))}</span><strong>${escapeHtml(group.name)}</strong>${onlineStatus}${editable ? "" : `<span class="readonly-label">${escapeHtml(translate("common.readOnly"))}</span>`}</div><div class="staff-timeline" style="height:${totalHeight}px">${shades}${rows}${slotActions}${blockMarkup}${eventMarkup}${renderNowLine({ at, now, selectedDate, daySettings, toDateInputValue })}</div></section>`;

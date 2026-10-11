@@ -16,7 +16,7 @@ import {
 } from "./src/admin/schedule-model.mjs";
 import { createTurnstileController } from "./src/admin/turnstile-controller.mjs";
 import { createLocalAdminRepository } from "./src/admin/local-admin-repository.mjs";
-import { renderAdminSchedule } from "./src/admin/schedule-view.mjs?v=20261011-quick-create-1";
+import { renderAdminSchedule } from "./src/admin/schedule-view.mjs?v=20261011-quick-create-2";
 import {
   canPlaceManualService as canPlaceManualEditorServiceInContext,
   canPlaceManualServiceOnLane as canPlaceManualEditorServiceOnLaneInContext,

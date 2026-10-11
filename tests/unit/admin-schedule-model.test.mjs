@@ -97,3 +97,19 @@ test("does not render quick-create targets on a blocked day", () => {
   });
   assert.doesNotMatch(html, /data-create-staff/);
 });
+
+test("does not render a quick-create target when both employee lanes are occupied", () => {
+  const html = renderAdminSchedule({
+    slots: [{ startMinutes: 600, endMinutes: 630 }],
+    lanes: [
+      { ...lanes[0], staffName: "Linda", appointments: [{ id: "a1", startMinutes: 600, endMinutes: 630 }], manual: [] },
+      { ...lanes[1], staffName: "Linda", appointments: [], manual: [{ id: "m1", serviceId: "cut", startMinutes: 600, endMinutes: 660 }] },
+    ],
+    daySettings: { openMinutes: 600, closeMinutes: 630, isBlockedDay: false },
+    timeBlocks: [], selectedDate: "2026-10-12", translate: (key) => key,
+    canEditLane: () => true, canManageTimeBlock: () => true,
+    serviceForItem: () => ({ shortName: "Cut" }), getServiceAbbrev: (service) => service.shortName,
+    toDateInputValue: () => "2026-10-11",
+  });
+  assert.doesNotMatch(html, /data-create-staff="linda" data-create-start="600"/);
+});
