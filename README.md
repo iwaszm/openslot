@@ -41,13 +41,17 @@ The local `template/` application is an isolated UI prototype. It uses synthetic
 ├─ home/                  Public product homepage
 ├─ info/                  Local project notes; excluded from deployment
 ├─ scripts/build.js       Cloudflare Pages build script
+├─ src/                   Shared Booking, Admin, Settings and core modules
 ├─ supabase/              SQL migrations and Edge Functions
 ├─ template/              Isolated localStorage UI prototype
-├─ shared/                Settings UI, repository adapters, and back-office i18n
-├─ customer.js            Shared public booking controller
-├─ admin.js               Shared schedule controller
+├─ shared/                Back-office entrypoints, adapters, styles and i18n
+├─ tests/unit/             Browser-independent domain and rendering tests
+├─ customer.js            Public booking application coordinator
+├─ admin.js               Admin application coordinator
 └─ styles.css             Shared Booking and Admin styles
 ```
+
+The top-level controllers retain stable browser entry URLs. Domain rules, Supabase adapters and HTML rendering live under `src/booking/`, `src/admin/`, `src/settings/` and `src/core/`; the entry controllers coordinate state and DOM events rather than duplicating those implementations.
 
 ## Local Development
 

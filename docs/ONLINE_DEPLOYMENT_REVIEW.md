@@ -67,9 +67,9 @@ There are currently no repository tests or GitHub Actions workflows. Minimum cov
 
 The database is multi-tenant, but `scripts/build.js`, redirects, route folders and PWA assets still enumerate individual shops. This is acceptable for the current small deployment but does not support self-service onboarding.
 
-### P2: Reduce frontend concentration
+### Completed: Reduce frontend concentration
 
-`admin.js` and `customer.js` contain domain logic, repositories and rendering in large files. New development should extract pure scheduling logic first, then repositories and views, while retaining the shared UI model.
+Booking, Admin and Settings now retain stable browser entrypoints while domain rules, Supabase/local repositories and major rendering responsibilities live in `src/booking/`, `src/admin/`, `src/settings/` and `src/core/`. New work should preserve these boundaries and add logic to the responsible module instead of growing the entry controllers again.
 
 ### P2: Refresh or retire historical SQL entry points
 

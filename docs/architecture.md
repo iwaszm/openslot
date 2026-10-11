@@ -1,6 +1,6 @@
 # OpenSlot Architecture
 
-Updated: 2026-10-05
+Updated: 2026-10-11
 
 OpenSlot is a multi-tenant appointment platform built as a static web application with a Supabase backend. Booking, Admin, and Settings share production code; shop-specific behavior is selected by the URL slug and Supabase data.
 
@@ -47,13 +47,25 @@ flowchart LR
 /template/           Local UI prototype; not deployed
 ```
 
-Production routes use shared controllers:
+Production routes use stable shared controller entrypoints:
 
 - `customer.js`: public booking and availability UI.
 - `admin.js`: authentication, daily schedule, blocks, manual appointments and booking log.
 - `shared/settings-ui.js`: shared Settings UI.
 - `shared/settings-repository.js`: Supabase Settings adapter.
 - `shared/backoffice-i18n.js`: Admin and Settings localization.
+
+The entrypoints coordinate application state and browser events. Their implementation is split by responsibility:
+
+```text
+src/core/       Shared HTML and time utilities
+src/booking/    Availability, scheduling, catalog, repositories and Booking views
+src/admin/      Scheduling, manual booking, log and calendar views, repositories and Turnstile
+src/settings/   Catalog rules and Settings views
+tests/unit/     Browser-independent regression tests for these modules
+```
+
+`shared/settings-repository.js` remains the Supabase Settings adapter. The Settings controller imports its pure catalog and rendering modules from `src/settings/`.
 
 The shop entry directories contain only route shells, media and PWA metadata. The current build still enumerates production shop directories in `scripts/build.js`; adding a new shop is therefore not yet a zero-code operation.
 
