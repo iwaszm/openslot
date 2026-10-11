@@ -1,0 +1,27 @@
+export function createAdminState({ daySettings, laneLayout, services }) {
+  return {
+    appointments: [],
+    blockedSlots: [],
+    overflowSlots: [],
+    flexibleSlots: [],
+    manualEntries: [],
+    timeBlocks: [],
+    upcomingAppointments: [],
+    dateOptions: [],
+    daySettings,
+    isOwner: false,
+    accessRole: null,
+    accessStaffId: null,
+    logCollapsed: true,
+    repository: null,
+    services,
+    salon: null,
+    laneLayout,
+    staffServiceKeys: null,
+    useUnifiedScheduleEntries: false,
+    datePageStart: 0,
+    showAllStaff: true,
+    selectedVisibleStaffKeys: new Set(),
+    staffViewIdentity: null,
+  };
+}

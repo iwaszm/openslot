@@ -65,7 +65,7 @@
       if (!userId) return;
 
       const [salonResult, memberResult] = await Promise.all([
-        client.from("salons").select("id").eq("slug", "lisa").single(),
+        client.from("salons").select("id").eq("slug", document.body.dataset.salonSlug).single(),
         client.from("salon_members").select("salon_id, role").eq("user_id", userId),
       ]);
       if (run !== refreshId) return;

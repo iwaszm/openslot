@@ -31,8 +31,16 @@ import {
   sortUpcomingAppointments,
 } from "./src/admin/booking-log-view.mjs";
 import { escapeAttribute, escapeHtml } from "./src/core/html.mjs";
-import { dateToMinutes, formatMinutes, parseTime, timeValueToMinutes } from "./src/core/time.mjs";
+import { formatMinutes, parseTime } from "./src/core/time.mjs";
 import { getBerlinHolidayName, toDateInputValue } from "./src/booking/calendar.mjs";
+import { createAvailabilityController } from "./src/admin/availability-controller.mjs";
+import { createAdminDialogController } from "./src/admin/dialog-controller.mjs";
+import { createLiveRefreshController } from "./src/admin/live-refresh-controller.mjs";
+import { createAdminState } from "./src/admin/admin-state.mjs";
+import { createAdminMappers } from "./src/admin/admin-mappers.mjs";
+import { createAdminSessionController } from "./src/admin/auth/session-controller.mjs";
+import { createDateNavigationController } from "./src/admin/schedule/date-navigation.mjs";
+import { createManualBookingController } from "./src/admin/appointments/manual-booking-controller.mjs";
 
 const DEFAULT_SERVICES = [
   { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
@@ -85,32 +93,24 @@ const LEGACY_LANE_DEFINITIONS = [
   { laneKey: "d", storageKey: "lane-d", label: "D", sortOrder: 4 },
 ];
 
-const state = {
-  appointments: [],
-  blockedSlots: [],
-  overflowSlots: [],
-  flexibleSlots: [],
-  manualEntries: [],
-  timeBlocks: [],
-  upcomingAppointments: [],
-  dateOptions: [],
+const state = createAdminState({
   daySettings: createDefaultDaySettings(toDateInputValue(new Date())),
-  isOwner: false,
-  accessRole: null,
-  accessStaffId: null,
-  logCollapsed: true,
-  repository: null,
-  services: DEFAULT_SERVICES,
-  salon: null,
   laneLayout: createDefaultLaneLayout(),
-  staffServiceKeys: null,
-  useUnifiedScheduleEntries: false,
-  datePageStart: 0,
-  showAllStaff: true,
-  selectedVisibleStaffKeys: new Set(),
-  staffViewIdentity: null,
-};
-let liveRefreshInFlight = false;
+  services: DEFAULT_SERVICES,
+});
+const {
+  fromAppointment: fromSupabaseAppointment,
+  fromDaySettings: fromSupabaseDaySettings,
+  fromScheduleEntry: fromSupabaseScheduleEntry,
+  fromService: fromSupabaseService,
+  fromTimeBlock: fromSupabaseTimeBlock,
+  isMissingUnifiedSchedule,
+  stripSalonPrefix,
+} = createAdminMappers({
+  defaultServices: DEFAULT_SERVICES,
+  legacyServiceMeta: LEGACY_SERVICE_META,
+  normalizeServiceSnapshot,
+});
 let lastDateOptionsRefresh = 0;
 let pendingDayRender = false;
 let dayRefreshSequence = 0;
@@ -120,10 +120,6 @@ let toastTimeout = null;
 let previewSchedulePromise = null;
 const previewSchedulesByDate = new Map();
 const previewTimeBlocksByDate = new Map();
-let manualEditorEntry = null;
-let manualEditorContext = null;
-let manualEditorRequestId = 0;
-let ownerLoginPending = false;
 
 const t = (key, values) => window.OpenSlotBackofficeI18n?.t(key, values) || window.OpenSlotI18n?.t(key, values) || key;
 const getAdminLocale = () => ({ zh: "zh-CN", en: "en-GB", de: "de-DE" })[window.OpenSlotI18n?.language] || "de-DE";
@@ -203,6 +199,68 @@ const ownerSecurity = createTurnstileController({
   errorMessage: () => t("admin.securityFailed"),
 });
 
+const availabilityController = createAvailabilityController({
+  elements: els,
+  closeServiceMenus: closeServiceBlockMenus,
+  onCreateTimeBlock: handleCreateTimeBlock,
+  onDeleteTimeBlock: deleteTimeBlockById,
+  onRenderTimeControls: renderTimeBlockControls,
+  onToggleDayBlock: handleToggleDayBlock,
+});
+
+const detailController = createAdminDialogController({
+  elements: {
+    dialog: els.detailDialog,
+    title: els.detailTitle,
+    list: els.detailList,
+    actions: els.detailActions,
+    edit: els.detailEdit,
+    delete: els.detailDelete,
+  },
+  t,
+  formatDate: (value) => formatLogDate(value || els.adminDateInput.value),
+  formatTime: formatMinutes,
+  getItem: (id, kind) => kind === "online"
+    ? state.appointments.find((entry) => String(entry.id) === String(id))
+    : state.manualEntries.find((entry) => String(entry.id || entry.scheduleEntryId) === String(id)),
+  getLane: (item) => {
+    const lane = state.laneLayout.find((entry) => entry.laneKey === item.laneKey);
+    return lane ? { ...lane, canEdit: canEditLane(lane) } : null;
+  },
+  getService: serviceForItem,
+  onEdit: editSelectedManualEntry,
+  onDelete: deleteSelectedManualEntry,
+});
+
+const liveRefreshController = createLiveRefreshController({
+  intervalMs: LIVE_REFRESH_MS,
+  isEnabled: () => state.isOwner,
+  refresh: refreshLiveData,
+  onFailure: (error) => {
+    if (state.isOwner && els.adminSyncNotice) els.adminSyncNotice.hidden = false;
+    console.warn("Admin refresh failed:", error);
+  },
+});
+let sessionController = null;
+const manualBookingController = createManualBookingController({
+  elements: { add: els.addBookingButton, form: els.manualBookingForm, employee: els.bookingEmployee,
+    category: els.bookingCategory, service: els.bookingService, start: els.bookingStart, date: els.bookingDate },
+  handlers: { open: openManualBookingDialog, submit: submitManualBooking, setCategories: setManualCategories,
+    renderServices: renderManualServiceOptions, renderTimes: renderManualBookingTimes,
+    updateSubmit: updateManualSubmitState, loadDate: loadManualEditorDate },
+});
+const dateNavigation = createDateNavigationController({
+  elements: { input: els.adminDateInput, strip: els.adminDateStrip, month: els.calendarMonth,
+    previous: els.adminDatePrevButton, next: els.adminDateNextButton, today: els.todayButton },
+  state,
+  formatButtonLabel: formatDateButtonLabel,
+  getLocale: getAdminLocale,
+  getWeeklyRule,
+  refreshDay: refreshDayData,
+  refreshOptions: refreshDateOptions,
+  toDateValue: toDateInputValue,
+});
+
 function translateStaticAdminUi() {
   const setText = (selector, key) => {
     const node = document.querySelector(selector);
@@ -272,23 +330,30 @@ async function init() {
   }
   state.repository = createRepository();
   bindEvents();
-  await initializeAuth();
+  dateNavigation.bind();
+  manualBookingController.bind();
+  sessionController = createAdminSessionController({
+    elements: { form: els.ownerLoginForm, email: els.ownerEmail, password: els.ownerPassword,
+      message: els.ownerAuthMessage, logout: els.ownerLogoutButton },
+    repository: state.repository,
+    security: ownerSecurity,
+    state,
+    t,
+    renderAuthState,
+    onAccessChanged: async () => {
+      await Promise.all([refreshServices(), refreshLaneLayout(), refreshStaffServices()]);
+      await Promise.all([refreshDateOptions(), refreshDayData(), refreshUpcomingLog()]);
+    },
+  });
+  sessionController.bind();
+  await sessionController.initialize();
   await refreshServices();
   await refreshLaneLayout();
   await refreshStaffServices();
   await refreshDateOptions();
   await refreshDayData();
   await refreshUpcomingLog();
-  startLiveRefresh();
-}
-
-function startLiveRefresh() {
-  window.setInterval(refreshLiveData, LIVE_REFRESH_MS);
-  window.addEventListener("online", refreshLiveData);
-  window.addEventListener("focus", refreshLiveData);
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) refreshLiveData();
-  });
+  liveRefreshController.start();
 }
 
 function isEditingSchedule() {
@@ -297,52 +362,28 @@ function isEditingSchedule() {
 }
 
 async function refreshLiveData() {
-  if (liveRefreshInFlight || document.hidden || !navigator.onLine || !state.isOwner) return;
-  liveRefreshInFlight = true;
-  try {
-    const today = toDateInputValue(new Date());
-    const rolledOver = els.adminDateInput.value < today;
-    if (rolledOver) {
-      els.adminDateInput.value = today;
-      els.adminDateInput.min = today;
-      els.adminDateInput.max = buildDateRange().at(-1);
-    }
-    const previousLog = JSON.stringify(state.upcomingAppointments);
-    const [dayOk, logOk] = await Promise.all([
-      refreshDayData({ onlyIfChanged: true }),
-      refreshUpcomingLog({ onlyIfChanged: true }),
-    ]);
-    let datesOk = true;
-    if (rolledOver || Date.now() - lastDateOptionsRefresh >= DATE_OPTIONS_REFRESH_MS
-      || (logOk && previousLog !== JSON.stringify(state.upcomingAppointments))) {
-      datesOk = await refreshDateOptions({ keepOnError: true });
-    }
-    if (!state.isOwner) return;
-    if (els.adminSyncNotice) els.adminSyncNotice.hidden = dayOk && logOk && datesOk;
-  } catch (error) {
-    if (state.isOwner && els.adminSyncNotice) els.adminSyncNotice.hidden = false;
-    console.warn("Admin refresh failed:", error);
-  } finally {
-    liveRefreshInFlight = false;
+  const today = toDateInputValue(new Date());
+  const rolledOver = els.adminDateInput.value < today;
+  if (rolledOver) {
+    els.adminDateInput.value = today;
+    els.adminDateInput.min = today;
+    els.adminDateInput.max = buildDateRange().at(-1);
   }
+  const previousLog = JSON.stringify(state.upcomingAppointments);
+  const [dayOk, logOk] = await Promise.all([
+    refreshDayData({ onlyIfChanged: true }),
+    refreshUpcomingLog({ onlyIfChanged: true }),
+  ]);
+  let datesOk = true;
+  if (rolledOver || Date.now() - lastDateOptionsRefresh >= DATE_OPTIONS_REFRESH_MS
+    || (logOk && previousLog !== JSON.stringify(state.upcomingAppointments))) {
+    datesOk = await refreshDateOptions({ keepOnError: true });
+  }
+  if (state.isOwner && els.adminSyncNotice) els.adminSyncNotice.hidden = dayOk && logOk && datesOk;
 }
 
 function bindEvents() {
-  els.ownerLoginForm?.addEventListener("submit", handleOwnerLogin);
-  els.ownerLogoutButton?.addEventListener("click", handleOwnerLogout);
-  els.adminDateInput?.addEventListener("change", async () => {
-    const selectedIndex = state.dateOptions.findIndex((option) => option.date === els.adminDateInput.value);
-    if (selectedIndex >= 0) state.datePageStart = getCalendarPageStart(selectedIndex);
-    renderDateStrip();
-    await Promise.all([
-      refreshDateOptions(),
-      refreshDayData({ showLoading: true }),
-    ]);
-  });
-  els.adminDatePrevButton?.addEventListener("click", () => changeDatePage(-1));
-  els.adminDateNextButton?.addEventListener("click", () => changeDatePage(1));
-  els.todayButton?.addEventListener("click", selectToday);
-  els.availabilityToggle?.addEventListener("click", toggleAvailabilityPanel);
+  availabilityController.bind();
   els.showAllStaff?.addEventListener("change", () => {
     state.showAllStaff = els.showAllStaff.checked;
     if (!state.showAllStaff && state.selectedVisibleStaffKeys.size === 0) {
@@ -356,40 +397,7 @@ function bindEvents() {
     renderSlotManager();
   });
   els.visibleStaffOptions?.addEventListener("change", handleVisibleStaffChange);
-  els.addBookingButton?.addEventListener("click", () => openManualBookingDialog());
-  els.manualBookingForm?.addEventListener("submit", submitManualBooking);
-  els.bookingEmployee?.addEventListener("change", () => {
-    setManualCategories();
-    renderManualServiceOptions();
-    renderManualBookingTimes({ filterByService: false });
-    updateManualSubmitState();
-  });
-  els.bookingCategory?.addEventListener("change", () => {
-    renderManualServiceOptions({ filterByTime: Boolean(els.bookingStart.value) });
-    renderManualBookingTimes({ preferred: Number(els.bookingStart.value), filterByService: false });
-    updateManualSubmitState();
-  });
-  els.bookingService?.addEventListener("change", () => {
-    renderManualBookingTimes({ preferred: Number(els.bookingStart.value), filterByService: Boolean(els.bookingService.value) });
-    updateManualSubmitState();
-  });
-  els.bookingStart?.addEventListener("change", () => {
-    renderManualServiceOptions({ preferred: els.bookingService.value, filterByTime: Boolean(els.bookingStart.value) });
-    updateManualSubmitState();
-  });
-  els.bookingDate?.addEventListener("change", () => loadManualEditorDate());
-  els.detailEdit?.addEventListener("click", editSelectedManualEntry);
-  els.detailDelete?.addEventListener("click", deleteSelectedManualEntry);
-  document.querySelectorAll("[data-close-admin-dialog]").forEach((button) => button.addEventListener("click", () => button.closest("dialog")?.close()));
-  els.dayBlockButton?.addEventListener("click", handleToggleDayBlock);
-  els.timeBlockToggle?.addEventListener("click", toggleTimeBlockPanel);
-  els.timeBlockStart?.addEventListener("change", renderTimeBlockControls);
-  els.timeBlockEnd?.addEventListener("change", renderTimeBlockControls);
-  els.timeBlockAction?.addEventListener("click", handleCreateTimeBlock);
-  els.existingTimeBlocks?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-unblock-time]");
-    if (button) deleteTimeBlockById(button.dataset.unblockTime);
-  });
+  detailController.bind();
   els.toastClose?.addEventListener("click", () => {
     window.clearTimeout(toastTimeout);
     if (els.actionToast) els.actionToast.hidden = true;
@@ -397,13 +405,6 @@ function bindEvents() {
   els.logCollapseButton?.addEventListener("click", () => toggleSection("log"));
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".service-block-menu")) closeServiceBlockMenus();
-    if (!event.target.closest(".availability-shell")) closeAvailabilityPanel();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !els.timeBlockPanel?.hidden) {
-      closeTimeBlockPanel();
-      els.timeBlockToggle?.focus();
-    }
   });
   window.addEventListener("openslot:language-change", () => {
     translateStaticAdminUi();
@@ -443,46 +444,6 @@ function createRepository() {
       window.OpenSlotBackofficeI18n?.setLanguage(salon.admin_language || "de");
     },
   });
-}
-
-async function initializeAuth() {
-  if (!state.repository.authSupported) {
-    renderAuthState({ email: "local-demo" });
-    return;
-  }
-  const user = await state.repository.getCurrentUser();
-  await applyAuthState(user);
-  state.repository.onAuthChange(async (nextUser) => {
-    await applyAuthState(nextUser);
-    await refreshServices();
-    await refreshLaneLayout();
-    await refreshStaffServices();
-    await refreshDateOptions();
-    await refreshDayData();
-    await refreshUpcomingLog();
-  });
-}
-
-async function applyAuthState(user) {
-  state.isOwner = false;
-  state.accessRole = null;
-  state.accessStaffId = null;
-  state.staffViewIdentity = null;
-
-  if (!user) {
-    renderAuthState(null);
-    return;
-  }
-
-  try {
-    const access = await state.repository.getSalonAccess(user.id);
-    state.isOwner = access.allowed;
-    state.accessRole = access.role;
-    state.accessStaffId = access.staffId || null;
-    renderAuthState(user, access.allowed ? "" : "Keine Berechtigung fur diesen Salon.");
-  } catch (error) {
-    renderAuthState(user, `Berechtigung konnte nicht gepruft werden: ${error.message}`);
-  }
 }
 
 async function refreshServices() {
@@ -727,84 +688,11 @@ function renderOwnerControls() {
 }
 
 function renderDateStrip() {
-  if (!els.adminDateStrip || state.dateOptions.length === 0) return;
-  const selectedDate = new Date(`${els.adminDateInput.value}T00:00:00`);
-  if (els.calendarMonth) {
-    els.calendarMonth.textContent = new Intl.DateTimeFormat(getAdminLocale(), { month: "long" }).format(selectedDate);
-  }
-  const selectedIndex = Math.max(0, state.dateOptions.findIndex((option) => option.date === els.adminDateInput.value));
-  if (selectedIndex < state.datePageStart || selectedIndex >= state.datePageStart + 7) {
-    state.datePageStart = getCalendarPageStart(selectedIndex);
-  }
-  const visibleOptions = state.dateOptions.slice(state.datePageStart, state.datePageStart + 7);
-  els.adminDateStrip.className = `mini-day-strip ${state.datePageStart === 0 ? "today-page" : "future-page"}`;
-  els.adminDateStrip.innerHTML = visibleOptions.map((option) => {
-    const date = new Date(`${option.date}T00:00:00`);
-    const label = formatDateButtonLabel(date);
-    const isSelected = option.date === els.adminDateInput.value;
-    const weeklyRule = getWeeklyRule(date);
-    const isSelectable = weeklyRule.openMinutes !== null;
-    const percent = option.totalSlotCount ? Math.min(100, Math.round(option.occupiedSlotCount / option.totalSlotCount * 100)) : 0;
-    return `
-      <button class="mini-day ${isSelected ? "selected" : ""} ${option.isBlockedDay ? "blocked" : ""}" type="button" data-date="${option.date}" aria-pressed="${isSelected}" ${option.holidayName ? `title="${escapeAttribute(option.holidayName)}"` : ""} ${isSelectable ? "" : "disabled"}>
-        <span class="date-weekday">${escapeHtml(label.weekday)}</span>
-        <strong>${escapeHtml(label.day)}</strong>
-        ${isSelectable && !option.isBlockedDay ? `<span class="day-status-bar" aria-hidden="true"><span style="width:${percent}%"></span></span>` : ""}
-      </button>
-    `;
-  }).join("");
-  els.adminDatePrevButton.disabled = state.datePageStart === 0;
-  els.adminDateNextButton.disabled = state.datePageStart + 7 >= state.dateOptions.length;
-  const today = toDateInputValue(new Date());
-  els.todayButton?.classList.toggle("is-active", els.adminDateInput.value === today);
-  els.todayButton?.setAttribute("aria-pressed", String(els.adminDateInput.value === today));
-  els.adminDateStrip.querySelectorAll(".mini-day:not(:disabled)").forEach((button) => {
-    button.addEventListener("click", async () => {
-      if (button.dataset.date === els.adminDateInput.value) return;
-      els.adminDateInput.value = button.dataset.date;
-      renderDateStrip();
-      await refreshDayData({ showLoading: true });
-    });
-  });
+  dateNavigation.render();
 }
 
 function getCalendarPageStart(selectedIndex) {
-  if (selectedIndex <= 0) return 0;
-  const firstMondayIndex = state.dateOptions.findIndex((option, index) => (
-    index > 0 && new Date(`${option.date}T00:00:00`).getDay() === 1
-  ));
-  if (firstMondayIndex < 0 || selectedIndex < firstMondayIndex) return 0;
-  return firstMondayIndex + Math.floor((selectedIndex - firstMondayIndex) / 7) * 7;
-}
-
-async function changeDatePage(direction) {
-  const current = state.dateOptions[state.datePageStart]?.date || toDateInputValue(new Date());
-  const targetDate = direction > 0
-    ? nextMondayDate(current)
-    : previousCalendarPageDate(current);
-  const nextStart = Math.max(0, state.dateOptions.findIndex((option) => option.date === targetDate));
-  if (nextStart === state.datePageStart) return;
-  state.datePageStart = nextStart;
-  const target = state.dateOptions[nextStart];
-  if (target) {
-    els.adminDateInput.value = target.date;
-    renderDateStrip();
-    await Promise.all([
-      refreshDateOptions(),
-      refreshDayData({ showLoading: true }),
-    ]);
-  }
-}
-
-async function selectToday() {
-  const today = toDateInputValue(new Date());
-  state.datePageStart = 0;
-  els.adminDateInput.value = today;
-  renderDateStrip();
-  await Promise.all([
-    refreshDateOptions(),
-    refreshDayData({ showLoading: true }),
-  ]);
+  return dateNavigation.getPageStart(selectedIndex);
 }
 
 function getScheduleLanes(activeAppointments) {
@@ -1233,32 +1121,6 @@ function canPlaceManualService(service, startMinutes, lane, ignoredItem = null) 
     && !hasTimeRangeOverlap(candidate, laneItems);
 }
 
-async function handleOwnerLogin(event) {
-  event.preventDefault();
-  if (ownerLoginPending) return;
-  const submit = els.ownerLoginForm?.querySelector('[type="submit"]');
-  ownerLoginPending = true;
-  if (submit) submit.disabled = true;
-  try {
-    if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = t("admin.verifying");
-    const captchaToken = await ownerSecurity.getToken();
-    await state.repository.signIn(els.ownerEmail.value.trim(), els.ownerPassword.value, captchaToken);
-    els.ownerPassword.value = "";
-    ownerSecurity.clearToken();
-  } catch (error) {
-    if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = t("admin.loginFailed", { message: error.message });
-    ownerSecurity.reset();
-  } finally {
-    ownerLoginPending = false;
-    if (submit) submit.disabled = false;
-  }
-}
-
-async function handleOwnerLogout() {
-  await state.repository.signOut();
-  ownerSecurity.reset();
-}
-
 async function handleToggleDayBlock() {
   const targetStaff = getAvailabilityStaffGroups();
   const globalScope = isGlobalAvailabilityScope();
@@ -1383,38 +1245,9 @@ function getScopedTimeBlocks() {
   return state.timeBlocks.filter((block) => !block.staffId || staffIds.has(block.staffId));
 }
 
-function toggleTimeBlockPanel() {
-  if (!els.timeBlockPanel || !els.timeBlockToggle) return;
-  const willOpen = els.timeBlockPanel.hidden;
-  els.timeBlockPanel.hidden = !willOpen;
-  els.timeBlockToggle.setAttribute("aria-expanded", String(willOpen));
-  if (willOpen) requestAnimationFrame(() => els.timeBlockStart?.focus());
-}
-
-function closeTimeBlockPanel() {
-  if (!els.timeBlockPanel || !els.timeBlockToggle || els.timeBlockPanel.hidden) return;
-  els.timeBlockPanel.hidden = true;
-  els.timeBlockToggle.setAttribute("aria-expanded", "false");
-}
-
-function toggleAvailabilityPanel() {
-  if (!els.availabilityPanel || !els.availabilityToggle) return;
-  const willOpen = els.availabilityPanel.hidden;
-  els.availabilityPanel.hidden = !willOpen;
-  els.availabilityToggle.setAttribute("aria-expanded", String(willOpen));
-  if (!willOpen) closeTimeBlockPanel();
-}
-
-function closeAvailabilityPanel() {
-  if (!els.availabilityPanel || els.availabilityPanel.hidden) return;
-  els.availabilityPanel.hidden = true;
-  els.availabilityToggle?.setAttribute("aria-expanded", "false");
-  closeTimeBlockPanel();
-}
-
 async function openManualBookingDialog(entry = null) {
   if (!els.bookingDialog || !state.isOwner) return;
-  manualEditorEntry = entry;
+  manualBookingController.entry = entry;
   const service = entry ? serviceForItem(entry) : null;
   const currentLane = entry ? state.laneLayout.find((lane) => lane.laneKey === entry.laneKey) : null;
   const staffGroups = groupLanesByStaff(state.laneLayout).filter((group) => (
@@ -1510,37 +1343,37 @@ async function fetchManualContext(date) {
 }
 
 async function loadManualEditorDate({ preferredServiceId = els.bookingService?.value || "", preferredStart = Number(els.bookingStart?.value) } = {}) {
-  const requestId = ++manualEditorRequestId;
+  const requestId = manualBookingController.nextRequest();
   const submit = els.manualBookingForm?.querySelector('[type="submit"]');
   if (submit) submit.disabled = true;
   if (els.bookingFormMessage) els.bookingFormMessage.textContent = t("admin.checkingTimes");
   try {
     const context = await fetchManualContext(els.bookingDate.value);
-    if (requestId !== manualEditorRequestId) return;
-    manualEditorContext = context;
+    if (!manualBookingController.isCurrentRequest(requestId)) return;
+    manualBookingController.context = context;
     renderManualServiceOptions({ preferred: preferredServiceId });
     renderManualBookingTimes({ preferred: preferredStart, filterByService: Boolean(preferredServiceId) });
     updateManualSubmitState();
   } catch (error) {
-    if (requestId !== manualEditorRequestId) return;
-    manualEditorContext = null;
+    if (!manualBookingController.isCurrentRequest(requestId)) return;
+    manualBookingController.context = null;
     if (els.bookingFormMessage) els.bookingFormMessage.textContent = t("admin.loadTimesFailed", { message: error.message });
   }
 }
 
 function canPlaceManualEditorService(service, startMinutes) {
-  if (!service || !manualEditorContext || !Number.isFinite(startMinutes)) return false;
+  if (!service || !manualBookingController.context || !Number.isFinite(startMinutes)) return false;
   return canPlaceManualEditorServiceInContext({
     service,
     startMinutes,
-    ...manualEditorContext,
+    ...manualBookingController.context,
     staffLanes: getSelectedStaffLanes(),
     laneLayout: state.laneLayout,
-    excludedEntryId: manualEditorEntry?.id || manualEditorEntry?.scheduleEntryId || "",
+    excludedEntryId: manualBookingController.entry?.id || manualBookingController.entry?.scheduleEntryId || "",
   });
 }
 
-function canPlaceManualEditorServiceOnLane(service, startMinutes, lane, context = manualEditorContext) {
+function canPlaceManualEditorServiceOnLane(service, startMinutes, lane, context = manualBookingController.context) {
   if (!service || !lane || !context) return false;
   return canPlaceManualEditorServiceOnLaneInContext({
     service,
@@ -1549,17 +1382,17 @@ function canPlaceManualEditorServiceOnLane(service, startMinutes, lane, context 
     appointments: context.appointments,
     manualEntries: context.manualEntries,
     laneLayout: state.laneLayout,
-    excludedEntryId: manualEditorEntry?.id || manualEditorEntry?.scheduleEntryId || "",
+    excludedEntryId: manualBookingController.entry?.id || manualBookingController.entry?.scheduleEntryId || "",
   });
 }
 
 function renderManualBookingTimes({ preferred = null, filterByService = true } = {}) {
-  if (!els.bookingStart || !manualEditorContext) return;
+  if (!els.bookingStart || !manualBookingController.context) return;
   const selectedService = findService(els.bookingService?.value);
   const services = filterByService && selectedService ? [selectedService] : getManualEditorServices();
   const starts = getAvailableManualStarts({
     services,
-    daySettings: manualEditorContext.daySettings,
+    daySettings: manualBookingController.context.daySettings,
     slotStep: SLOT_STEP,
     canPlace: canPlaceManualEditorService,
   });
@@ -1605,7 +1438,7 @@ async function submitManualBooking(event) {
       lane.storageKey,
       startMinutes,
       service,
-      manualEditorEntry ? { scheduleEntryId: manualEditorEntry.id || manualEditorEntry.scheduleEntryId } : null,
+      manualBookingController.entry ? { scheduleEntryId: manualBookingController.entry.id || manualBookingController.entry.scheduleEntryId } : null,
       els.bookingNote?.value.trim() || "",
       els.bookingDate.value,
     );
@@ -1615,9 +1448,8 @@ async function submitManualBooking(event) {
     if (selectedIndex >= 0) state.datePageStart = getCalendarPageStart(selectedIndex);
     await refreshDateOptions();
     await refreshDayData();
-    showToast(t("admin.appointmentSaved", { service: getServiceAbbrev(service), time: formatMinutes(startMinutes), staff: lane.staffShortName || lane.staffName, action: t(manualEditorEntry ? "admin.updated" : "admin.created") }));
-    manualEditorEntry = null;
-    manualEditorContext = null;
+    showToast(t("admin.appointmentSaved", { service: getServiceAbbrev(service), time: formatMinutes(startMinutes), staff: lane.staffShortName || lane.staffName, action: t(manualBookingController.entry ? "admin.updated" : "admin.created") }));
+    manualBookingController.clear();
   } catch (error) {
     els.bookingFormMessage.textContent = "";
     showToast(t("admin.saveFailed", { message: error.message }), "error");
@@ -1627,50 +1459,20 @@ async function submitManualBooking(event) {
 }
 
 function openScheduleDetail(id, kind) {
-  if (!els.detailDialog || !id) return;
-  const item = kind === "online"
-    ? state.appointments.find((entry) => String(entry.id) === id)
-    : state.manualEntries.find((entry) => String(entry.id || entry.scheduleEntryId) === id);
-  if (!item) return;
-  const service = serviceForItem(item);
-  const lane = state.laneLayout.find((entry) => entry.laneKey === item.laneKey);
-  const rows = [
-    [t("admin.service"), service.shortName || service.name],
-    [t("common.date"), formatLogDate(item.date || els.adminDateInput.value)],
-    [t("common.time"), `${formatMinutes(item.startMinutes)}-${formatMinutes(item.endMinutes)}`],
-    [t("admin.employee"), lane?.staffShortName || lane?.staffName || ""],
-    kind === "online" ? [t("admin.customer"), item.name || ""] : [t("common.note"), item.note || item.reason || ""],
-    kind === "online" ? [t("common.phone"), item.phone || ""] : null,
-    kind === "online" ? [t("common.email"), item.email || ""] : null,
-  ].filter((row) => row && row[1]);
-  els.detailTitle.textContent = service.shortName || service.name;
-  els.detailList.innerHTML = rows.map(([label, value]) => `<div class="detail-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
-  const canDelete = kind === "manual" && canEditLane(lane || {});
-  if (els.detailActions) els.detailActions.hidden = !canDelete;
-  if (els.detailEdit) {
-    els.detailEdit.dataset.entryId = canDelete ? String(item.id || item.scheduleEntryId || "") : "";
-  }
-  if (els.detailDelete) {
-    els.detailDelete.dataset.entryId = canDelete ? String(item.id || item.scheduleEntryId || "") : "";
-    els.detailDelete.dataset.laneKey = canDelete ? String(item.laneKey || "") : "";
-  }
-  els.detailDialog.showModal();
+  detailController.open(id, kind);
 }
 
-function editSelectedManualEntry() {
-  const entryId = els.detailEdit?.dataset.entryId;
-  if (!entryId) return;
-  const entry = state.manualEntries.find((item) => String(item.id || item.scheduleEntryId) === entryId);
+function editSelectedManualEntry(entry) {
   if (!entry) {
     showToast(t("admin.appointmentMissing"), "error");
     return;
   }
-  els.detailDialog?.close();
+  detailController.close();
   openManualBookingDialog(entry);
 }
 
-async function deleteSelectedManualEntry() {
-  const entryId = els.detailDelete?.dataset.entryId;
+async function deleteSelectedManualEntry(entry) {
+  const entryId = entry?.id || entry?.scheduleEntryId;
   if (!entryId) return;
   const confirmed = await window.OpenSlotConfirm.ask({
     title: t("admin.manualDeleteTitle"),
@@ -1681,7 +1483,7 @@ async function deleteSelectedManualEntry() {
   if (!confirmed) return;
   try {
     await state.repository.deleteManualScheduleEntry(entryId);
-    els.detailDialog?.close();
+    detailController.close();
     await Promise.all([refreshDateOptions(), refreshDayData()]);
     showToast(t("admin.manualDeleted"));
   } catch (error) {
@@ -1817,7 +1619,7 @@ async function handleCreateTimeBlock() {
     )));
     await refreshDateOptions();
     await refreshDayData();
-    closeTimeBlockPanel();
+    availabilityController.closeTimePanel();
     showToast(`${formatMinutes(startMinutes)}-${formatMinutes(endMinutes)} wurde erfolgreich blockiert.`);
   } catch (error) {
     await showAvailabilityError(error, t("admin.timeBlockFailed"));
@@ -2351,159 +2153,10 @@ function formatSelectedDateTitle(dateValue, slotCount = "") {
   return `am ${dateValue} ${weekday}${slotCount ? ` (${slotCount})` : ""}`;
 }
 
-function nextMondayDate(value) {
-  const date = new Date(`${value}T00:00:00`);
-  date.setDate(date.getDate() + ((8 - date.getDay()) % 7 || 7));
-  return toDateInputValue(date);
-}
-
-function previousCalendarPageDate(value) {
-  const today = toDateInputValue(new Date());
-  const date = new Date(`${value}T00:00:00`);
-  date.setDate(date.getDate() - 7);
-  return date < new Date(`${today}T00:00:00`) ? today : toDateInputValue(date);
-}
-
-async function scrollDateStrip(direction) {
-  let dateRow = els.adminDateStrip?.querySelector(".date-row");
-  if (!dateRow) return;
-  const buttons = [...dateRow.querySelectorAll(".date-button")];
-  if (buttons.length === 0) return;
-  const isPortraitPager = window.matchMedia("(orientation: portrait) and (max-width: 1180px)").matches;
-  const pageSize = isPortraitPager ? Math.min(7, buttons.length) : getVisibleDateCount(dateRow, buttons);
-  const currentIndex = getDateRowStartIndex(dateRow, buttons);
-  const currentPageStart = Math.floor(currentIndex / pageSize) * pageSize;
-  const targetIndex = Math.max(0, Math.min(currentPageStart + (direction * pageSize), buttons.length - pageSize));
-
-  if (isPortraitPager) {
-    const firstSelectable = buttons.slice(targetIndex, targetIndex + pageSize).find((button) => !button.disabled);
-    if (firstSelectable && firstSelectable.dataset.date !== els.adminDateInput.value) {
-      els.adminDateInput.value = firstSelectable.dataset.date;
-      await refreshDayData();
-      dateRow = els.adminDateStrip?.querySelector(".date-row");
-    }
-  }
-
-  if (dateRow) scrollDateRowToIndex(dateRow, targetIndex);
-}
-
-function getVisibleDateCount(dateRow, buttons) {
-  if (buttons.length < 2) return 1;
-  const step = buttons[1].offsetLeft - buttons[0].offsetLeft;
-  return step > 0 ? Math.max(1, Math.floor((dateRow.clientWidth + 1) / step)) : 1;
-}
-
-function getDateRowStartIndex(dateRow, buttons) {
-  if (buttons.length < 2) return 0;
-  const step = buttons[1].offsetLeft - buttons[0].offsetLeft;
-  return step > 0 ? Math.max(0, Math.round(dateRow.scrollLeft / step)) : 0;
-}
-
-function scrollDateRowToIndex(dateRow, index) {
-  const buttons = [...dateRow.querySelectorAll(".date-button")];
-  const firstButton = buttons[0];
-  const targetButton = buttons[index];
-  if (!firstButton || !targetButton) return;
-  dateRow.scrollTo({ left: targetButton.offsetLeft - firstButton.offsetLeft, behavior: "smooth" });
-}
-
 function getCustomerNameSizeClass(name) {
   if (name.length > 22) return "customer-name customer-name-compact";
   if (name.length > 14) return "customer-name customer-name-long";
   return "customer-name";
-}
-
-function fromSupabaseService(row) {
-  const baseId = stripSalonPrefix(row.id);
-  const fallback = DEFAULT_SERVICES.find((service) => service.id === baseId);
-  const legacy = LEGACY_SERVICE_META.get(baseId);
-  const category = Array.isArray(row.service_categories) ? row.service_categories[0] : row.service_categories;
-  return {
-    id: row.id,
-    name: row.name,
-    shortName: row.short_name || row.name,
-    duration: row.duration_minutes,
-    bookedSlots: row.booked_slots || [],
-    price: Number(row.price),
-    priceFrom: Boolean(row.price_from),
-    slotColor: row.slot_color || "",
-    category: row.category || fallback?.category || legacy?.category || "care",
-    categoryId: row.category_id || category?.id || null,
-    categoryName: category?.name || row.category,
-    categoryShortName: category?.short_name || category?.name || row.category,
-    categorySortOrder: Number.isFinite(Number(category?.sort_order)) ? Number(category.sort_order) : 999,
-    sortOrder: Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : undefined,
-    gender: fallback?.gender || legacy?.gender || row.gender || "unisex",
-    isActive: row.is_active,
-  };
-}
-
-function stripSalonPrefix(id) {
-  return String(id || "").replace(/^(lisa|demo)_/, "");
-}
-
-function fromSupabaseAppointment(row) {
-  const customer = row.customers || {};
-  return {
-    id: row.id,
-    date: row.appointment_date,
-    serviceId: row.service_id,
-    gender: customer.gender || "male",
-    name: customer.name || "",
-    phone: customer.phone || "",
-    email: customer.email || "",
-    startMinutes: dateToMinutes(row.start_time),
-    endMinutes: dateToMinutes(row.end_time),
-    occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
-    laneKey: row.lane_key || null,
-    status: row.status,
-    serviceSnapshot: normalizeServiceSnapshot(row.service_snapshot),
-  };
-}
-
-function fromSupabaseScheduleEntry(row) {
-  const lane = Array.isArray(row.staff_lanes) ? row.staff_lanes[0] : row.staff_lanes;
-  const startMinutes = parseTime(String(row.covered_start).slice(0, 5));
-  return {
-    id: row.id,
-    date: row.schedule_date,
-    startMinutes,
-    endMinutes: parseTime(String(row.covered_end).slice(0, 5)),
-    occupiedMinutes: (row.occupied_slots || []).map(timeValueToMinutes),
-    serviceId: row.service_id || null,
-    serviceStartMinutes: startMinutes,
-    laneKey: lane?.lane_key || null,
-    isOpen: row.entry_source !== "block",
-    entrySource: row.entry_source,
-    note: row.note || "",
-    serviceSnapshot: normalizeServiceSnapshot(row.service_snapshot),
-  };
-}
-
-function isMissingUnifiedSchedule(error) {
-  return ["42P01", "42703", "PGRST200", "PGRST204", "PGRST205"].includes(error?.code);
-}
-
-function fromSupabaseDaySettings(row) {
-  return {
-    date: row.setting_date,
-    openMinutes: parseTime(row.open_time.slice(0, 5)),
-    closeMinutes: parseTime(row.close_time.slice(0, 5)),
-    isBlockedDay: row.is_blocked_day,
-    holidayName: row.holiday_name || "",
-    isPublicHoliday: Boolean(row.is_public_holiday),
-    hasManualOverride: Boolean(row.has_manual_override),
-  };
-}
-
-function fromSupabaseTimeBlock(row) {
-  return {
-    id: row.id,
-    staffId: row.staff_id || null,
-    date: row.block_date,
-    startMinutes: parseTime(String(row.start_time).slice(0, 5)),
-    endMinutes: parseTime(String(row.end_time).slice(0, 5)),
-  };
 }
 
 function loadLocalAppointments() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }

@@ -15,11 +15,17 @@ import {
   renderOccupiedSlotsMarkup,
   renderStaffListMarkup,
 } from "../src/settings/settings-view.mjs";
+import { createSupabaseSettingsRepository } from "../src/settings/supabase-settings-repository.mjs";
+import { bindAccountController } from "../src/settings/account-controller.mjs";
+import { bindCatalogController } from "../src/settings/catalog-controller.mjs";
+import { bindHoursController } from "../src/settings/hours-controller.mjs";
+import { bindShopController } from "../src/settings/shop-controller.mjs";
+import { bindStaffController } from "../src/settings/staff-controller.mjs";
 
 (function initializeSettingsUi(global) {
   "use strict";
 
-  const repository = global.OpenSlotSettingsRepository;
+  const repository = createSupabaseSettingsRepository({ config: global.OPENSLOT_SUPABASE, supabase: global.supabase });
   const main = document.getElementById("settingsMain");
   const denied = document.getElementById("settingsDenied");
   const toast = document.getElementById("settingsToast");
@@ -271,92 +277,16 @@ import {
   }
 
   function bindForms() {
-    document.getElementById("accountPasswordForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      try {
-        setBusy(form, true);
-        await repository.updatePassword(document.getElementById("newPassword").value);
-        form.reset();
-        showToast(t("settings.passwordChanged"));
-      } catch (error) { showToast(errorMessage(error), "error"); }
-      finally { setBusy(form, false); }
-    });
-    document.getElementById("resetPasswordForm").addEventListener("click", () => document.getElementById("accountPasswordForm").reset());
-
-    document.getElementById("profileSettingsForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      try {
-        setBusy(form, true);
-        await repository.updateSalon({
-          name: document.getElementById("profileName").value.trim(),
-          address: document.getElementById("profileAddress").value.trim(),
-          phone: document.getElementById("profilePhone").value.trim(),
-          themePreset: document.querySelector('[name="profileTheme"]:checked')?.value,
-          adminLanguage: document.getElementById("profileAdminLanguage").value,
-          languages: data.salon.languages,
-        });
-        await refreshAfterWrite(t("settings.profileSaved"));
-      } catch (error) { showToast(errorMessage(error), "error"); }
-      finally { setBusy(form, false); }
-    });
-    document.getElementById("resetProfile").addEventListener("click", renderProfile);
-    document.getElementById("profileAdminLanguage").addEventListener("change", (event) => bo?.setLanguage(event.target.value));
-    document.querySelectorAll('[name="profileTheme"]').forEach((input) => input.addEventListener("change", () => applyProfileTheme(input.value)));
-
-    document.getElementById("hoursSettingsForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      const hours = [...document.querySelectorAll(".hours-row")].map((row) => ({
-        weekday: Number(row.dataset.weekday),
-        openTime: row.querySelector("[data-hours-start]").value,
-        closeTime: row.querySelector("[data-hours-end]").value,
-        isClosed: !row.querySelector("[data-hours-open]").checked,
-      }));
-      if (hasInvalidWeeklyHours(hours)) { showToast(t("settings.hoursInvalid"), "error"); return; }
-      try {
-        setBusy(form, true);
-        await repository.updateWeeklyHours(hours);
-        await refreshAfterWrite(t("settings.hoursSaved"));
-      } catch (error) { showToast(errorMessage(error), "error"); }
-      finally { setBusy(form, false); }
-    });
-    document.getElementById("resetHours").addEventListener("click", renderHours);
-
-    document.getElementById("settingsStaffList").addEventListener("click", (event) => {
-      const button = event.target.closest("[data-staff-id]");
-      if (button) editStaff(button.dataset.staffId);
-    });
-    document.getElementById("staffActive").addEventListener("change", (event) => { document.getElementById("staffState").textContent = event.target.checked ? t("common.active") : t("common.inactive"); });
-    document.getElementById("staffAcceptsOnline").addEventListener("change", (event) => { document.getElementById("staffOnlineState").textContent = event.target.checked ? t("common.on") : t("common.off"); });
-    document.getElementById("cancelStaffEdit").addEventListener("click", () => {
-      if (selectedStaffId) editStaff(selectedStaffId, { open: false });
-      staffDialog?.close();
-    });
-    document.querySelectorAll("[data-close-staff]").forEach((button) => button.addEventListener("click", () => staffDialog?.close()));
-    document.getElementById("staffEditorForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      const employee = data.staff.find((item) => item.id === selectedStaffId);
-      const serviceIds = [...form.querySelectorAll('[name="staffService"]:checked')].map((input) => input.value);
-      if (!employee) return;
-      try {
-        setBusy(form, true);
-        await repository.updateStaff({
-          ...employee,
-          name: document.getElementById("staffName").value.trim(),
-          shortName: document.getElementById("staffShortName").value.trim(),
-          color: document.getElementById("staffColor").value,
-          isActive: document.getElementById("staffActive").checked,
-          acceptsOnline: document.getElementById("staffAcceptsOnline").checked,
-        });
-        await repository.updateStaffServices(employee.id, serviceIds);
-        await refreshAfterWrite(t("settings.staffSaved"));
-        staffDialog?.close();
-      } catch (error) { showToast(errorMessage(error), "error"); }
-      finally { setBusy(form, false); }
-    });
+    const showError = (error) => showToast(errorMessage(error), "error");
+    bindAccountController({ repository, setBusy, showError, showSuccess: showToast, t });
+    bindShopController({ repository, setBusy, showError, t, getSalon: () => data.salon,
+      onReset: renderProfile, onSaved: refreshAfterWrite, onThemePreview: applyProfileTheme,
+      onLanguagePreview: (language) => bo?.setLanguage(language) });
+    bindHoursController({ repository, setBusy, showError, t, isInvalid: hasInvalidWeeklyHours,
+      onReset: renderHours, onSaved: refreshAfterWrite, showMessage: showToast });
+    bindStaffController({ repository, setBusy, showError, t, dialog: staffDialog,
+      getData: () => data, getSelectedStaffId: () => selectedStaffId, onEdit: editStaff,
+      onSaved: refreshAfterWrite });
 
     const duration = document.getElementById("serviceDuration");
     duration.innerHTML = renderDurationOptionsMarkup(t);
@@ -379,93 +309,28 @@ import {
     document.querySelectorAll("[data-close-catalog]").forEach((button) => button.addEventListener("click", () => catalogDialog.close()));
     document.getElementById("cancelServiceEdit").addEventListener("click", () => catalogDialog.close());
     document.getElementById("cancelCategoryEdit").addEventListener("click", () => catalogDialog.close());
-    document.getElementById("serviceActive").addEventListener("change", (event) => { document.getElementById("serviceState").textContent = event.target.checked ? t("common.active") : t("common.inactive"); });
-    document.getElementById("serviceAcceptsOnline").addEventListener("change", (event) => { document.getElementById("serviceOnlineState").textContent = event.target.checked ? t("common.on") : t("common.off"); });
-    document.getElementById("categoryActive").addEventListener("change", (event) => { document.getElementById("categoryState").textContent = event.target.checked ? t("common.active") : t("common.inactive"); });
-    document.getElementById("categoryAcceptsOnline").addEventListener("change", (event) => { document.getElementById("categoryOnlineState").textContent = event.target.checked ? t("common.on") : t("common.off"); });
-
-    document.getElementById("serviceSettingsForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      const existing = data.services.find((service) => service.id === document.getElementById("serviceId").value);
-      const categoryId = document.getElementById("serviceCategory").value || existing?.categoryId;
-      const shortNameInput = document.getElementById("serviceShortName");
-      const shortName = shortNameInput.value.trim();
-      const bookedSlots = [...form.querySelectorAll('[name="occupiedSlot"]:checked')].map((input) => Number(input.value));
-      if (shortName.length > 12) {
-        showToast(t("settings.shortNameLimit"), "error");
-        shortNameInput.focus();
-        return;
-      }
-      if (bookedSlots.length === 0) {
-        showToast(t("settings.chooseOccupied"), "error");
-        return;
-      }
-      try {
-        setBusy(form, true);
-        const saved = await repository.saveService({
-          id: existing?.id || null,
-          categoryId,
-          name: document.getElementById("serviceName").value.trim(),
-          nameEn: document.getElementById("serviceNameEn").value.trim(),
-          nameZh: document.getElementById("serviceNameZh").value.trim(),
-          shortName,
-          duration: Number(duration.value),
-          bookedSlots,
-          price: Number(document.getElementById("servicePrice").value),
-          priceFrom: document.getElementById("servicePriceFrom").checked,
-          color: document.getElementById("serviceColor").value,
-          isActive: document.getElementById("serviceActive").checked,
-          acceptsOnline: document.getElementById("serviceAcceptsOnline").checked,
-        });
+    bindCatalogController({ repository, setBusy, t, dialog: catalogDialog, buildOrder: buildCatalogOrder,
+      getData: () => data, getCatalogDraft: () => catalogDraft, showError, showMessage: showToast,
+      onServiceSaved: async (saved, existed) => {
         data = repository.getSettingsSnapshot();
         selectedCatalog = { type: "service", id: saved.id };
         catalogDraft = null;
         renderAll();
-        catalogDialog.close();
-        showToast(existing
-          ? t("settings.serviceSaved")
-          : t("settings.serviceSavedAssign"));
-      } catch (error) { showToast(errorMessage(error), "error"); }
-      finally { setBusy(form, false); }
-    });
-    document.getElementById("categorySettingsForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      try {
-        setBusy(form, true);
-        const saved = await repository.saveCategory({
-          id: document.getElementById("categoryId").value || null,
-          name: document.getElementById("categoryName").value.trim(),
-          nameEn: document.getElementById("categoryNameEn").value.trim(),
-          nameZh: document.getElementById("categoryNameZh").value.trim(),
-          shortName: document.getElementById("categoryShortName").value.trim(),
-          isActive: document.getElementById("categoryActive").checked,
-          acceptsOnline: document.getElementById("categoryAcceptsOnline").checked,
-        });
+        showToast(t(existed ? "settings.serviceSaved" : "settings.serviceSavedAssign"));
+      },
+      onCategorySaved: async (saved) => {
         data = repository.getSettingsSnapshot();
         selectedCatalog = { type: "category", id: saved.id };
         catalogDraft = null;
         renderAll();
-        catalogDialog.close();
         showToast(t("settings.categorySaved"));
-      } catch (error) { showToast(errorMessage(error), "error"); }
-      finally { setBusy(form, false); }
-    });
-
-    document.getElementById("saveCatalogOrder").addEventListener("click", async (event) => {
-      if (!catalogDraft) return;
-      const button = event.currentTarget;
-      const order = buildCatalogOrder(catalogDraft);
-      try {
-        button.disabled = true;
-        await repository.reorderCatalog(order);
+      },
+      onOrderSaved: async () => {
         data = repository.getSettingsSnapshot();
         catalogDraft = null;
         renderAll();
         showToast(t("settings.orderSaved"));
-      } catch (error) { button.disabled = false; showToast(errorMessage(error), "error"); }
-    });
+      } });
     global.addEventListener("openslot:backoffice-language-change", () => {
       const selectedDuration = duration.value;
       duration.innerHTML = renderDurationOptionsMarkup(t);

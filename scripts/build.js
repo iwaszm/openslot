@@ -2,9 +2,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
-const dist = path.join(root, "dist");
+const dist = path.resolve(root, process.env.OPENSLOT_BUILD_DIR || "dist");
 const turnstileSiteKey = process.env.OPENSLOT_TURNSTILE_SITE_KEY || "0x4AAAAAAEsrM-tkdjA40QZH";
 const buildId = `${process.env.CF_PAGES_COMMIT_SHA || "local"}-${Date.now().toString(36)}`;
+const shops = JSON.parse(fs.readFileSync(path.join(root, "config", "shops.json"), "utf8"));
+const debug = (...values) => { if (process.env.OPENSLOT_BUILD_DEBUG) console.log(...values); };
 
 const requiredEnv = ["OPENSLOT_SUPABASE_URL", "OPENSLOT_SUPABASE_ANON_KEY"];
 const missing = requiredEnv.filter((key) => !process.env[key]);
@@ -16,12 +18,11 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-fs.rmSync(dist, { recursive: true, force: true });
+fs.rmSync(dist, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 });
 fs.mkdirSync(dist, { recursive: true });
+debug("build: initialized", dist);
 
 for (const file of [
-  "styles.css",
-  "booking-theme.css",
   "booking-theme.js",
   "customer.js",
   "admin.js",
@@ -38,17 +39,23 @@ for (const file of ["index.html", "home.css", "home.js", "home-i18n.js", "site.w
 }
 copyFile(path.join("home", "assets", "icons", "favicon.ico"), "favicon.ico");
 
-for (const dir of ["datenschutz", "stornierung", "lisa", "demo"]) {
+for (const dir of ["datenschutz", "stornierung", ...shops.map((shop) => shop.slug)]) {
+  debug("build: copying", dir);
   copyDir(dir);
 }
+debug("build: copying shared sources");
 copyDir("shared");
 copyDir("src");
+copyDir("styles");
 copyDir(path.join("home", "assets"), path.join("assets", "home"));
 replaceTurnstileSiteKeys(dist);
+debug("build: stamping assets");
 stampJavaScriptModuleImports();
 stampAdminAssetUrls();
 stampCustomerAssetUrls();
 stampSettingsAssetUrls();
+writeShopManifests();
+debug("build: complete");
 
 writeFile(
   "config.js",
@@ -100,11 +107,11 @@ function writeFile(relativePath, content) {
 }
 
 function stampAdminAssetUrls() {
-  for (const salon of ["lisa", "demo"]) {
+  for (const salon of shops.map((shop) => shop.slug)) {
     const file = path.join(dist, salon, "admin", "index.html");
     const html = fs.readFileSync(file, "utf8");
     let count = 0;
-    const updated = html.replace(/((?:src|href)=")(\.\.\/\.\.\/(?:config\.js|admin\.js|styles\.css|shared\/(?:settings-theme-presets\.css|admin-ui\.css))|\.\/(?:pwa\.js|pwa\.css|push\.js))(?:\?v=[^"]+)?"/g, (_match, prefix, asset) => {
+    const updated = html.replace(/((?:src|href)=")(\.\.\/\.\.\/(?:config\.js|admin\.js|shared\/(?:admin-pwa\.js|admin-push\.js)|styles\/(?:shared\/theme-presets\.css|admin\/(?:admin\.css|pwa\.css))))(?:\?v=[^"]+)?"/g, (_match, prefix, asset) => {
       count += 1;
       return `${prefix}${asset}?v=${buildId}"`;
     });
@@ -115,30 +122,50 @@ function stampAdminAssetUrls() {
 }
 
 function stampCustomerAssetUrls() {
-  for (const salon of ["lisa", "demo"]) {
+  for (const salon of shops.map((shop) => shop.slug)) {
     const file = path.join(dist, salon, "index.html");
     const html = fs.readFileSync(file, "utf8");
     let count = 0;
-    const updated = html.replace(/((?:src|href)="\.\.\/(?:customer\.js|booking-theme\.css|booking-theme\.js|shared\/settings-theme-presets\.css))(?:\?v=[^"]+)?"/g, (_match, asset) => {
+    const updated = html.replace(/((?:src|href)="\.\.\/(?:customer\.js|booking-theme\.js|styles\/(?:shared\/(?:base\.css|theme-presets\.css)|booking\/booking\.css)))(?:\?v=[^"]+)?"/g, (_match, asset) => {
       count += 1;
       return `${asset}?v=${buildId}"`;
     });
-    if (count !== 4) throw new Error(`Expected four booking assets in ${file}, found ${count}`);
+    if (count !== 5) throw new Error(`Expected five booking assets in ${file}, found ${count}`);
     fs.writeFileSync(file, updated, "utf8");
   }
 }
 
 function stampSettingsAssetUrls() {
-  for (const salon of ["lisa", "demo"]) {
+  for (const salon of shops.map((shop) => shop.slug)) {
     const file = path.join(dist, salon, "settings", "index.html");
     const html = fs.readFileSync(file, "utf8");
     let count = 0;
-    const updated = html.replace(/((?:src|href)="\.\.\/\.\.\/(?:config\.js|shared\/(?:settings-theme-presets\.css|settings-ui\.css|repository-contract\.js|settings-repository\.js|settings-ui\.js)))(?:\?v=[^"]+)?"/g, (_match, asset) => {
+    const updated = html.replace(/((?:src|href)="\.\.\/\.\.\/(?:config\.js|shared\/settings-ui\.js|styles\/(?:shared\/theme-presets\.css|settings\/settings\.css)))(?:\?v=[^"]+)?"/g, (_match, asset) => {
       count += 1;
       return `${asset}?v=${buildId}"`;
     });
-    if (count !== 6) throw new Error(`Expected six settings assets in ${file}, found ${count}`);
+    if (count !== 4) throw new Error(`Expected four settings assets in ${file}, found ${count}`);
     fs.writeFileSync(file, updated, "utf8");
+  }
+}
+
+function writeShopManifests() {
+  for (const shop of shops) {
+    writeFile(path.join(shop.slug, "admin", "manifest.webmanifest"), `${JSON.stringify({
+      id: `/${shop.slug}/admin/`,
+      name: shop.pwaName,
+      short_name: shop.pwaShortName,
+      description: shop.pwaDescription,
+      start_url: `/${shop.slug}/admin/`,
+      scope: `/${shop.slug}/admin/`,
+      display: "standalone",
+      theme_color: "#202020",
+      background_color: "#ffffff",
+      icons: [
+        { src: "./icon-192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
+        { src: "./icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+      ],
+    }, null, 2)}\n`);
   }
 }
 

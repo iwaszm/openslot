@@ -37,18 +37,19 @@ The local `template/` application is an isolated UI prototype. It uses synthetic
 ```text
 /
 ├─ assets/                Shared static assets
+├─ config/shops.json      Build-time shop and PWA registry
 ├─ demo/                  Demo shop shell and PWA metadata
 ├─ home/                  Public product homepage
 ├─ info/                  Local project notes; excluded from deployment
 ├─ scripts/build.js       Cloudflare Pages build script
 ├─ src/                   Shared Booking, Admin, Settings and core modules
-├─ supabase/              SQL migrations and Edge Functions
+├─ supabase/              Migrations, Edge Functions, tests, audits and legacy SQL
 ├─ template/              Isolated localStorage UI prototype
-├─ shared/                Back-office entrypoints, adapters, styles and i18n
+├─ shared/                Stable back-office entrypoints, PWA runtime and i18n
+├─ styles/                Shared, Booking, Admin and Settings style layers
 ├─ tests/unit/             Browser-independent domain and rendering tests
 ├─ customer.js            Public booking application coordinator
-├─ admin.js               Admin application coordinator
-└─ styles.css             Shared Booking and Admin styles
+└─ admin.js               Admin application coordinator
 ```
 
 The top-level controllers retain stable browser entry URLs. Domain rules, Supabase adapters and HTML rendering live under `src/booking/`, `src/admin/`, `src/settings/` and `src/core/`; the entry controllers coordinate state and DOM events rather than duplicating those implementations.
@@ -116,6 +117,8 @@ cancel-booking
 ```
 
 Database changes are versioned in `supabase/migrations/`. Apply pending migrations before deploying frontend code that depends on new tables, columns, or RPC signatures.
+
+Files in `supabase/legacy/` are historical pre-migration scripts and must not be applied to a current project.
 
 ## Database Operations
 

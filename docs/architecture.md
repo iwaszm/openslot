@@ -52,7 +52,7 @@ Production routes use stable shared controller entrypoints:
 - `customer.js`: public booking and availability UI.
 - `admin.js`: authentication, daily schedule, blocks, manual appointments and booking log.
 - `shared/settings-ui.js`: shared Settings UI.
-- `shared/settings-repository.js`: Supabase Settings adapter.
+- `src/settings/supabase-settings-repository.mjs`: Supabase Settings adapter.
 - `shared/backoffice-i18n.js`: Admin and Settings localization.
 
 The entrypoints coordinate application state and browser events. Their implementation is split by responsibility:
@@ -60,14 +60,15 @@ The entrypoints coordinate application state and browser events. Their implement
 ```text
 src/core/       Shared HTML and time utilities
 src/booking/    Availability, scheduling, catalog, repositories and Booking views
-src/admin/      Scheduling, manual booking, log and calendar views, repositories and Turnstile
-src/settings/   Catalog rules and Settings views
+src/admin/      Scheduling, refresh, availability, dialogs, repositories and Turnstile
+src/settings/   Account, staff, catalog, hours and shop controllers, views and repository
+styles/         Shared tokens plus Booking, Admin and Settings style layers
 tests/unit/     Browser-independent regression tests for these modules
 ```
 
-`shared/settings-repository.js` remains the Supabase Settings adapter. The Settings controller imports its pure catalog and rendering modules from `src/settings/`.
+Settings uses a native ESM Supabase adapter and five section controllers under `src/settings/`. `shared/settings-ui.js` remains the stable browser entrypoint and coordinates shared page state.
 
-The shop entry directories contain only route shells, media and PWA metadata. The current build still enumerates production shop directories in `scripts/build.js`; adding a new shop is therefore not yet a zero-code operation.
+The shop entry directories contain route shells, media, icons, offline pages and tiny service-worker scope wrappers. Shared PWA runtime files live in `shared/`; `config/shops.json` is the build-time shop registry and generates each production manifest.
 
 ## Booking Model
 
@@ -165,6 +166,6 @@ Staff can change their own password; other Settings content is read-only. Employ
 1. Pending/failed email events are durable, but there is not yet an automatic background retry worker.
 2. Owner cancellation still makes a second authenticated request to attempt immediate email delivery; the transactional outbox preserves the event if that request fails.
 3. Production schema and migration history need a formal linked-environment reconciliation because several migrations were applied manually.
-4. Core controllers are large and should be split into domain, repository and view modules.
-5. There are no automated scheduling, RLS or end-to-end tests yet.
-6. Build routing and PWA metadata still enumerate individual shops.
+4. The Admin and Booking entry controllers still contain browser orchestration that can be reduced further as features change.
+5. Domain scheduling has unit coverage, but automated RLS/database integration and browser end-to-end coverage remain limited.
+6. Redirect generation still contains compatibility routes outside the shop registry.

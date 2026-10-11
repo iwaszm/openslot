@@ -35,6 +35,9 @@ import {
   toDateInputValue,
 } from "./src/booking/calendar.mjs";
 import { formatMinutes, parseTime } from "./src/core/time.mjs";
+import { createBookingState } from "./src/booking/booking-state.mjs";
+import { createBookingTurnstileController } from "./src/booking/turnstile-controller.mjs";
+import { createBookingSubmissionController } from "./src/booking/booking-submission.mjs";
 
 const DEFAULT_SERVICES = [
   { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
@@ -78,23 +81,11 @@ const SERVICES_KEY = `${LOCAL_STORAGE_NAMESPACE}.services`;
 const FLEXIBLE_SLOTS_KEY = `${LOCAL_STORAGE_NAMESPACE}.flexible-staff-slots`;
 const LEGACY_SERVICE_IDS = new Set(["haircut", "color", "perm"]);
 
-const state = {
-  appointments: [],
-  scheduleRecords: [],
+const state = createBookingState({
   daySettings: createDefaultDaySettings(toDateInputValue(new Date())),
-  repository: null,
-  services: DEFAULT_SERVICES,
-  salon: null,
-  laneLayout: createDefaultLaneLayout(),
-  staffServiceKeys: null,
-  dateOptions: [],
-  selectedServiceId: requiresServiceSelection() ? "" : DEFAULT_SERVICES[0].id,
-  selectedGender: requiresServiceSelection() ? "" : DEFAULT_SERVICES[0].gender,
-  selectedSlot: "",
-  selectedStaffKey: "any",
-  storageStatusKey: "common.detecting",
-  formMessageRenderer: null,
-};
+  laneLayout: createDefaultLaneLayout(), services: DEFAULT_SERVICES,
+  requireServiceSelection: requiresServiceSelection(),
+});
 
 const t = (key, values) => window.OpenSlotI18n?.t(key, values) || key;
 function getServiceName(service) {
@@ -144,6 +135,25 @@ const els = {
   salonPhone: document.querySelector("#salonPhone"),
 };
 
+const turnstileController = createBookingTurnstileController({
+  form: els.bookingForm,
+  widget: els.turnstileWidget,
+  onMissingToken: () => setFormMessage(() => t("customer.securityRequired")),
+  onReset: updateSubmitState,
+});
+const submissionController = createBookingSubmissionController({
+  elements: { form: els.bookingForm, date: els.dateInput, gender: els.genderInput },
+  state,
+  dependencies: {
+    activeServices, buildSlots, formatError: getBookingErrorMessage,
+    getNoSlotMessage, getOccupiedMinutes: getServiceOccupiedMinutes, getSelectedService,
+    parseTime, refreshDay: refreshDayData, renderResult: renderBookingResult,
+    renderServices, renderSlots, requireServiceSelection, setMessage: setFormMessage,
+    t, turnstile: turnstileController, updateSubmit: updateSubmitState,
+    validateCustomerFields, validateSlot: validateBookingSlot,
+  },
+});
+
 window.onOpenSlotTurnstileChange = () => {
   updateSubmitState();
 };
@@ -173,7 +183,7 @@ async function init() {
 }
 
 function bindEvents() {
-  els.bookingForm.addEventListener("submit", handleSubmit);
+  els.bookingForm.addEventListener("submit", submissionController.submit);
   els.serviceOptions.addEventListener("change", (event) => {
     if (!event.target.matches('input[name="service"]')) return;
     selectServiceInput(event.target);
@@ -553,7 +563,7 @@ function renderSelectedSummaries() {
 function updateSubmitState() {
   if (!els.submitButton) return;
   const needsTurnstile = Boolean(els.turnstileWidget && state.repository?.requiresTurnstile);
-  const hasTurnstile = !needsTurnstile || Boolean(getTurnstileToken({ silent: true }));
+  const hasTurnstile = !needsTurnstile || Boolean(turnstileController.getToken({ silent: true }));
   els.submitButton.disabled = !(getSelectedService() && els.dateInput.value && state.selectedSlot && hasTurnstile);
 }
 
@@ -570,88 +580,6 @@ function renderBookingSummary() {
 function formatSelectedTimeRange(service) {
   const startMinutes = parseTime(state.selectedSlot);
   return `${formatMinutes(startMinutes)}-${formatMinutes(startMinutes + service.duration)}`;
-}
-
-async function handleSubmit(event) {
-  event.preventDefault();
-  const invalidField = validateCustomerFields();
-  if (invalidField) {
-    invalidField.reportValidity();
-    return;
-  }
-
-  if (!state.selectedSlot) {
-    const service = getSelectedService();
-    const slots = service ? buildSlots(els.dateInput.value, service) : [];
-    setFormMessage(() => {
-      const currentService = getSelectedService();
-      return getNoSlotMessage(currentService ? buildSlots(els.dateInput.value, currentService) : []);
-    });
-    return;
-  }
-
-  const formData = new FormData(els.bookingForm);
-  const service = getSelectedService();
-  const startMinutes = parseTime(state.selectedSlot);
-  const appointment = {
-    date: els.dateInput.value,
-    serviceId: service.id,
-    gender: formData.get("gender"),
-    name: String(formData.get("name")).trim(),
-    phone: String(formData.get("phone")).trim(),
-    email: String(formData.get("email")).trim(),
-    startMinutes,
-    endMinutes: startMinutes + service.duration,
-    occupiedMinutes: getServiceOccupiedMinutes(service, startMinutes),
-    staffKey: state.selectedStaffKey,
-    status: "confirmed",
-  };
-
-  els.bookingForm.dispatchEvent(new CustomEvent("openslot:booking-check-start"));
-  try {
-    await refreshDayData({ shouldRender: false });
-
-    const slotError = validateBookingSlot(appointment);
-    if (slotError) {
-      setFormMessage(() => validateBookingSlot(appointment));
-      state.selectedSlot = "";
-      renderSlots();
-      return;
-    }
-
-    if (state.repository.requiresTurnstile) {
-      appointment.turnstileToken = getTurnstileToken();
-      if (!appointment.turnstileToken) {
-        setFormMessage(() => t("customer.securityRequired"));
-        updateSubmitState();
-        return;
-      }
-    }
-
-    const bookingResult = await state.repository.createAppointment(appointment);
-    const emailStatus = bookingResult?.emailStatus || "pending";
-    const selectedDate = els.dateInput.value;
-    els.bookingForm.reset();
-    els.dateInput.value = selectedDate;
-    state.selectedSlot = "";
-    state.selectedServiceId = requiresServiceSelection() ? "" : activeServices()[0]?.id || "";
-    state.selectedGender = requiresServiceSelection() ? "" : "male";
-    els.genderInput.value = state.selectedGender;
-    resetTurnstile();
-    const mailMessage = emailStatus === "sent"
-      ? ""
-      : emailStatus === "local"
-        ? t("customer.localNoEmail")
-        : t("customer.emailDeliveryFailed");
-    renderBookingResult(emailStatus);
-    setFormMessage(mailMessage || "");
-    await refreshDayData();
-    renderServices();
-  } catch (error) {
-    resetTurnstile();
-    setFormMessage(() => getBookingErrorMessage(error));
-    await refreshDayData();
-  }
 }
 
 function renderBookingResult(emailStatus = "sent") {
@@ -691,23 +619,6 @@ function createLocalRepository() {
     normalizeDaySettings,
     normalizeServiceId: stripSalonPrefix,
   });
-}
-
-function getTurnstileToken(options = {}) {
-  const { silent = false } = options;
-  if (!els.turnstileWidget) return "";
-  const formToken = els.bookingForm?.querySelector('input[name="cf-turnstile-response"]')?.value || "";
-  const token = formToken || window.turnstile?.getResponse?.(els.turnstileWidget) || window.turnstile?.getResponse?.() || "";
-  if (!token && !silent) {
-    setFormMessage(() => t("customer.securityRequired"));
-  }
-  return token;
-}
-
-function resetTurnstile() {
-  if (!els.turnstileWidget) return;
-  window.turnstile?.reset?.(els.turnstileWidget);
-  updateSubmitState();
 }
 
 function buildSlots(date, service) {

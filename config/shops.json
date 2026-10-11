@@ -1,0 +1,4 @@
+[
+  { "slug": "demo", "pwaName": "OpenSlot Demo Terminverwaltung", "pwaShortName": "Demo Admin", "pwaDescription": "OpenSlot Terminverwaltung zum Ausprobieren" },
+  { "slug": "lisa", "pwaName": "Lisa Terminverwaltung", "pwaShortName": "Lisa Admin", "pwaDescription": "Terminverwaltung für Lisa" }
+]
