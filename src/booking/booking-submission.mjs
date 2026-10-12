@@ -1,5 +1,6 @@
 export function createBookingSubmissionController({ elements, state, dependencies }) {
   const d = dependencies;
+  const completeCheck = (status) => elements.form.dispatchEvent(new CustomEvent("openslot:booking-check-complete", { detail: { status } }));
   async function submit(event) {
     event.preventDefault();
     const invalid = d.validateCustomerFields();
@@ -25,11 +26,12 @@ export function createBookingSubmissionController({ elements, state, dependencie
         d.setMessage(() => d.validateSlot(appointment));
         state.selectedSlot = "";
         d.renderSlots();
+        completeCheck("error");
         return;
       }
       if (state.repository.requiresTurnstile) {
         appointment.turnstileToken = d.turnstile.getToken();
-        if (!appointment.turnstileToken) { d.updateSubmit(); return; }
+        if (!appointment.turnstileToken) { d.updateSubmit(); completeCheck("error"); return; }
       }
       const result = await state.repository.createAppointment(appointment);
       const emailStatus = result?.emailStatus || "pending";
@@ -44,11 +46,13 @@ export function createBookingSubmissionController({ elements, state, dependencie
       const mail = emailStatus === "sent" ? "" : emailStatus === "local" ? d.t("customer.localNoEmail") : d.t("customer.emailDeliveryFailed");
       d.renderResult(emailStatus);
       d.setMessage(mail || "");
+      completeCheck("success");
       await d.refreshDay();
       d.renderServices();
     } catch (error) {
       d.turnstile.reset();
       d.setMessage(() => d.formatError(error));
+      completeCheck("error");
       await d.refreshDay();
     }
   }

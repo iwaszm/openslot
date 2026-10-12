@@ -37,7 +37,7 @@ import {
 import { formatMinutes, parseTime } from "./src/core/time.mjs";
 import { createBookingState } from "./src/booking/booking-state.mjs";
 import { createBookingTurnstileController } from "./src/booking/turnstile-controller.mjs";
-import { createBookingSubmissionController } from "./src/booking/booking-submission.mjs";
+import { createBookingSubmissionController } from "./src/booking/booking-submission.mjs?v=20261012-booking-complete-1";
 
 const DEFAULT_SERVICES = [
   { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
@@ -786,7 +786,10 @@ async function scrollDateStrip(direction) {
   const buttons = [...dateRow.querySelectorAll(".date-button")];
   if (buttons.length === 0) return;
   const isPortraitPager = window.matchMedia("(orientation: portrait) and (max-width: 1180px)").matches;
-  const pageSize = isPortraitPager ? Math.min(7, buttons.length) : getVisibleDateCount(dateRow, buttons);
+  const configuredPageSize = Number(window.OPENSLOT_TEMPLATE_DATE_PAGE_SIZE);
+  const pageSize = Number.isFinite(configuredPageSize) && configuredPageSize > 0
+    ? Math.min(configuredPageSize, buttons.length)
+    : isPortraitPager ? Math.min(7, buttons.length) : getVisibleDateCount(dateRow, buttons);
   const currentIndex = getDateRowStartIndex(dateRow, buttons);
   const targetIndex = getBookingCalendarWeekStartIndex(
     buttons.map((button) => button.dataset.date),
@@ -795,6 +798,12 @@ async function scrollDateStrip(direction) {
     pageSize,
   );
   if (targetIndex === currentIndex) return;
+
+  // Let the current strip finish its page movement before a data refresh replaces it.
+  if (window.OPENSLOT_TEMPLATE_DATE_PAGING) {
+    scrollDateRowToIndex(dateRow, targetIndex);
+    await new Promise((resolve) => window.setTimeout(resolve, 190));
+  }
 
   const firstSelectable = buttons.slice(targetIndex, targetIndex + pageSize).find((button) => !button.disabled);
   if (firstSelectable && firstSelectable.dataset.date !== els.dateInput.value) {
@@ -805,7 +814,9 @@ async function scrollDateStrip(direction) {
     dateRow = els.dateStrip?.querySelector(".date-row");
   }
 
-  if (dateRow) scrollDateRowToIndex(dateRow, targetIndex);
+  if (dateRow) {
+    scrollDateRowToIndex(dateRow, targetIndex, window.OPENSLOT_TEMPLATE_DATE_PAGING ? "auto" : "smooth");
+  }
 }
 
 function getVisibleDateCount(dateRow, buttons) {
@@ -820,12 +831,12 @@ function getDateRowStartIndex(dateRow, buttons) {
   return step > 0 ? Math.max(0, Math.round(dateRow.scrollLeft / step)) : 0;
 }
 
-function scrollDateRowToIndex(dateRow, index) {
+function scrollDateRowToIndex(dateRow, index, behavior = "smooth") {
   const buttons = [...dateRow.querySelectorAll(".date-button")];
   const firstButton = buttons[0];
   const targetButton = buttons[index];
   if (!firstButton || !targetButton) return;
-  dateRow.scrollTo({ left: targetButton.offsetLeft - firstButton.offsetLeft, behavior: "smooth" });
+  dateRow.scrollTo({ left: targetButton.offsetLeft - firstButton.offsetLeft, behavior });
 }
 
 function scrollServiceStrip(direction) {

@@ -49,7 +49,7 @@
     { day: 0, openMinutes: null, closeMinutes: null, isOpen: false },
   ];
   const themePresets = Object.freeze({ lime: "#dfff2f", pink: "#fbc8bf", glacier: "#67cbef", gray: "#aeb4b0" });
-  const defaultProfile = { name: "Berlin Hair Salon", address: "Niebuhrstraße 66, 10629 Berlin", phone: "0176 41164231", email: "info@openslotberlin.de", themePreset: "lime", adminLanguage: "de", languages: ["de", "en", "zh"] };
+  const defaultProfile = { name: "Studio Beispiel", address: "Musterstraße 12, 10115 Berlin", phone: "+49 30 000000", email: "hallo@example.test", themePreset: "lime", adminLanguage: "de", languages: ["de", "en", "zh"] };
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const read = (key, fallback) => {
@@ -207,7 +207,12 @@
     return Object.entries(themePresets).find(([, value]) => value.toLowerCase() === color)?.[0] || "lime";
   };
   const getShopProfile = () => {
-    const profile = { ...clone(defaultProfile), ...read(profileKey, {}) };
+    const savedProfile = read(profileKey, {});
+    const containsLegacyProductionData = savedProfile.name === "Berlin Hair Salon"
+      || /Niebuhrstra(?:ße|sse) 66/i.test(savedProfile.address || "")
+      || String(savedProfile.phone || "").replace(/\D/g, "") === "017641164231";
+    if (containsLegacyProductionData) localStorage.removeItem(profileKey);
+    const profile = { ...clone(defaultProfile), ...(containsLegacyProductionData ? {} : savedProfile) };
     profile.themePreset = normalizeThemePreset(profile);
     profile.themeColor = themePresets[profile.themePreset];
     return profile;
