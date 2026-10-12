@@ -17,7 +17,8 @@ export function createBookingSubmissionController({ elements, state, dependencie
       date: elements.date.value, serviceId: service.id, gender: values.get("gender"),
       name: String(values.get("name")).trim(), phone: String(values.get("phone")).trim(),
       email: String(values.get("email")).trim(), startMinutes, endMinutes: startMinutes + service.duration,
-      occupiedMinutes: d.getOccupiedMinutes(service, startMinutes), staffKey: state.selectedStaffKey, status: "confirmed",
+      occupiedMinutes: d.getOccupiedMinutes(service, startMinutes), staffKey: state.selectedStaffKey,
+      language: d.getLanguage(), status: "confirmed",
     };
     elements.form.dispatchEvent(new CustomEvent("openslot:booking-check-start"));
     try {

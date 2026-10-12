@@ -54,6 +54,7 @@ stampJavaScriptModuleImports();
 stampAdminAssetUrls();
 stampCustomerAssetUrls();
 stampSettingsAssetUrls();
+stampCancellationAssetUrls();
 writeShopManifests();
 debug("build: complete");
 
@@ -147,6 +148,18 @@ function stampSettingsAssetUrls() {
     if (count !== 4) throw new Error(`Expected four settings assets in ${file}, found ${count}`);
     fs.writeFileSync(file, updated, "utf8");
   }
+}
+
+function stampCancellationAssetUrls() {
+  const file = path.join(dist, "stornierung", "index.html");
+  const html = fs.readFileSync(file, "utf8");
+  let count = 0;
+  const updated = html.replace(/((?:src|href)="\.\.\/(?:config\.js|src\/cancellation\/result-controller\.mjs|styles\/(?:shared\/theme-presets\.css|cancellation\/cancellation\.css)))(?:\?v=[^"]+)?"/g, (_match, asset) => {
+    count += 1;
+    return `${asset}?v=${buildId}"`;
+  });
+  if (count !== 4) throw new Error(`Expected four cancellation assets in ${file}, found ${count}`);
+  fs.writeFileSync(file, updated, "utf8");
 }
 
 function writeShopManifests() {

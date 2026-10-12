@@ -1,0 +1,229 @@
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("../../assets/home/space-grotesk-bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --cancellation-ink: #191b19;
+  --cancellation-muted: #5d625d;
+  --cancellation-line: var(--shop-line, #d9ded6);
+  --cancellation-accent: var(--shop-accent, #dfff2f);
+  --cancellation-success: #85b985;
+  --cancellation-error: #d8897c;
+  background: #ffffff;
+  color: var(--cancellation-ink);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: var(--cancellation-accent);
+  color: var(--cancellation-ink);
+}
+
+.cancellation-themed {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.cancellation-header,
+.cancellation-page,
+.cancellation-footer {
+  margin: 0 auto;
+  width: min(100% - 48px, 920px);
+}
+
+.cancellation-header {
+  border-bottom: 1px solid var(--cancellation-line);
+  padding: 24px 0 18px;
+}
+
+.cancellation-wordmark {
+  align-items: center;
+  display: inline-flex;
+  font-family: "Space Grotesk", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.cancellation-wordmark > span:last-child {
+  color: var(--cancellation-muted);
+}
+
+.cancellation-brand-mark {
+  background: var(--cancellation-accent);
+  display: inline-block;
+  height: 14px;
+  width: 14px;
+}
+
+.cancellation-page {
+  align-items: center;
+  display: grid;
+  padding: 56px 0;
+}
+
+.cancellation-result {
+  max-width: 620px;
+  padding-top: 28px;
+  position: relative;
+}
+
+.cancellation-status-line {
+  background: var(--cancellation-accent);
+  height: 5px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+[data-state="cancelled"] .cancellation-status-line,
+[data-state="already-cancelled"] .cancellation-status-line {
+  background: var(--cancellation-success);
+}
+
+[data-state="invalid"] .cancellation-status-line,
+[data-state="not-found"] .cancellation-status-line,
+[data-state="error"] .cancellation-status-line {
+  background: var(--cancellation-error);
+}
+
+.cancellation-eyebrow {
+  color: var(--cancellation-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0 0 14px;
+}
+
+.cancellation-result h1 {
+  font-family: "Space Grotesk", Arial, sans-serif;
+  font-size: clamp(28px, 6vw, 48px);
+  line-height: 1.05;
+  margin: 0;
+  max-width: 14ch;
+}
+
+.cancellation-result > p:not(.cancellation-eyebrow) {
+  color: var(--cancellation-muted);
+  font-size: 16px;
+  line-height: 1.65;
+  margin: 20px 0 0;
+  max-width: 54ch;
+}
+
+.cancellation-result form {
+  margin-top: 32px;
+}
+
+.cancellation-result form[hidden] {
+  display: none;
+}
+
+.primary-action {
+  background: var(--cancellation-ink);
+  border: 0;
+  border-radius: 0;
+  color: #ffffff;
+  cursor: pointer;
+  font-family: "Space Grotesk", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 0 22px;
+}
+
+.primary-action:hover,
+.primary-action:focus-visible {
+  background: var(--cancellation-muted);
+}
+
+.primary-action:focus-visible,
+.cancellation-back-link:focus-visible,
+.cancellation-wordmark:focus-visible,
+.cancellation-footer a:focus-visible {
+  outline: 3px solid #325ce5;
+  outline-offset: 3px;
+}
+
+.cancellation-back-link {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 28px;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  width: fit-content;
+}
+
+.cancellation-footer {
+  align-items: center;
+  border-top: 1px solid var(--cancellation-ink);
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  padding: 18px 0 28px;
+}
+
+.cancellation-footer nav {
+  display: flex;
+  gap: 18px;
+}
+
+.cancellation-footer a {
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .cancellation-header,
+  .cancellation-page,
+  .cancellation-footer {
+    width: min(100% - 40px, 920px);
+  }
+
+  .cancellation-header {
+    padding-top: 20px;
+  }
+
+  .cancellation-page {
+    align-items: start;
+    padding: 54px 0 72px;
+  }
+
+  .cancellation-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .cancellation-footer nav {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}

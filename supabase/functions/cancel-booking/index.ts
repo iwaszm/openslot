@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       if (booking.status === "cancelled") {
         return redirectToResult(publicBaseUrl, "already-cancelled", booking.salons?.slug);
       }
-      return redirectToConfirmation(publicBaseUrl, token);
+      return redirectToConfirmation(publicBaseUrl, token, booking.salons?.slug);
     }
 
     if (req.method !== "POST") {
@@ -109,10 +109,11 @@ function redirectToResult(publicBaseUrl: string, result: string, salonSlug = "")
   return Response.redirect(destination.toString(), 303);
 }
 
-function redirectToConfirmation(publicBaseUrl: string, token: string) {
+function redirectToConfirmation(publicBaseUrl: string, token: string, salonSlug = "") {
   const destination = new URL(`${publicBaseUrl}/stornierung/`);
   destination.searchParams.set("confirm", "1");
   destination.searchParams.set("token", token);
+  if (/^[a-z0-9-]+$/i.test(salonSlug)) destination.searchParams.set("salon", salonSlug);
   return Response.redirect(destination.toString(), 303);
 }
 

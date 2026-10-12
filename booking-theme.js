@@ -11,6 +11,10 @@
   const reservationDialogTitle = document.querySelector("#reservationDialogTitle");
   const reservationDialogMessage = document.querySelector("#reservationDialogMessage");
   const reservationDialogClose = document.querySelector("#reservationDialogClose");
+  const dateStrip = document.querySelector("#dateStrip");
+  const categoryPrev = document.querySelector("#serviceCategoryPrev");
+  const categoryNext = document.querySelector("#serviceCategoryNext");
+  const categoryIndicator = document.querySelector("#serviceCategoryIndicator");
   const employeePicker = document.querySelector(".employee-picker");
   let employeeOptions = [...document.querySelectorAll(".employee-option")];
   let staffRecords = [];
@@ -18,23 +22,38 @@
   let eligibleEmployeeCount = 0;
   const languageMenu = document.querySelector(".language-menu");
   let activeCategory = "";
+  let categoryPageStart = 0;
   let activeEmployee = "any";
   let dismissTimer;
   let reservationRequest = null;
   let reservationSyncTimer;
+  let reservationGuardTimer;
+  const lunarDateFormatter = new Intl.DateTimeFormat("zh-u-ca-chinese", {
+    month: "numeric",
+    day: "numeric",
+    timeZone: "Europe/Berlin",
+  });
+  const lunarFestivals = new Map([
+    ["1-1", "春节"], ["1-15", "元宵"], ["5-5", "端午"], ["7-7", "七夕"],
+    ["8-15", "中秋"], ["9-9", "重阳"], ["12-8", "腊八"],
+  ]);
 
   function syncCategories() {
     const groups = [...services.querySelectorAll(".service-group")];
     if (!groups.length) {
       tabs.replaceChildren();
-      tabs.hidden = true;
+      tabs.closest(".service-category-shell").hidden = true;
       return;
     }
 
     const labels = groups.map((group) => group.querySelector("h3")?.textContent.trim() || group.getAttribute("aria-label"));
     const categories = groups.map((group) => group.dataset.serviceCategory || "");
-    if (!labels.includes(activeCategory)) activeCategory = labels[0] || "";
-    tabs.hidden = false;
+    if (!labels.includes(activeCategory)) {
+      activeCategory = labels[0] || "";
+      categoryPageStart = 0;
+      tabs.scrollLeft = 0;
+    }
+    tabs.closest(".service-category-shell").hidden = false;
     tabs.replaceChildren(...labels.map((label, index) => {
       const button = document.createElement("button");
       button.type = "button";
@@ -61,6 +80,54 @@
     selectCategory(activeCategory);
   }
 
+  function visibleCategoryCount() {
+    return window.matchMedia("(orientation: portrait)").matches ? 3 : 4;
+  }
+
+  function positionCategoryIndicator() {
+    const selected = tabs.querySelector('[role="tab"][aria-selected="true"]');
+    if (!selected || !categoryIndicator) {
+      if (categoryIndicator) categoryIndicator.style.opacity = "0";
+      return;
+    }
+    const shellRect = tabs.closest(".service-category-track").getBoundingClientRect();
+    const tabRect = selected.getBoundingClientRect();
+    categoryIndicator.style.width = `${tabRect.width}px`;
+    categoryIndicator.style.transform = `translateX(${tabRect.left - shellRect.left}px)`;
+    categoryIndicator.style.opacity = "1";
+  }
+
+  function syncCategoryNavigation() {
+    const buttons = [...tabs.querySelectorAll('[role="tab"]')];
+    const pageSize = visibleCategoryCount();
+    const activeIndex = buttons.findIndex((button) => button.getAttribute("aria-selected") === "true");
+    const lastPageStart = Math.max(0, Math.floor((buttons.length - 1) / pageSize) * pageSize);
+    if (activeIndex >= 0 && (activeIndex < categoryPageStart || activeIndex >= categoryPageStart + pageSize)) {
+      categoryPageStart = Math.floor(activeIndex / pageSize) * pageSize;
+    }
+    categoryPageStart = Math.min(categoryPageStart, lastPageStart);
+    buttons.forEach((button, index) => {
+      button.hidden = index < categoryPageStart || index >= categoryPageStart + pageSize;
+    });
+    if (categoryPrev) categoryPrev.disabled = categoryPageStart === 0;
+    if (categoryNext) categoryNext.disabled = categoryPageStart >= lastPageStart;
+    requestAnimationFrame(positionCategoryIndicator);
+    window.setTimeout(positionCategoryIndicator, 240);
+  }
+
+  function moveCategoryPage(direction) {
+    const buttons = [...tabs.querySelectorAll('[role="tab"]')];
+    const pageSize = visibleCategoryCount();
+    const lastPageStart = Math.max(0, Math.floor((buttons.length - 1) / pageSize) * pageSize);
+    const nextPageStart = Math.max(0, Math.min(lastPageStart, categoryPageStart + (direction * pageSize)));
+    if (nextPageStart === categoryPageStart) return;
+    categoryPageStart = nextPageStart;
+    const next = buttons[categoryPageStart];
+    if (!next) return;
+    selectCategory(next.textContent);
+    window.dispatchEvent(new Event("openslot:clear-service-selection"));
+  }
+
   function selectCategory(label) {
     const groups = [...services.querySelectorAll(".service-group")];
     activeCategory = label;
@@ -70,6 +137,7 @@
       button.tabIndex = selected ? 0 : -1;
       groups[index].hidden = !selected;
     });
+    syncCategoryNavigation();
   }
 
   function employeeCopy() {
@@ -128,7 +196,10 @@
   });
   services.addEventListener("click", () => queueMicrotask(renderEmployees));
   services.addEventListener("change", renderEmployees);
-  window.addEventListener("openslot:language-change", () => queueMicrotask(syncEmployees));
+  window.addEventListener("openslot:language-change", () => queueMicrotask(() => {
+    syncEmployees();
+    renderLunarDateLabels();
+  }));
   window.addEventListener("openslot:staff-update", (event) => renderEmployees(event.detail?.staff || []));
 
   function syncToast() {
@@ -146,7 +217,7 @@
 
   tabs.addEventListener("keydown", (event) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    const buttons = [...tabs.querySelectorAll('[role="tab"]')];
+    const buttons = [...tabs.querySelectorAll('[role="tab"]:not([hidden])')];
     if (!buttons.length) return;
     event.preventDefault();
     const current = buttons.findIndex((button) => button.getAttribute("aria-selected") === "true");
@@ -155,6 +226,10 @@
     buttons[next].click();
     buttons[next].focus();
   });
+
+  categoryPrev?.addEventListener("click", () => moveCategoryPage(-1));
+  categoryNext?.addEventListener("click", () => moveCategoryPage(1));
+  window.addEventListener("resize", syncCategoryNavigation);
 
   new MutationObserver(syncCategories).observe(services, { childList: true });
   new MutationObserver(syncEmployees).observe(services, { childList: true, subtree: true, attributes: true, attributeFilter: ["checked"] });
@@ -165,6 +240,7 @@
     if (reservationDialog.dataset.state === "pending") event.preventDefault();
   });
   reservationDialogClose?.addEventListener("click", () => {
+    clearTimeout(reservationGuardTimer);
     reservationDialog.close();
     reservationRequest = null;
     result.hidden = true;
@@ -173,16 +249,74 @@
     syncToast();
   });
   form.addEventListener("openslot:booking-check-start", beginReservation);
+  form.addEventListener("openslot:booking-check-complete", (event) => {
+    const status = event.detail?.status === "success" ? "success" : "error";
+    const detail = status === "error" ? message.textContent.trim() : "";
+    settleReservation(status, detail);
+  });
+  function closeLanguageMenu() {
+    if (!languageMenu.open || languageMenu.classList.contains("is-closing")) return;
+    languageMenu.classList.add("is-closing");
+    window.setTimeout(() => {
+      languageMenu.open = false;
+      languageMenu.classList.remove("is-closing");
+    }, 150);
+  }
+  languageMenu.querySelector("summary")?.addEventListener("click", (event) => {
+    if (!languageMenu.open) return;
+    event.preventDefault();
+    closeLanguageMenu();
+  });
   document.addEventListener("click", (event) => {
-    if (languageMenu.open && !languageMenu.contains(event.target)) languageMenu.open = false;
+    if (languageMenu.open && !languageMenu.contains(event.target)) closeLanguageMenu();
   });
   languageMenu.querySelectorAll("[data-language-option]").forEach((button) => {
-    button.addEventListener("click", () => { languageMenu.open = false; });
+    button.addEventListener("click", closeLanguageMenu);
   });
 
   syncCategories();
   renderEmployees();
   syncToast();
+
+  function formatLunarDay(day) {
+    const labels = ["初一", "初二", "初三", "初四", "初五", "初六", "初七", "初八", "初九", "初十",
+      "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十",
+      "廿一", "廿二", "廿三", "廿四", "廿五", "廿六", "廿七", "廿八", "廿九", "三十"];
+    return labels[day - 1] || "";
+  }
+
+  function getLunarDateLabel(dateValue) {
+    const date = new Date(`${dateValue}T12:00:00Z`);
+    const parts = lunarDateFormatter.formatToParts(date);
+    const month = Number(parts.find((part) => part.type === "month")?.value);
+    const day = Number(parts.find((part) => part.type === "day")?.value);
+    return lunarFestivals.get(`${month}-${day}`) || formatLunarDay(day);
+  }
+
+  function renderLunarDateLabels() {
+    if (!dateStrip) return;
+    const showLunarDates = (window.OpenSlotI18n?.language || document.documentElement.lang) === "zh";
+    dateStrip.classList.toggle("has-lunar-dates", showLunarDates);
+    dateStrip.querySelectorAll(".date-button").forEach((button) => {
+      const current = button.querySelector(".lunar-date-label");
+      if (!showLunarDates) {
+        current?.remove();
+        return;
+      }
+      const label = getLunarDateLabel(button.dataset.date);
+      const lunarLabel = current || document.createElement("span");
+      lunarLabel.className = "lunar-date-label";
+      if (lunarLabel.textContent !== label) lunarLabel.textContent = label;
+      if (!current) button.append(lunarLabel);
+      const weekday = button.querySelector(".date-weekday")?.textContent?.trim() || "";
+      const day = button.querySelector("strong")?.textContent?.trim() || "";
+      const ariaLabel = `${weekday} ${day}，农历${label}`.trim();
+      if (button.getAttribute("aria-label") !== ariaLabel) button.setAttribute("aria-label", ariaLabel);
+    });
+  }
+
+  new MutationObserver(renderLunarDateLabels).observe(dateStrip, { childList: true, subtree: true });
+  renderLunarDateLabels();
 
   function reservationCopy() {
     const language = window.OpenSlotI18n?.language || document.documentElement.lang || "de";
@@ -193,6 +327,7 @@
       successTitle: "预约成功",
       successMessage: "请检查您的邮箱获取确认信息。",
       errorTitle: "预约未完成",
+      timeoutError: "预约未能完成，请重试。",
       close: "知道了",
     };
     if (language === "en") return {
@@ -202,6 +337,7 @@
       successTitle: "Appointment reserved",
       successMessage: "Please check your email for confirmation.",
       errorTitle: "Appointment not reserved",
+      timeoutError: "The booking did not finish. Please try again.",
       close: "Understood",
     };
     return {
@@ -211,6 +347,7 @@
       successTitle: "Termin erfolgreich reserviert",
       successMessage: "Bitte prüfen Sie Ihr E-Mail-Postfach auf die Bestätigung.",
       errorTitle: "Termin konnte nicht reserviert werden",
+      timeoutError: "Die Buchung wurde nicht abgeschlossen. Bitte versuchen Sie es erneut.",
       close: "Verstanden",
     };
   }
@@ -232,6 +369,7 @@
 
   function beginReservation() {
     if (!reservationDialog) return;
+    clearTimeout(reservationGuardTimer);
     reservationRequest = { startedAt: performance.now(), settled: false };
     result.hidden = true;
     result.replaceChildren();
@@ -239,11 +377,13 @@
     updateReservationDialog("pending");
     toast.hidden = true;
     if (!reservationDialog.open) reservationDialog.showModal();
+    reservationGuardTimer = window.setTimeout(() => settleReservation("error", reservationCopy().timeoutError), 10_000);
   }
 
   function settleReservation(state, detail) {
     if (!reservationRequest || reservationRequest.settled) return;
     reservationRequest.settled = true;
+    clearTimeout(reservationGuardTimer);
     const delay = Math.max(0, 420 - (performance.now() - reservationRequest.startedAt));
     window.setTimeout(() => updateReservationDialog(state, detail), delay);
   }

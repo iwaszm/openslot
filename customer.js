@@ -146,6 +146,7 @@ const submissionController = createBookingSubmissionController({
   state,
   dependencies: {
     activeServices, buildSlots, formatError: getBookingErrorMessage,
+    getLanguage: () => window.OpenSlotI18n?.language || "de",
     getNoSlotMessage, getOccupiedMinutes: getServiceOccupiedMinutes, getSelectedService,
     parseTime, refreshDay: refreshDayData, renderResult: renderBookingResult,
     renderServices, renderSlots, requireServiceSelection: requiresServiceSelection, setMessage: setFormMessage,
@@ -786,7 +787,7 @@ async function scrollDateStrip(direction) {
   const buttons = [...dateRow.querySelectorAll(".date-button")];
   if (buttons.length === 0) return;
   const isPortraitPager = window.matchMedia("(orientation: portrait) and (max-width: 1180px)").matches;
-  const configuredPageSize = Number(window.OPENSLOT_TEMPLATE_DATE_PAGE_SIZE);
+  const configuredPageSize = Number(window.OPENSLOT_DATE_PAGE_SIZE ?? window.OPENSLOT_TEMPLATE_DATE_PAGE_SIZE);
   const pageSize = Number.isFinite(configuredPageSize) && configuredPageSize > 0
     ? Math.min(configuredPageSize, buttons.length)
     : isPortraitPager ? Math.min(7, buttons.length) : getVisibleDateCount(dateRow, buttons);
@@ -800,7 +801,8 @@ async function scrollDateStrip(direction) {
   if (targetIndex === currentIndex) return;
 
   // Let the current strip finish its page movement before a data refresh replaces it.
-  if (window.OPENSLOT_TEMPLATE_DATE_PAGING) {
+  const usesFixedDatePaging = Boolean(window.OPENSLOT_DATE_PAGING || window.OPENSLOT_TEMPLATE_DATE_PAGING);
+  if (usesFixedDatePaging) {
     scrollDateRowToIndex(dateRow, targetIndex);
     await new Promise((resolve) => window.setTimeout(resolve, 190));
   }
@@ -815,7 +817,7 @@ async function scrollDateStrip(direction) {
   }
 
   if (dateRow) {
-    scrollDateRowToIndex(dateRow, targetIndex, window.OPENSLOT_TEMPLATE_DATE_PAGING ? "auto" : "smooth");
+    scrollDateRowToIndex(dateRow, targetIndex, usesFixedDatePaging ? "auto" : "smooth");
   }
 }
 

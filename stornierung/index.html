@@ -8,21 +8,39 @@
     <title>Stornierung | OpenSlot</title>
     <link rel="icon" href="/favicon.ico?v=20260925" sizes="any" />
     <link rel="icon" href="../assets/home/icons/site-icon.svg?v=20260925" type="image/svg+xml" />
-    <link rel="stylesheet" href="../styles/shared/base.css?v=20260914-cancellation-result-1" />
+    <link rel="stylesheet" href="../styles/shared/theme-presets.css?v=20261004-gray-theme-1" />
+    <link rel="stylesheet" href="../styles/cancellation/cancellation.css?v=20261012-cancellation-ui-1" />
   </head>
-  <body>
-    <main class="cancellation-page">
-      <section class="cancellation-result" aria-labelledby="resultTitle">
-        <h1 id="resultTitle">Stornierung</h1>
-        <p id="resultMessage">Die Anfrage wird verarbeitet.</p>
+  <body class="cancellation-themed" data-state="pending">
+    <header class="cancellation-header">
+      <a class="cancellation-wordmark" href="/" aria-label="OpenSlotBerlin Startseite">
+        <span class="cancellation-brand-mark" aria-hidden="true"></span>
+        OpenSlot<span>Berlin</span>
+      </a>
+    </header>
+
+    <main class="cancellation-page" id="main">
+      <section class="cancellation-result" aria-labelledby="resultTitle" aria-describedby="resultMessage">
+        <span class="cancellation-status-line" aria-hidden="true"></span>
+        <p class="cancellation-eyebrow" id="salonName">OpenSlot Terminverwaltung</p>
+        <h1 id="resultTitle">Stornierung wird geprüft</h1>
+        <p id="resultMessage">Bitte warten Sie einen Moment.</p>
         <form id="confirmationForm" method="post" hidden>
           <input id="confirmationToken" type="hidden" name="token" />
           <button class="primary-action" type="submit">Termin stornieren</button>
         </form>
-        <a id="salonLink" href="/">Zurück zur Startseite</a>
+        <a id="salonLink" class="cancellation-back-link" href="/">Zurück zur Startseite</a>
       </section>
     </main>
+
+    <footer class="cancellation-footer" aria-label="Support">
+      <span>Support</span>
+      <nav aria-label="Support-Kontakt">
+        <a href="https://openslotberlin.de">openslotberlin.de</a>
+        <a href="mailto:info@openslotberlin.de">info@openslotberlin.de</a>
+      </nav>
+    </footer>
     <script src="../config.js"></script>
-    <script src="./result.js?v=20260914-cancellation-result-1"></script>
+    <script type="module" src="../src/cancellation/result-controller.mjs?v=20261012-cancellation-ui-1"></script>
   </body>
 </html>

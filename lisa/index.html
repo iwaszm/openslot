@@ -8,7 +8,7 @@
     <link rel="icon" href="../assets/home/icons/site-icon.svg?v=20260925" type="image/svg+xml" />
     <link rel="stylesheet" href="../styles/shared/base.css?v=20260915-customer-languages-2" />
     <link rel="stylesheet" href="../styles/shared/theme-presets.css?v=20261004-gray-theme-1" />
-    <link rel="stylesheet" href="../styles/booking/booking.css?v=20261004-booking-staff-1" />
+    <link rel="stylesheet" href="../styles/booking/booking.css?v=20261012-shared-booking-ui-2" />
   </head>
   <body class="booking-themed booking-hydrating" aria-busy="true" style='--salon-cover-image: url("/lisa/feature.jpg");'>
     <main class="customer-page">
@@ -17,8 +17,16 @@
           <h1 id="booking-title" class="sr-only" data-i18n="booking.title">Termin buchen</h1>
           <form id="bookingForm" class="booking-form customer-booking" novalidate>
             <fieldset>
-              <legend class="section-title" data-i18n="booking.serviceLegend">Dienstleistungen</legend>
-              <div id="serviceCategoryTabs" class="service-category-tabs" role="tablist" aria-label="Dienstleistungskategorien"></div>
+              <legend class="sr-only" data-i18n="booking.serviceLegend">Dienstleistungen</legend>
+              <div class="service-category-shell">
+                <button id="serviceCategoryPrev" class="service-category-nav" type="button" aria-label="Vorherige Kategorien">‹</button>
+                <div class="service-category-track">
+                  <span class="section-title" aria-hidden="true" data-i18n="booking.serviceLegend">Dienstleistungen</span>
+                  <div id="serviceCategoryTabs" class="service-category-tabs" role="tablist" aria-label="Dienstleistungskategorien"></div>
+                  <span id="serviceCategoryIndicator" class="service-category-indicator" aria-hidden="true"></span>
+                </div>
+                <button id="serviceCategoryNext" class="service-category-nav" type="button" aria-label="Weitere Kategorien">›</button>
+              </div>
               <div class="service-grid" id="serviceOptions"></div>
               <div class="employee-picker" aria-label="Mitarbeiter wählen" hidden>
                 <div class="employee-options" role="radiogroup" aria-label="Mitarbeiter">
@@ -96,7 +104,7 @@
               <div class="language-switcher" role="group" aria-label="Sprache wählen">
                 <button class="language-option" type="button" data-language-option="de" aria-label="Deutsch" aria-pressed="true"><span>DE</span></button>
                 <button class="language-option" type="button" data-language-option="en" aria-label="English" aria-pressed="false"><span>EN</span></button>
-                <button class="language-option" type="button" data-language-option="zh" aria-label="中文" aria-pressed="false"><span>中文</span></button>
+                <button class="language-option" type="button" data-language-option="zh" aria-label="中文" aria-pressed="false"><span>中</span></button>
               </div>
             </details>
           </div>
@@ -162,9 +170,11 @@
     <script>
       window.OPENSLOT_REQUIRE_SERVICE_SELECTION = true;
       window.OPENSLOT_SHOW_UNAVAILABLE_SLOTS = true;
+      window.OPENSLOT_DATE_PAGE_SIZE = 7;
+      window.OPENSLOT_DATE_PAGING = true;
     </script>
-    <script type="module" src="../customer.js?v=20261011-booking-modules-1"></script>
-    <script src="../booking-theme.js?v=20261007-reservation-dialog"></script>
+    <script type="module" src="../customer.js?v=20261012-shared-booking-ui-1"></script>
+    <script src="../booking-theme.js?v=20261012-shared-booking-ui-1"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   </body>
 </html>

@@ -167,9 +167,9 @@
   border: 0;
   color: var(--theme-muted);
   cursor: pointer;
-  font-size: 2rem;
+  font-size: var(--type-medium) !important;
   font-weight: 520;
-  min-height: 42px;
+  min-height: 64px;
   width: 34px;
   line-height: 1;
   padding: 0;
@@ -222,7 +222,7 @@
     min-height: 36px;
     position: absolute;
     top: -8px;
-    width: 30px;
+    width: 34px;
     z-index: 2;
   }
 

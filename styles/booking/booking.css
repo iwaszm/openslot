@@ -836,3 +836,225 @@
     width: auto;
   }
 }
+
+/* Shared paged booking navigation used by every salon. */
+.booking-themed .date-strip.has-lunar-dates .date-button {
+  min-height: 80px;
+}
+
+.booking-themed .date-button .lunar-date-label {
+  color: var(--theme-muted);
+  font-size: 10px !important;
+  font-weight: 400;
+  line-height: 1.1;
+  margin-top: 2px;
+  min-height: 12px;
+}
+
+.booking-themed .date-button.selected .lunar-date-label {
+  color: var(--theme-ink);
+}
+
+.booking-themed .date-button.closed,
+.booking-themed .date-button:disabled,
+.booking-themed .date-button:disabled .date-weekday,
+.booking-themed .date-button:disabled .lunar-date-label {
+  color: #8f8790;
+}
+
+.booking-themed .date-button.closed,
+.booking-themed .date-button:disabled {
+  opacity: 0.72;
+}
+
+.booking-themed .service-category-shell {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  margin: 0 var(--booking-side-inset, 42px) 10px;
+}
+
+.booking-themed .service-category-track {
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.booking-themed .customer-booking fieldset:first-of-type .service-category-track .section-title {
+  display: block;
+  margin: 0 0 4px;
+}
+
+.booking-themed .service-category-tabs {
+  display: grid;
+  gap: 0;
+  grid-auto-columns: calc(100% / var(--booking-category-tab-count, 4));
+  grid-auto-flow: column;
+  margin: 0;
+  overflow: hidden;
+  scroll-behavior: smooth;
+  width: 100%;
+}
+
+.booking-themed .service-category-indicator {
+  background: var(--theme-lime);
+  bottom: 0;
+  height: 4px;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(0);
+  transition: transform 260ms cubic-bezier(.22, 1, .36, 1), width 260ms cubic-bezier(.22, 1, .36, 1), opacity 120ms ease;
+}
+
+.booking-themed .service-category-tab {
+  border-bottom: 4px solid transparent;
+  min-width: 0;
+  width: 100%;
+}
+
+.booking-themed .service-category-tab[hidden] {
+  display: none;
+}
+
+.booking-themed .service-category-tab[aria-selected="true"] span {
+  box-shadow: none;
+}
+
+.booking-themed .service-category-tab span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking-themed .service-category-nav {
+  align-self: end;
+  background: transparent;
+  border: 0;
+  color: var(--theme-muted);
+  cursor: pointer;
+  font-size: var(--type-medium) !important;
+  font-weight: 520;
+  line-height: 1;
+  min-height: 64px;
+  padding: 0;
+  width: 34px;
+}
+
+.booking-themed .service-category-nav:disabled {
+  cursor: default;
+  opacity: 0.26;
+}
+
+.booking-themed .service-category-nav:not(:disabled):hover,
+.booking-themed .service-category-nav:not(:disabled):focus-visible {
+  background: var(--theme-lime);
+  color: var(--theme-ink);
+}
+
+.booking-themed .customer-booking .date-row {
+  gap: 0;
+  overflow-x: hidden;
+}
+
+.booking-themed .customer-booking .date-button {
+  flex-basis: calc(100% / 7);
+}
+
+.booking-themed .salon-cover .language-switcher {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  gap: 0;
+  padding: 0;
+  right: 36px;
+  top: 0;
+  transform-origin: right center;
+}
+
+.booking-themed .salon-cover .language-menu[open] .language-switcher {
+  animation: language-menu-reveal 170ms ease-out both;
+}
+
+.booking-themed .salon-cover .language-menu.is-closing .language-switcher {
+  animation: language-menu-conceal 150ms ease-in both;
+}
+
+.booking-themed .salon-cover .language-option {
+  align-items: center;
+  color: #ffffff;
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  min-width: 38px;
+  padding: 0;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.86), 0 0 1px rgba(0, 0, 0, 0.9);
+}
+
+.booking-themed .salon-cover .language-option span {
+  align-items: center;
+  display: inline-flex;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
+}
+
+.booking-themed .salon-cover .language-option:hover,
+.booking-themed .salon-cover .language-option:focus-visible {
+  background: transparent;
+  color: #ffffff;
+}
+
+@keyframes language-menu-reveal {
+  from { opacity: 0; transform: scaleX(0.45); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+@keyframes language-menu-conceal {
+  from { opacity: 1; transform: scaleX(1); }
+  to { opacity: 0; transform: scaleX(0.45); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-themed .service-category-indicator {
+    transition: none;
+  }
+}
+
+@media (orientation: portrait) {
+  .booking-themed .service-category-shell {
+    align-items: start;
+    display: block;
+    margin-bottom: 10px;
+    position: relative;
+  }
+
+  .booking-themed .service-category-nav {
+    min-height: 36px;
+    position: absolute;
+    top: -8px;
+    width: 34px;
+    z-index: 2;
+  }
+
+  .booking-themed #serviceCategoryPrev {
+    right: 44px;
+  }
+
+  .booking-themed #serviceCategoryNext {
+    right: 0;
+  }
+
+  .booking-themed .service-category-tabs {
+    --booking-category-tab-count: 3;
+  }
+
+  .booking-themed .customer-booking .date-nav-button,
+  .booking-themed .customer-booking .date-strip-shell:has(.has-lunar-dates) .date-nav-button {
+    min-height: 36px;
+  }
+}

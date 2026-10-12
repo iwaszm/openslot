@@ -112,6 +112,7 @@ export function createSupabaseBookingRepository({
           name: appointment.name,
           phone: appointment.phone,
           email: appointment.email,
+          language: appointment.language,
           staff_key: appointment.staffKey === "any" ? null : appointment.staffKey,
           turnstile_token: appointment.turnstileToken,
         },
