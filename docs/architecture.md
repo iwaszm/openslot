@@ -1,6 +1,6 @@
 # OpenSlot Architecture
 
-Updated: 2026-10-11
+Updated: 2026-10-14
 
 OpenSlot is a multi-tenant appointment platform built as a static web application with a Supabase backend. Booking, Admin, and Settings share production code; shop-specific behavior is selected by the URL slug and Supabase data.
 
@@ -32,6 +32,7 @@ flowchart LR
 | --- | --- |
 | Cloudflare Pages | Static hosting, generated public configuration, asset versioning and redirects |
 | Browser UI | Interaction, localization, previews and preliminary availability filtering |
+| Supabase Storage | Public salon galleries grouped by shop slug |
 | Supabase Auth | Admin, owner and staff sessions |
 | PostgreSQL RPC | Final availability checks, authorization, locking and transactional writes |
 | RLS | Cross-shop isolation and direct-access protection |
@@ -44,6 +45,7 @@ flowchart LR
 /{slug}/             Customer booking
 /{slug}/admin/       Protected daily schedule and booking log
 /{slug}/settings/    Account and shop settings
+/stornierung/        Shared cancellation confirmation and result UI
 /template/           Local UI prototype; not deployed
 ```
 
@@ -52,6 +54,7 @@ Production routes use stable shared controller entrypoints:
 - `customer.js`: public booking and availability UI.
 - `admin.js`: authentication, daily schedule, blocks, manual appointments and booking log.
 - `shared/settings-ui.js`: shared Settings UI.
+- `src/cancellation/result-controller.mjs`: cancellation confirmation/result controller.
 - `src/settings/supabase-settings-repository.mjs`: Supabase Settings adapter.
 - `shared/backoffice-i18n.js`: Admin and Settings localization.
 
@@ -62,6 +65,7 @@ src/core/       Shared HTML and time utilities
 src/booking/    Availability, scheduling, catalog, repositories and Booking views
 src/admin/      Scheduling, refresh, availability, dialogs, repositories and Turnstile
 src/settings/   Account, staff, catalog, hours and shop controllers, views and repository
+src/cancellation/ Shared cancellation confirmation and result behavior
 styles/         Shared tokens plus Booking, Admin and Settings style layers
 tests/unit/     Browser-independent regression tests for these modules
 ```
@@ -69,6 +73,8 @@ tests/unit/     Browser-independent regression tests for these modules
 Settings uses a native ESM Supabase adapter and five section controllers under `src/settings/`. `shared/settings-ui.js` remains the stable browser entrypoint and coordinates shared page state.
 
 The shop entry directories contain route shells, media, icons, offline pages and tiny service-worker scope wrappers. Shared PWA runtime files live in `shared/`; `config/shops.json` is the build-time shop registry and generates each production manifest.
+
+Booking cover galleries are loaded from the public `salon-images/{slug}/` Storage folder and ordered by filename. The first image is the cover; each route retains its static `feature.jpg` as a network/error fallback. Setup and upload conventions are documented in `docs/salon-images.md`.
 
 ## Booking Model
 
@@ -78,6 +84,7 @@ The shop entry directories contain route shells, media, icons, offline pages and
 - `booked_slots` defines the 30-minute offsets during which the employee is actively occupied.
 - Occupied offsets can be non-contiguous, allowing another appointment during processing or waiting time.
 - A `service_snapshot` preserves the service facts used when an appointment was created.
+- `customer_language` preserves the Booking language for confirmation and later cancellation email.
 
 ### Staff and lanes
 
@@ -110,6 +117,8 @@ sequenceDiagram
 ```
 
 The browser result is advisory. The transaction RPC is the final authority for concurrency and availability.
+
+Confirmation and cancellation email is generated from the canonical appointment state. The selected Booking language is stored before immediate delivery; existing appointments without a historical choice default to German.
 
 ## Admin Model
 
@@ -161,11 +170,21 @@ Staff can change their own password; other Settings content is read-only. Employ
 
 `template/` is a local UI prototype backed by synthetic data and `localStorage`. The build verifies that it does not reference production Supabase or Turnstile resources and does not copy it to `dist/`. UI ideas may be ported from the template, but its repository must never be used as a production data source.
 
+## Modularization Status
+
+- Booking rules, calendar/catalog rendering, validation, submission and local/Supabase repositories live under `src/booking/`.
+- Admin scheduling models, rendering, repositories, authentication, availability, refresh and selected dialog workflows live under `src/admin/`.
+- Settings has five section controllers, a view/model layer and a Supabase repository under `src/settings/`.
+- Cancellation result behavior is isolated under `src/cancellation/` with its own style layer.
+- `customer.js`, `admin.js` and `shared/settings-ui.js` remain stable browser coordinators. New domain logic should enter the responsible module rather than these entrypoints.
+
+Admin is still the largest coordinator. Future extraction should focus on remaining schedule DOM orchestration, appointment detail actions and dialog state, while preserving the existing repository and scheduling boundaries.
+
 ## Known Architecture Debt
 
 1. Pending/failed email events are durable, but there is not yet an automatic background retry worker.
 2. Owner cancellation still makes a second authenticated request to attempt immediate email delivery; the transactional outbox preserves the event if that request fails.
 3. Production schema and migration history need a formal linked-environment reconciliation because several migrations were applied manually.
-4. The Admin and Booking entry controllers still contain browser orchestration that can be reduced further as features change.
+4. The Admin entry controller still contains substantial browser orchestration that should be reduced as schedule and dialog features change.
 5. Domain scheduling has unit coverage, but automated RLS/database integration and browser end-to-end coverage remain limited.
 6. Redirect generation still contains compatibility routes outside the shop registry.

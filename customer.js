@@ -168,6 +168,7 @@ async function init() {
     state.repository = createRepository();
     bindEvents();
     await refreshServices();
+    await refreshGalleryImages();
     await refreshLaneLayout();
     await refreshStaffServices();
     await refreshDateOptions();
@@ -186,6 +187,16 @@ async function init() {
     document.body.classList.remove("booking-hydrating");
     document.body.removeAttribute("aria-busy");
   }
+}
+
+async function refreshGalleryImages() {
+  let images = [];
+  try {
+    images = await state.repository.listGalleryImages?.() || [];
+  } catch (_error) {
+    images = [];
+  }
+  window.dispatchEvent(new CustomEvent("openslot:gallery-update", { detail: { images } }));
 }
 
 function bindEvents() {

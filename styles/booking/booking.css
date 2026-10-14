@@ -1019,6 +1019,111 @@
   to { opacity: 0; transform: scaleX(0.45); }
 }
 
+.booking-themed .salon-gallery-open {
+  background: transparent;
+  border: 0;
+  cursor: zoom-in;
+  inset: 0;
+  padding: 0;
+  position: absolute;
+  width: 100%;
+  z-index: 1;
+}
+
+.booking-themed .salon-gallery-open:focus-visible {
+  box-shadow: inset 0 0 0 3px var(--shop-accent);
+  outline: 0;
+}
+
+.booking-themed .salon-cover .language-menu {
+  z-index: 2;
+}
+
+.booking-themed .salon-gallery {
+  background: transparent;
+  border: 0;
+  height: 100dvh;
+  margin: 0;
+  max-height: none;
+  max-width: none;
+  padding: 0;
+  width: 100vw;
+}
+
+.booking-themed .salon-gallery::backdrop {
+  background: rgba(15, 16, 15, 0.92);
+}
+
+.booking-themed .salon-gallery-stage {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  height: 100%;
+  padding: 24px;
+  position: relative;
+}
+
+.booking-themed .salon-gallery figure {
+  display: grid;
+  grid-column: 2;
+  height: 100%;
+  margin: 0;
+  min-height: 0;
+  place-items: center;
+  position: relative;
+}
+
+.booking-themed .salon-gallery img {
+  max-height: calc(100dvh - 48px);
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.booking-themed .salon-gallery figcaption {
+  bottom: 8px;
+  color: #fff;
+  font-size: 12px;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.booking-themed .salon-gallery-close,
+.booking-themed .salon-gallery-nav {
+  align-items: center;
+  background: rgba(20, 20, 20, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 0;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 28px;
+  height: 44px;
+  justify-content: center;
+  padding: 0;
+  width: 44px;
+}
+
+.booking-themed .salon-gallery-close {
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  z-index: 2;
+}
+
+@media (orientation: portrait) and (max-width: 720px) {
+  .booking-themed .salon-gallery-stage {
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+    padding: 14px 8px;
+  }
+
+  .booking-themed .salon-gallery-close,
+  .booking-themed .salon-gallery-nav {
+    height: 36px;
+    width: 36px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .booking-themed .service-category-indicator {
     transition: none;

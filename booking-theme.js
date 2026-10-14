@@ -16,6 +16,13 @@
   const categoryNext = document.querySelector("#serviceCategoryNext");
   const categoryIndicator = document.querySelector("#serviceCategoryIndicator");
   const employeePicker = document.querySelector(".employee-picker");
+  const gallery = document.querySelector("#salonGallery");
+  const galleryOpen = document.querySelector(".salon-gallery-open");
+  const galleryImage = document.querySelector("#salonGalleryImage");
+  const galleryCounter = document.querySelector("#salonGalleryCounter");
+  const galleryPrev = document.querySelector(".salon-gallery-prev");
+  const galleryNext = document.querySelector(".salon-gallery-next");
+  const galleryClose = document.querySelector(".salon-gallery-close");
   let employeeOptions = [...document.querySelectorAll(".employee-option")];
   let staffRecords = [];
   let selectedServiceId = "";
@@ -28,6 +35,9 @@
   let reservationRequest = null;
   let reservationSyncTimer;
   let reservationGuardTimer;
+  let galleryImages = [];
+  let galleryIndex = 0;
+  let galleryTouchStartX = null;
   const lunarDateFormatter = new Intl.DateTimeFormat("zh-u-ca-chinese", {
     month: "numeric",
     day: "numeric",
@@ -37,6 +47,81 @@
     ["1-1", "春节"], ["1-15", "元宵"], ["5-5", "端午"], ["7-7", "七夕"],
     ["8-15", "中秋"], ["9-9", "重阳"], ["12-8", "腊八"],
   ]);
+
+  function galleryCopy() {
+    const language = window.OpenSlotI18n?.language || document.documentElement.lang || "de";
+    if (language === "zh") return { open: "查看店铺图片", dialog: "店铺图片", image: "店铺图片", close: "关闭图片浏览", previous: "上一张图片", next: "下一张图片" };
+    if (language === "en") return { open: "View salon photos", dialog: "Salon photos", image: "Salon photo", close: "Close photo viewer", previous: "Previous photo", next: "Next photo" };
+    return { open: "Salonfotos ansehen", dialog: "Salonfotos", image: "Salonansicht", close: "Bildergalerie schließen", previous: "Vorheriges Bild", next: "Nächstes Bild" };
+  }
+
+  function syncGalleryLabels() {
+    if (!gallery) return;
+    const copy = galleryCopy();
+    galleryOpen?.setAttribute("aria-label", copy.open);
+    gallery.setAttribute("aria-label", copy.dialog);
+    galleryImage?.setAttribute("alt", copy.image);
+    galleryClose?.setAttribute("aria-label", copy.close);
+    galleryPrev?.setAttribute("aria-label", copy.previous);
+    galleryNext?.setAttribute("aria-label", copy.next);
+  }
+
+  function setGalleryImages(images) {
+    if (!gallery || !galleryOpen) return;
+    const fallback = document.body.dataset.galleryImages?.split(",") || [];
+    galleryImages = (Array.isArray(images) && images.length ? images : fallback)
+      .map((source) => String(source || "").trim())
+      .filter(Boolean)
+      .slice(0, 10);
+    galleryOpen.hidden = galleryImages.length === 0;
+    if (galleryImages[0]) {
+      document.body.style.setProperty("--salon-cover-image", `url(${JSON.stringify(galleryImages[0])})`);
+    }
+  }
+
+  function renderGalleryImage() {
+    const source = galleryImages[galleryIndex];
+    if (!source || !galleryImage) return;
+    galleryImage.src = source;
+    galleryCounter.textContent = galleryImages.length > 1 ? `${galleryIndex + 1} / ${galleryImages.length}` : "";
+    galleryPrev.hidden = galleryImages.length < 2;
+    galleryNext.hidden = galleryImages.length < 2;
+  }
+
+  function moveGallery(direction) {
+    galleryIndex = (galleryIndex + direction + galleryImages.length) % galleryImages.length;
+    renderGalleryImage();
+  }
+
+  galleryOpen?.addEventListener("click", () => {
+    if (!galleryImages.length) return;
+    galleryIndex = 0;
+    renderGalleryImage();
+    gallery.showModal();
+  });
+  galleryClose?.addEventListener("click", () => gallery.close());
+  galleryPrev?.addEventListener("click", () => moveGallery(-1));
+  galleryNext?.addEventListener("click", () => moveGallery(1));
+  gallery?.addEventListener("click", (event) => {
+    if (event.target === gallery) gallery.close();
+  });
+  gallery?.addEventListener("keydown", (event) => {
+    if (galleryImages.length < 2) return;
+    if (event.key === "ArrowLeft") moveGallery(-1);
+    if (event.key === "ArrowRight") moveGallery(1);
+  });
+  gallery?.addEventListener("touchstart", (event) => {
+    galleryTouchStartX = event.changedTouches[0]?.clientX ?? null;
+  }, { passive: true });
+  gallery?.addEventListener("touchend", (event) => {
+    if (galleryTouchStartX === null || galleryImages.length < 2) return;
+    const distance = (event.changedTouches[0]?.clientX ?? galleryTouchStartX) - galleryTouchStartX;
+    galleryTouchStartX = null;
+    if (Math.abs(distance) >= 50) moveGallery(distance > 0 ? -1 : 1);
+  }, { passive: true });
+  window.addEventListener("openslot:gallery-update", (event) => setGalleryImages(event.detail?.images || []));
+  setGalleryImages([]);
+  syncGalleryLabels();
 
   function syncCategories() {
     const groups = [...services.querySelectorAll(".service-group")];
@@ -199,6 +284,7 @@
   window.addEventListener("openslot:language-change", () => queueMicrotask(() => {
     syncEmployees();
     renderLunarDateLabels();
+    syncGalleryLabels();
   }));
   window.addEventListener("openslot:staff-update", (event) => renderEmployees(event.detail?.staff || []));
 

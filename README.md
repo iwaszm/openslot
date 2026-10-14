@@ -11,7 +11,7 @@ OpenSlot is a multi-tenant appointment booking system for service businesses. Ea
 - Platform administrator, shop owner, and staff permissions
 - Shop settings for services, employees, opening hours, language, and theme
 - Installable admin PWA with network-first updates and booking push notifications
-- Confirmation and cancellation emails through Resend
+- Localized confirmation and cancellation emails through Resend
 - Cloudflare Turnstile protection for booking and admin sign-in
 - Public-holiday blocking and scheduled historical-data cleanup
 
@@ -52,7 +52,7 @@ The local `template/` application is an isolated UI prototype. It uses synthetic
 └─ admin.js               Admin application coordinator
 ```
 
-The top-level controllers retain stable browser entry URLs. Domain rules, Supabase adapters and HTML rendering live under `src/booking/`, `src/admin/`, `src/settings/` and `src/core/`; the entry controllers coordinate state and DOM events rather than duplicating those implementations.
+The top-level controllers retain stable browser entry URLs. Domain rules, Supabase adapters and HTML rendering live under `src/booking/`, `src/admin/`, `src/settings/`, `src/cancellation/` and `src/core/`; the entry controllers coordinate state and DOM events rather than duplicating those implementations.
 
 ## Local Development
 

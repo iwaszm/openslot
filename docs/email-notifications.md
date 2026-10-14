@@ -1,14 +1,16 @@
 # Email Notifications
 
-Updated: 2026-10-05
+Updated: 2026-10-12
 
 OpenSlot uses Supabase Edge Functions and Resend for transactional customer email. Resend credentials and the Supabase service-role key never enter browser configuration.
 
 ## Current Events
 
-- Booking created: German confirmation email with service, date, time, shop details, calendar attachment and a subdued cancellation text link.
-- Customer cancellation: confirmation email after a valid cancellation POST.
-- Owner cancellation: cancellation email after the authenticated Admin update.
+- Booking created: confirmation email in the language selected on the Booking page, with localized service name, date, shop details, calendar attachment and a subdued cancellation text link.
+- Customer cancellation: localized confirmation email after a valid cancellation POST.
+- Owner cancellation: localized cancellation email after the authenticated Admin update.
+
+Supported customer email languages are German (`de`), English (`en`) and Chinese (`zh`). The appointment stores `customer_language`, so cancellation uses the same language as the original booking. Existing appointments and invalid/missing values fall back to German. Customer email intentionally does not expose the internal appointment UUID or a booking code.
 
 The owner does not receive email; new bookings are surfaced in Admin and through optional Web Push.
 
@@ -17,10 +19,10 @@ The owner does not receive email; new bookings are surfaced in Admin and through
 ### Booking confirmation
 
 1. The browser calls `create-booking`.
-2. The Edge Function verifies Turnstile and calls `create_public_booking_for_staff`.
+2. The browser includes its selected language; the Edge Function verifies Turnstile and calls `create_public_booking_for_staff`.
 3. In the same database transaction, an appointment trigger inserts an idempotent `email_events(status='pending')` row.
-4. `create-booking` invokes `send-booking-email` with the service-role credential.
-5. The email function derives the event from the canonical appointment status and sends through Resend.
+4. `create-booking` stores the normalized appointment language and invokes `send-booking-email` with the service-role credential.
+5. The email function derives the event from the canonical appointment status, reads the frozen service name where available, localizes the content and sends through Resend.
 6. `create-booking` returns both `booking_id` and `email_status` to the browser.
 
 The browser makes only one booking request. If immediate delivery fails, the appointment remains valid and the pending/failed outbox event remains available for retry.

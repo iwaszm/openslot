@@ -65,6 +65,20 @@ export function createSupabaseBookingRepository({
       }));
     },
 
+    async listGalleryImages() {
+      const salon = await salonPromise;
+      const bucket = client.storage.from("salon-images");
+      const { data, error } = await bucket.list(salon.slug, {
+        limit: 20,
+        sortBy: { column: "name", order: "asc" },
+      });
+      if (error) throw error;
+      return (data || [])
+        .filter((item) => /\.(?:avif|jpe?g|png|webp)$/i.test(item.name))
+        .slice(0, 10)
+        .map((item) => bucket.getPublicUrl(`${salon.slug}/${item.name}`).data.publicUrl);
+    },
+
     async listAppointments(date) {
       const salon = await salonPromise;
       const { data, error } = await client.rpc("get_public_occupied_slots", {

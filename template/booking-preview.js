@@ -16,7 +16,15 @@
   const categoryNext = document.querySelector("#serviceCategoryNext");
   const categoryIndicator = document.querySelector("#serviceCategoryIndicator");
   const employeePicker = document.querySelector(".employee-picker");
+  const gallery = document.querySelector("#salonGallery");
+  const galleryOpen = document.querySelector(".salon-gallery-open");
+  const galleryImage = document.querySelector("#salonGalleryImage");
+  const galleryCounter = document.querySelector("#salonGalleryCounter");
+  const galleryPrev = document.querySelector(".salon-gallery-prev");
+  const galleryNext = document.querySelector(".salon-gallery-next");
+  const galleryClose = document.querySelector(".salon-gallery-close");
   let employeeOptions = [...document.querySelectorAll(".employee-option")];
+  let staffRecords = [];
   let selectedServiceId = "";
   let eligibleEmployeeCount = 0;
   const languageMenu = document.querySelector(".language-menu");
@@ -27,6 +35,8 @@
   let reservationRequest = null;
   let reservationSyncTimer;
   let reservationGuardTimer;
+  let galleryImages = [];
+  let galleryIndex = 0;
   const lunarDateFormatter = new Intl.DateTimeFormat("zh-u-ca-chinese", {
     month: "numeric",
     day: "numeric",
@@ -49,7 +59,49 @@
     document.title = `${profile.name} · Termin buchen`;
     document.documentElement.dataset.shopTheme = profile.themePreset || "lime";
     document.documentElement.style.setProperty("--shop-accent", profile.themeColor || "#dfff2f");
+    setGalleryImages(profile.galleryImages);
   }
+
+  function setGalleryImages(images) {
+    const fallback = document.body.dataset.galleryImages?.split(",") || [];
+    galleryImages = (Array.isArray(images) && images.length ? images : fallback)
+      .map((source) => String(source || "").trim())
+      .filter(Boolean)
+      .slice(0, 5);
+    galleryOpen.hidden = galleryImages.length === 0;
+  }
+
+  function renderGalleryImage() {
+    const source = galleryImages[galleryIndex];
+    if (!source) return;
+    galleryImage.src = source;
+    galleryCounter.textContent = galleryImages.length > 1 ? `${galleryIndex + 1} / ${galleryImages.length}` : "";
+    galleryPrev.hidden = galleryImages.length < 2;
+    galleryNext.hidden = galleryImages.length < 2;
+  }
+
+  function moveGallery(direction) {
+    galleryIndex = (galleryIndex + direction + galleryImages.length) % galleryImages.length;
+    renderGalleryImage();
+  }
+
+  galleryOpen.addEventListener("click", () => {
+    if (!galleryImages.length) return;
+    galleryIndex = 0;
+    renderGalleryImage();
+    gallery.showModal();
+  });
+  galleryClose.addEventListener("click", () => gallery.close());
+  galleryPrev.addEventListener("click", () => moveGallery(-1));
+  galleryNext.addEventListener("click", () => moveGallery(1));
+  gallery.addEventListener("click", (event) => {
+    if (event.target === gallery) gallery.close();
+  });
+  gallery.addEventListener("keydown", (event) => {
+    if (galleryImages.length < 2) return;
+    if (event.key === "ArrowLeft") moveGallery(-1);
+    if (event.key === "ArrowRight") moveGallery(1);
+  });
 
   function syncCategories() {
     const groups = [...services.querySelectorAll(".service-group")];
@@ -176,24 +228,34 @@
     languageMenu.querySelector("summary").setAttribute("aria-label", copy.language);
   }
 
-  function renderEmployees() {
+  function getLocalStaffRecords() {
+    const assignments = window.OpenSlotLocalRepository?.listStaffServices?.() || [];
+    return (window.OpenSlotLocalRepository?.listStaff?.() || [])
+      .filter((employee) => employee.acceptsOnline)
+      .map((employee) => ({
+        ...employee,
+        serviceIds: assignments
+          .filter((assignment) => assignment.staffKey === employee.staffKey)
+          .map((assignment) => assignment.serviceId),
+      }));
+  }
+
+  function renderEmployees(records = staffRecords) {
+    staffRecords = Array.isArray(records) ? records : [];
     const group = employeePicker.querySelector('[role="radiogroup"]');
     const nextServiceId = services.querySelector('input[name="service"]:checked')?.value || "";
     const serviceChanged = nextServiceId !== selectedServiceId;
     selectedServiceId = nextServiceId;
-    const assignments = window.OpenSlotLocalRepository?.listStaffServices?.() || [];
-    const records = (window.OpenSlotLocalRepository?.listStaff?.() || []).filter((employee) => (
-      employee.acceptsOnline && (!selectedServiceId || assignments.some((item) => (
-        item.staffKey === employee.staffKey && item.serviceId === selectedServiceId
-      )))
+    const available = staffRecords.filter((employee) => (
+      !selectedServiceId || !Array.isArray(employee.serviceIds) || employee.serviceIds.includes(selectedServiceId)
     ));
-    eligibleEmployeeCount = selectedServiceId ? records.length : 0;
+    eligibleEmployeeCount = selectedServiceId ? available.length : 0;
     const showAnyEmployee = eligibleEmployeeCount > 1;
-    group.innerHTML = `${showAnyEmployee ? '<button class="employee-option" type="button" role="radio" data-employee="any"><span></span></button>' : ""}${records.map((employee) => `<button class="employee-option" type="button" role="radio" data-employee="${employee.staffKey}"><span>${employee.name}</span></button>`).join("")}`;
+    group.innerHTML = `${showAnyEmployee ? '<button class="employee-option" type="button" role="radio" data-employee="any"><span></span></button>' : ""}${available.map((employee) => `<button class="employee-option" type="button" role="radio" data-employee="${escapeAttribute(employee.staffKey)}"><span>${escapeHtml(employee.name)}</span></button>`).join("")}`;
     employeeOptions = [...group.querySelectorAll(".employee-option")];
     const nextEmployee = eligibleEmployeeCount === 1
-      ? records[0].staffKey
-      : eligibleEmployeeCount > 1 && !serviceChanged && records.some((employee) => employee.staffKey === activeEmployee)
+      ? available[0].staffKey
+      : eligibleEmployeeCount > 1 && !serviceChanged && available.some((employee) => employee.staffKey === activeEmployee)
         ? activeEmployee
         : "any";
     const changed = nextEmployee !== activeEmployee;
@@ -221,6 +283,7 @@
     syncEmployees();
     renderLunarDateLabels();
   }));
+  window.addEventListener("openslot:staff-update", (event) => renderEmployees(event.detail?.staff || []));
 
   tabs.addEventListener("keydown", (event) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -241,9 +304,9 @@
   new MutationObserver(syncCategories).observe(services, { childList: true });
   new MutationObserver(syncEmployees).observe(services, { childList: true, subtree: true, attributes: true, attributeFilter: ["checked"] });
   syncCategories();
-  renderEmployees();
-  window.OpenSlotLocalRepository?.subscribe?.("staff", renderEmployees);
-  window.OpenSlotLocalRepository?.subscribe?.("staff-services", renderEmployees);
+  renderEmployees(getLocalStaffRecords());
+  window.OpenSlotLocalRepository?.subscribe?.("staff", () => renderEmployees(getLocalStaffRecords()));
+  window.OpenSlotLocalRepository?.subscribe?.("staff-services", () => renderEmployees(getLocalStaffRecords()));
   window.OpenSlotLocalRepository?.subscribe?.("shop-profile", applyShopProfile);
   applyShopProfile();
 
@@ -400,4 +463,14 @@
     invalid.focus();
   }, true);
   syncToast();
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[character]);
+  }
+
+  function escapeAttribute(value) {
+    return escapeHtml(value).replace(/`/g, "&#96;");
+  }
 })();

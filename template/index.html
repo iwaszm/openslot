@@ -6,10 +6,10 @@
     <meta name="robots" content="noindex, nofollow" />
     <title>OpenSlot Theme Preview · Buchung</title>
     <link rel="stylesheet" href="../styles/shared/base.css?v=20260915-customer-languages-2" />
-    <link rel="stylesheet" href="../styles/booking/booking.css?v=20261004-booking-staff-1" />
+    <link rel="stylesheet" href="../styles/booking/booking.css?v=20261012-shared-booking-ui-2" />
     <link rel="stylesheet" href="./theme.css?v=20261012-template-booking-9" />
   </head>
-  <body class="booking-themed" style='--salon-cover-image: url("/demo/feature.jpg");'>
+  <body class="booking-themed booking-hydrating" aria-busy="true" data-gallery-images='/demo/feature.jpg' style='--salon-cover-image: url("/demo/feature.jpg");'>
     <main class="customer-page">
       <div class="customer-layout">
         <section id="book" class="booking-section" aria-labelledby="booking-title">
@@ -95,6 +95,7 @@
 
         <aside class="salon-card" aria-label="Saloninformationen">
           <div class="salon-cover">
+            <button class="salon-gallery-open" type="button" aria-label="Salonfotos ansehen"></button>
             <details class="language-menu">
               <summary aria-label="Sprache wählen">
                 <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -165,10 +166,22 @@
       </div>
     </dialog>
 
+    <dialog id="salonGallery" class="salon-gallery" aria-label="Salonfotos">
+      <div class="salon-gallery-stage">
+        <button class="salon-gallery-close" type="button" aria-label="Bildergalerie schließen">×</button>
+        <button class="salon-gallery-nav salon-gallery-prev" type="button" aria-label="Vorheriges Bild">‹</button>
+        <figure>
+          <img id="salonGalleryImage" alt="Salonansicht" />
+          <figcaption id="salonGalleryCounter"></figcaption>
+        </figure>
+        <button class="salon-gallery-nav salon-gallery-next" type="button" aria-label="Nächstes Bild">›</button>
+      </div>
+    </dialog>
+
     <script src="./local-config.js?v=20260927-hours1"></script>
     <script src="./local-repository.js?v=20261012-anonymous-profile-1"></script>
     <script src="./demo-data.js"></script>
-    <script src="../i18n.js?v=20260915-customer-languages-2"></script>
+    <script src="../i18n.js?v=20260925-system-language-1"></script>
     <script>
       window.OPENSLOT_TEMPLATE_REQUIRE_SELECTION = true;
       window.OPENSLOT_TEMPLATE_SHOW_UNAVAILABLE = true;
@@ -176,6 +189,6 @@
       window.OPENSLOT_TEMPLATE_DATE_PAGING = true;
     </script>
     <script type="module" src="../customer.js?v=20261012-template-calendar-paging-2"></script>
-    <script src="./booking-preview.js?v=20261012-template-booking-7"></script>
+    <script src="./booking-preview.js?v=20261014-template-gallery-1"></script>
   </body>
 </html>

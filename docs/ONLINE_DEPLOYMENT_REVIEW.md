@@ -1,12 +1,12 @@
 # OpenSlot Production Review
 
-Review date: 2026-10-05
+Review date: 2026-10-12
 
 ## Current Decision
 
 The application now has production Supabase adapters for Booking, Admin and Settings and can continue controlled production use. The previous conclusion that Settings was only a `localStorage` prototype is obsolete.
 
-The remaining risk is concentrated in operational consistency, email orchestration, missing automated tests and shop-specific build wiring. UI completeness is no longer the main blocker.
+The remaining risk is concentrated in operational consistency, email retry operations, incomplete automated release gates and shop-specific build wiring. UI completeness is no longer the main blocker.
 
 ## Verified in the Repository
 
@@ -18,6 +18,8 @@ The remaining risk is concentrated in operational consistency, email orchestrati
 - Admin PWA navigation is network-first and does not cache business API responses.
 - Push subscriptions and dispatch deduplication exist.
 - Migrations cover multi-staff scheduling, snapshots, holidays, Settings, role scoping, service states, automatic staff balancing, manual appointment editing, back-office language and themes.
+- Browser-independent unit tests cover Booking rules/views, Admin schedule/manual-booking models, Settings models and core utilities.
+- A linked-database demo scheduling regression script exists for manual integration verification.
 
 These checks describe repository code. They do not prove that the production Supabase schema, function versions and secrets exactly match the repository.
 
@@ -45,12 +47,11 @@ Remaining work:
 - Add monitoring and an operational view for delivery failures.
 - Consolidate owner cancellation and immediate delivery behind one server-side operation.
 
-### P1: Add automated test gates
+### P1: Expand automated test gates
 
-There are currently no repository tests or GitHub Actions workflows. Minimum coverage should include:
+The repository now has unit tests and a linked-database demo scheduling regression script, but no GitHub Actions workflow or browser end-to-end suite. Remaining coverage should include:
 
-- Unit tests for covered-time and occupied-time calculations.
-- RPC integration tests for two-lane assignment and concurrent booking.
+- Broader RPC integration tests for concurrent booking and production-equivalent role combinations.
 - RLS tests for anon, staff, owner and platform administrator.
 - Playwright flows for Booking, Admin, Settings, cancellation and responsive views.
 - CI build and test checks on every push.
@@ -71,9 +72,9 @@ The database is multi-tenant, but `scripts/build.js`, redirects, route folders a
 
 Booking, Admin and Settings now retain stable browser entrypoints while domain rules, Supabase/local repositories and major rendering responsibilities live in `src/booking/`, `src/admin/`, `src/settings/` and `src/core/`. New work should preserve these boundaries and add logic to the responsible module instead of growing the entry controllers again.
 
-### P2: Refresh or retire historical SQL entry points
+### Completed: Isolate historical SQL entry points
 
-The repository contains both timestamped migrations and older top-level SQL setup files. New deployments should use migrations only. Legacy SQL should be clearly marked historical or moved to an archive to avoid applying incompatible setup paths.
+Historical setup scripts now live under `supabase/legacy/` and are documented as incompatible with current deployments. New deployments use timestamped migrations only.
 
 ## Release Checklist
 
@@ -109,6 +110,6 @@ The repository contains both timestamped migrations and older top-level SQL setu
 1. Commit the current documentation baseline.
 2. Reconcile production Supabase schema and migrations.
 3. Deploy the email outbox migration/functions and add retry monitoring; harden Turnstile checks.
-4. Add scheduling/RLS tests and CI.
+4. Expand scheduling/RLS tests and add CI.
 5. Generalize shop onboarding and split the large controllers.
 6. Only then add reminder emails, analytics, absence management or payment/deposit features.
