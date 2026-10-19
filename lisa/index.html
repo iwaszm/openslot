@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="../styles/shared/base.css?v=20260915-customer-languages-2" />
     <link rel="stylesheet" href="../styles/shared/theme-presets.css?v=20261004-gray-theme-1" />
     <link rel="stylesheet" href="../styles/booking/booking.css?v=20261014-salon-gallery-1" />
+    <link rel="stylesheet" href="../styles/booking/booking-finish.css?v=20261019-booking-parity-1" />
   </head>
   <body class="booking-themed booking-hydrating" aria-busy="true" data-gallery-images="/lisa/feature.jpg" style='--salon-cover-image: url("/lisa/feature.jpg");'>
     <main class="customer-page">
@@ -112,8 +113,11 @@
           <div class="salon-body">
             <div class="salon-heading">
               <h2 id="salonName" data-i18n="salon.name">Berlin Hair Salon</h2>
+              <button class="salon-info-toggle" type="button" aria-controls="salonContactList" aria-expanded="false" aria-label="Saloninformationen anzeigen">
+                <span class="salon-info-chevron" aria-hidden="true"></span>
+              </button>
             </div>
-            <ul class="contact-list">
+            <ul id="salonContactList" class="contact-list">
               <li>
                 <svg class="contact-icon" aria-hidden="true" viewBox="0 0 24 24">
                   <path d="M12 21s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"></path>
@@ -188,6 +192,7 @@
     </script>
     <script type="module" src="../customer.js?v=20261014-salon-gallery-1"></script>
     <script src="../booking-theme.js?v=20261014-salon-gallery-1"></script>
+    <script src="../booking-salon-info.js?v=20261019-booking-parity-1"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   </body>
 </html>
