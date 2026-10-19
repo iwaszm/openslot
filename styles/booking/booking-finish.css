@@ -453,6 +453,7 @@
   --booking-heading-inset: var(--template-content-gutter);
   --booking-form-inset: 0px;
   --slot-row-inset: 0px;
+  --booking-content-inset: 6px;
 }
 
 .booking-themed :is(
@@ -556,15 +557,82 @@
 }
 
 .booking-themed .customer-booking fieldset:nth-of-type(4) > legend {
-  margin-left: 0;
+  margin-left: calc(-1 * var(--booking-content-inset));
+}
+
+.booking-themed .customer-booking fieldset:nth-of-type(4) {
+  padding-left: var(--booking-content-inset);
+  padding-right: var(--booking-content-inset);
 }
 
 .booking-themed .customer-booking .primary-action,
 .booking-themed .turnstile-field,
 .booking-themed .customer-booking .form-message,
 .booking-themed .customer-booking .booking-result {
-  margin-left: var(--booking-side-inset);
-  width: calc(100% - (var(--booking-side-inset) * 2));
+  margin-left: calc(var(--booking-side-inset) + var(--booking-content-inset));
+  width: calc(100% - ((var(--booking-side-inset) + var(--booking-content-inset)) * 2));
+}
+
+@media (orientation: landscape) and (hover: hover) {
+  .booking-themed .customer-booking .service-card:not(:has(input:checked)):hover {
+    background: var(--theme-soft);
+    border-bottom-color: var(--theme-line);
+  }
+}
+
+@media (orientation: portrait) {
+  .booking-themed .customer-booking .service-card:hover,
+  .booking-themed .customer-booking .service-card:has(input:checked):hover {
+    background: transparent;
+    border-bottom-color: var(--theme-line);
+  }
+
+  .booking-themed .customer-booking .service-card:has(input:checked):hover {
+    border-bottom-color: transparent;
+  }
+
+  .booking-themed .service-category-tab:hover:not([aria-selected="true"]) {
+    color: var(--theme-muted);
+  }
+
+  .booking-themed :is(.service-category-nav:not(:disabled), .date-nav-button, .service-nav-button):hover {
+    background: transparent;
+    color: var(--theme-muted);
+    transform: none;
+  }
+
+  .booking-themed .date-button:hover:not(:disabled) strong {
+    background: transparent;
+    transform: none;
+  }
+
+  .booking-themed .date-button.selected:hover strong {
+    box-shadow: inset 0 -0.66em var(--theme-lime);
+  }
+
+  .booking-themed .slot-button.available:hover {
+    background: transparent;
+    border-bottom-color: var(--theme-line);
+  }
+
+  .booking-themed .customer-booking .primary-action:hover:not(:disabled) {
+    background: var(--theme-lime);
+    transform: none;
+  }
+
+  .booking-themed .customer-booking .field-grid input:hover:not(:focus) {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .booking-themed .customer-support-footer a:hover {
+    color: var(--ink);
+    text-decoration-color: #c9aaa4;
+  }
+
+  .booking-themed .reservation-dialog-close:hover {
+    background: #191b19;
+  }
 }
 
 .booking-themed .service-category-nav,
