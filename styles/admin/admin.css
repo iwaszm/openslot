@@ -317,12 +317,11 @@ body.preview-admin {
 @keyframes voice-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 700px) {
-  .voice-appointment-control { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); gap: 7px; }
-  .voice-appointment-button { width: 52px; height: 52px; }
-  .voice-appointment-button svg { width: 23px; height: 23px; }
-  .voice-appointment-status { max-width: calc(100vw - 84px); padding: 7px 9px; font-size: 11px; }
+  .voice-appointment-control { right: 18px; bottom: max(42px, calc(env(safe-area-inset-bottom) + 28px)); gap: 9px; }
+  .voice-appointment-button { width: 64px; height: 64px; }
+  .voice-appointment-button svg { width: 28px; height: 28px; }
+  .voice-appointment-status { max-width: calc(100vw - 104px); padding: 8px 10px; font-size: 11px; }
 }
 @media (orientation: portrait) {
   .voice-appointment-control:not([hidden]) { display: flex; }
-  body:has(.voice-appointment-control:not([hidden])) .action-toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
 }
