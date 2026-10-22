@@ -4,6 +4,8 @@
     "template": "node scripts/serve-template.mjs",
     "test": "node --test tests/unit/*.test.mjs",
     "test:unit": "node --test tests/unit/*.test.mjs",
+    "voice:deploy": "npx wrangler deploy --config workers/admin-voice/wrangler.jsonc",
+    "voice:dev": "npx wrangler dev --config workers/admin-voice/wrangler.jsonc",
     "backup:supabase": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backup-supabase.ps1",
     "test:db:linked": "npx --yes supabase@latest db query --linked --file supabase/tests/demo-scheduling-regression.sql"
   }

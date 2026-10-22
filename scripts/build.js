@@ -66,6 +66,7 @@ writeFile(
       anonKey: process.env.OPENSLOT_SUPABASE_ANON_KEY,
       turnstileSiteKey,
       vapidPublicKey: process.env.OPENSLOT_VAPID_PUBLIC_KEY || "",
+      voiceWorkerUrl: process.env.OPENSLOT_VOICE_WORKER_URL || "https://openslot-admin-voice.zhangmeng43.workers.dev",
       buildId,
     },
     null,

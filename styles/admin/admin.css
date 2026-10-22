@@ -301,3 +301,28 @@ body.preview-admin {
   .staff-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
+/* Demo voice appointment experiment. The control is only present in demo/admin. */
+.voice-appointment-control { position: fixed; right: 20px; bottom: 20px; z-index: 48; display: none; align-items: center; gap: 9px; }
+.voice-appointment-control[hidden] { display: none; }
+.voice-appointment-status { max-width: min(280px, calc(100vw - 100px)); padding: 9px 12px; border: 1px solid #c8d0c6; background: var(--theme-page); color: #243029; box-shadow: 0 7px 20px rgba(25,27,25,.12); font-size: 12px; font-weight: 700; }
+.voice-appointment-button { display: grid; place-items: center; width: 56px; height: 56px; flex: none; padding: 0; border: 1px solid color-mix(in srgb, var(--shop-accent) 72%, #202820); border-radius: 50%; background: var(--shop-accent); color: #111; box-shadow: 0 8px 22px rgba(25,27,25,.2); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.voice-appointment-button svg { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 2; }
+.voice-appointment-button .voice-spinner { display: none; stroke-dasharray: 35 16; animation: voice-spin .8s linear infinite; }
+.voice-appointment-button[data-state="recording"] { background: #d43e45; border-color: #9e252c; color: #fff; transform: scale(1.06); }
+.voice-appointment-button[data-state="requesting"] .voice-microphone,
+.voice-appointment-button[data-state="processing"] .voice-microphone { display: none; }
+.voice-appointment-button[data-state="requesting"] .voice-spinner,
+.voice-appointment-button[data-state="processing"] .voice-spinner { display: block; }
+.voice-appointment-button:disabled { opacity: 1; cursor: wait; }
+@keyframes voice-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 700px) {
+  .voice-appointment-control { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); gap: 7px; }
+  .voice-appointment-button { width: 52px; height: 52px; }
+  .voice-appointment-button svg { width: 23px; height: 23px; }
+  .voice-appointment-status { max-width: calc(100vw - 84px); padding: 7px 9px; font-size: 11px; }
+}
+@media (orientation: portrait) {
+  .voice-appointment-control:not([hidden]) { display: flex; }
+  body:has(.voice-appointment-control:not([hidden])) .action-toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
+}

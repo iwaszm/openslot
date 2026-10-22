@@ -64,6 +64,7 @@
     document.getElementById("previewLoginForm").hidden = loggedIn;
     document.getElementById("previewSession").hidden = !loggedIn;
     document.getElementById("previewMain").hidden = !loggedIn;
+    document.getElementById("voiceAppointmentControl").hidden = !loggedIn;
     if (!loggedIn) return;
     document.getElementById("previewSessionLabel").textContent = session.email;
     document.getElementById("settingsLink").hidden = false;
@@ -514,17 +515,59 @@
     const category = bookingField("bookingCategory").value;
     return services.filter((item) => item.isActive !== false && item.category === category && staffCanPerform(staffIndex, item.id));
   };
-  function canPlaceManualService(service, startMinutes) {
-    const date = bookingDateValue();
-    const staffIndex = Number(bookingField("bookingEmployee").value);
-    if (!date || !service || !Number.isFinite(startMinutes) || !staffCanPerform(staffIndex, service.id) || isDayBlocked(date, staffIndex)) return false;
+  function canPlaceManualService(service, startMinutes, options = {}) {
+    const date = options.date || bookingDateValue();
+    const staffIndex = Number(options.staffIndex ?? bookingField("bookingEmployee").value);
+    const excludedId = String(options.excludedId ?? editingManualId ?? "");
+    if (!date || !service || !Number.isFinite(startMinutes) || startMinutes % slotStep !== 0 || !staffCanPerform(staffIndex, service.id) || isDayBlocked(date, staffIndex)) return false;
     const hours = workingHours(date);
     if (startMinutes < hours.openMinutes || startMinutes >= hours.closeMinutes) return false;
     const endMinutes = startMinutes + Number(service.duration || slotStep);
     if (timeBlocksFor(date, staffIndex).some((block) => startMinutes < block.endMinutes && endMinutes > block.startMinutes)) return false;
-    const sameStaff = dayEvents(date).filter((item) => item.staffIndex === staffIndex && String(item.id) !== String(editingManualId || ""));
+    const sameStaff = dayEvents(date).filter((item) => item.staffIndex === staffIndex && String(item.id) !== excludedId);
     return !Array.from({ length: Math.ceil((endMinutes - startMinutes) / slotStep) }, (_, index) => startMinutes + index * slotStep)
       .some((minute) => sameStaff.filter((item) => item.startMinutes < minute + slotStep && item.endMinutes > minute).length >= 2);
+  }
+
+  function validateManualAppointment({ date, staffIndex, service, startMinutes, excludedId = "" }) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "") || date < today || date > lastSelectableDate()) throw new Error("日期不在可管理范围内。");
+    if (!Number.isInteger(staffIndex) || !staffRecords[staffIndex] || !canManageStaff(staffIndex)) throw new Error("没有权限修改该员工的日程。");
+    if (!service || service.isActive === false) throw new Error("未找到有效的预约项目。");
+    if (!staffCanPerform(staffIndex, service.id)) throw new Error(`${staff[staffIndex]} 不提供该项目。`);
+    if (!Number.isFinite(startMinutes) || startMinutes % slotStep !== 0) throw new Error("开始时间必须落在 30 分钟刻度上。");
+    if (isDayBlocked(date, staffIndex)) throw new Error("所选日期已被 Tag blockiert。");
+    const hours = workingHours(date);
+    if (startMinutes < hours.openMinutes || startMinutes >= hours.closeMinutes) throw new Error("开始时间不在营业时间内。");
+    const endMinutes = startMinutes + Number(service.duration || slotStep);
+    if (timeBlocksFor(date, staffIndex).some((block) => startMinutes < block.endMinutes && endMinutes > block.startMinutes)) throw new Error(`${time(startMinutes)} 处于 Uhr blockiert。`);
+    if (!canPlaceManualService(service, startMinutes, { date, staffIndex, excludedId })) throw new Error(`${time(startMinutes)} 已无可用 Lane。`);
+    return endMinutes;
+  }
+
+  function createManualAppointment({ date, staffIndex, serviceId, startMinutes, note = "", id = "" }) {
+    const service = findService(serviceId);
+    const endMinutes = validateManualAppointment({ date, staffIndex, service, startMinutes, excludedId: id });
+    const manual = readArray(manualKey);
+    const occupiedMinutes = (service.bookedSlots || [1]).map((slot) => startMinutes + (slot - 1) * slotStep).filter((minute) => minute < endMinutes);
+    const record = {
+      id: id || crypto.randomUUID(),
+      date,
+      staffIndex,
+      serviceId: service.id,
+      startMinutes,
+      endMinutes,
+      occupiedMinutes,
+      serviceSnapshot: createServiceSnapshot(service, { startMinutes, endMinutes }),
+      note: String(note || "").trim(),
+    };
+    const existingIndex = manual.findIndex((item) => String(item.id) === String(id));
+    if (existingIndex >= 0) manual.splice(existingIndex, 1, record);
+    else manual.push(record);
+    saveArray(manualKey, manual);
+    selectedDate = date;
+    visibleStartDate = date;
+    render();
+    return { record, service, employeeName: staff[staffIndex] };
   }
   function updateBookingState() {
     const service = findService(bookingField("bookingService").value);
@@ -640,6 +683,8 @@
     document.getElementById("previewSession").hidden = true;
     document.getElementById("previewLoginForm").hidden = false;
     document.getElementById("settingsLink").hidden = true;
+    document.getElementById("voiceAppointmentControl").hidden = true;
+    window.__openSlotTemplateVoiceController?.cancel();
   });
   document.getElementById("todayButton").addEventListener("click", () => { visibleStartDate = dateValue(new Date()); selectedDate = visibleStartDate; closeAvailability(); render(); });
   document.getElementById("previousDay").addEventListener("click", () => { const today = dateValue(new Date()); if (visibleStartDate <= today) return; const previous = shiftDate(visibleStartDate, -7); visibleStartDate = previous <= today ? today : previous; selectedDate = visibleStartDate; closeAvailability(); render(); });
@@ -789,26 +834,17 @@
     const staffIndex = Number(document.getElementById("bookingEmployee").value);
     if (!canManageStaff(staffIndex)) { denyMutation(); return; }
     const startMinutes = Number(document.getElementById("bookingStart").value);
-    const endMinutes = startMinutes + Number(service?.duration || 30);
-    if (!service || !canPlaceManualService(service, startMinutes)) {
-      updateBookingTimes({ filterByService: true });
-      document.getElementById("bookingFormMessage").textContent = t("admin.timeNoLongerFree");
-      return;
-    }
-    const manual = readArray(manualKey);
-    const occupiedMinutes = (service.bookedSlots || [1]).map((slot) => startMinutes + (slot - 1) * slotStep).filter((minute) => minute < endMinutes);
     const savedDate = bookingDateValue();
-    const record = { id: editingManualId || crypto.randomUUID(), date: savedDate, staffIndex, serviceId: service.id, startMinutes, endMinutes, occupiedMinutes, serviceSnapshot: createServiceSnapshot(service, { startMinutes, endMinutes }), note: document.getElementById("bookingNote").value.trim() };
-    const existingIndex = manual.findIndex((item) => String(item.id) === String(editingManualId || ""));
-    if (existingIndex >= 0) manual.splice(existingIndex, 1, record);
-    else manual.push(record);
-    saveArray(manualKey, manual);
-    bookingDialog.close();
-    selectedDate = savedDate;
-    visibleStartDate = savedDate;
-    render();
-    showToast(`${service.shortName} um ${time(startMinutes)} wurde für ${staff[staffIndex]} ${editingManualId ? "aktualisiert" : "eingetragen"}.`);
-    editingManualId = null;
+    try {
+      const wasEditing = Boolean(editingManualId);
+      const result = createManualAppointment({ date: savedDate, staffIndex, serviceId: service?.id, startMinutes, note: document.getElementById("bookingNote").value, id: editingManualId || "" });
+      bookingDialog.close();
+      showToast(`${result.service.shortName} um ${time(startMinutes)} wurde für ${result.employeeName} ${wasEditing ? "aktualisiert" : "eingetragen"}.`);
+      editingManualId = null;
+    } catch (error) {
+      updateBookingTimes({ filterByService: true });
+      document.getElementById("bookingFormMessage").textContent = error.message || t("admin.timeNoLongerFree");
+    }
   });
   board.addEventListener("click", (event) => {
     const createButton = event.target.closest("[data-create-staff]");
@@ -913,5 +949,58 @@
     services = localRepository.listServices();
     render();
   });
+  const berlinDateValue = () => {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Berlin",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date()).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  };
+  const editableStaffIndexes = () => staffRecords
+    .map((employee, index) => employee.isActive !== false && canManageStaff(index) ? index : -1)
+    .filter((index) => index >= 0);
+  window.OpenSlotTemplateAdminVoice = {
+    showToast,
+    getContext() {
+      const indexes = editableStaffIndexes();
+      const eligibleStaffKeys = new Set(indexes.map((index) => staffKeyForIndex(index)));
+      const eligibleServiceIds = new Set(staffServices.filter((assignment) => eligibleStaffKeys.has(assignment.staffKey)).map((assignment) => assignment.serviceId));
+      return {
+        currentDate: berlinDateValue(),
+        selectedDate,
+        timezone: "Europe/Berlin",
+        language: ["de", "en", "zh"].includes(localRepository.getShopProfile().adminLanguage)
+          ? localRepository.getShopProfile().adminLanguage
+          : "de",
+        defaultStaffKey: staffKeyForIndex(indexes[0]),
+        staff: indexes.map((index) => ({
+          key: staffKeyForIndex(index),
+          aliases: [staffRecords[index].name, staffRecords[index].shortName, staffRecords[index].staffKey].filter(Boolean),
+          serviceIds: staffServices.filter((assignment) => assignment.staffKey === staffKeyForIndex(index)).map((assignment) => assignment.serviceId),
+        })),
+        services: services.filter((service) => service.isActive !== false && eligibleServiceIds.has(service.id)).map((service) => ({
+          id: service.id,
+          aliases: [service.name, service.nameZh, service.nameEn, service.shortName].filter(Boolean),
+        })),
+      };
+    },
+    async createAppointment(appointment) {
+      if (!session) throw new Error("请先登录后台。");
+      const staffIndex = staffRecords.findIndex((employee) => employee.staffKey === appointment.staffKey);
+      const [hours, minutes] = String(appointment.startTime || "").split(":").map(Number);
+      const startMinutes = hours * 60 + minutes;
+      const result = createManualAppointment({
+        date: appointment.date,
+        staffIndex,
+        serviceId: appointment.serviceId,
+        startMinutes,
+        note: Array.from(String(appointment.note || "")).slice(0, 12).join(""),
+      });
+      showToast(`已为 ${result.employeeName} 添加 ${time(startMinutes)} ${result.service.shortName}。`);
+    },
+  };
+  window.dispatchEvent(new CustomEvent("openslot:template-admin-voice-ready"));
   applySession();
 })();

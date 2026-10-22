@@ -26,6 +26,11 @@ export function createSupabaseAdminRepository({
       const { data, error } = await client.auth.getUser();
       return error ? null : data.user;
     },
+    async getAccessToken() {
+      const { data, error } = await client.auth.getSession();
+      if (error) throw error;
+      return data.session?.access_token || "";
+    },
     onAuthChange(callback) {
       return client.auth.onAuthStateChange((_event, session) => callback(session?.user || null));
     },
@@ -45,7 +50,7 @@ export function createSupabaseAdminRepository({
       const salon = await salonPromise;
       const { data, error } = await client
         .from("services")
-        .select("id, name, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, category_id, slot_color, sort_order, service_categories!services_category_salon_fkey(id, name, short_name, sort_order, is_active)")
+        .select("id, name, name_en, name_zh, short_name, duration_minutes, booked_slots, price, price_from, is_active, category, category_id, slot_color, sort_order, service_categories!services_category_salon_fkey(id, name, short_name, sort_order, is_active)")
         .eq("salon_id", salon.id)
         .order("sort_order", { ascending: true })
         .order("id", { ascending: true });

@@ -8,7 +8,7 @@ export function createAdminMappers({ defaultServices, legacyServiceMeta, normali
     const legacy = legacyServiceMeta.get(baseId);
     const category = Array.isArray(row.service_categories) ? row.service_categories[0] : row.service_categories;
     return {
-      id: row.id, name: row.name, shortName: row.short_name || row.name,
+      id: row.id, name: row.name, nameEn: row.name_en || "", nameZh: row.name_zh || "", shortName: row.short_name || row.name,
       duration: row.duration_minutes, bookedSlots: row.booked_slots || [], price: Number(row.price),
       priceFrom: Boolean(row.price_from), slotColor: row.slot_color || "",
       category: row.category || fallback?.category || legacy?.category || "care",

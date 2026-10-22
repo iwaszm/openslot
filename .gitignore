@@ -10,6 +10,7 @@ info/
 # Supabase local runtime artifacts
 supabase/.branches/
 supabase/.temp/
+.wrangler/
 
 # Logs and local tooling output
 dist/

@@ -34,6 +34,7 @@ export function createLocalAdminRepository(options) {
 
   const repository = {
     authSupported: false,
+    async getAccessToken() { return ""; },
     async getCurrentUser() { return { email: "local-demo" }; },
     onAuthChange() {},
     async signIn() {},

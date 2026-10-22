@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "openslot-admin-voice",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-10-22",
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "SUPABASE_URL": "https://rtgcbsyoawadasvusenp.supabase.co"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

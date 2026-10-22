@@ -103,12 +103,20 @@
     <span id="toastMessage" class="toast-message"></span>
     <button id="toastClose" class="icon-button toast-close" type="button" aria-label="Hinweis schließen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
+  <div id="voiceAppointmentControl" class="voice-appointment-control" hidden>
+    <span id="voiceAppointmentStatus" class="voice-appointment-status" role="status" aria-live="polite" hidden></span>
+    <button id="voiceAppointmentButton" class="voice-appointment-button" type="button" aria-label="长按语音录入预约" aria-pressed="false" data-state="idle">
+      <svg class="voice-microphone" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6"/></svg>
+      <svg class="voice-spinner" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>
+    </button>
+  </div>
   <script src="./local-config.js?v=20260927-hours1"></script>
   <script src="./local-repository.js?v=20261004-backoffice-language-1"></script>
   <script src="./local-auth-repository.js?v=20261002-staff3-login1"></script>
   <script src="../i18n.js?v=20261004-backoffice-language-1"></script>
   <script src="../shared/backoffice-i18n.js?v=20261012-admin-parity-1"></script>
   <script src="./demo-data.js"></script>
-  <script src="./admin-preview.js?v=20261012-admin-parity-1"></script>
+  <script src="./admin-preview.js?v=20261022-admin-voice-1"></script>
+  <script type="module" src="./admin-voice.js?v=20261022-admin-voice-1"></script>
 </body>
 </html>

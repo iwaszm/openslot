@@ -41,6 +41,7 @@ import { createAdminMappers } from "./src/admin/admin-mappers.mjs";
 import { createAdminSessionController } from "./src/admin/auth/session-controller.mjs?v=20261021-admin-performance-1";
 import { createDateNavigationController } from "./src/admin/schedule/date-navigation.mjs";
 import { createManualBookingController } from "./src/admin/appointments/manual-booking-controller.mjs?v=20261011-manual-dialog-1";
+import { createVoiceInputController } from "./src/admin/voice-input-controller.mjs";
 
 const DEFAULT_SERVICES = [
   { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
@@ -189,6 +190,9 @@ const els = {
   actionToast: document.querySelector("#actionToast"),
   toastMessage: document.querySelector("#toastMessage"),
   toastClose: document.querySelector("#toastClose"),
+  voiceAppointmentControl: document.querySelector("#voiceAppointmentControl"),
+  voiceAppointmentButton: document.querySelector("#voiceAppointmentButton"),
+  voiceAppointmentStatus: document.querySelector("#voiceAppointmentStatus"),
 };
 
 const ownerSecurity = createTurnstileController({
@@ -241,6 +245,7 @@ const liveRefreshController = createLiveRefreshController({
   },
 });
 let sessionController = null;
+let voiceInputController = null;
 const manualBookingController = createManualBookingController({
   elements: { add: els.addBookingButton, dialog: els.bookingDialog, form: els.manualBookingForm, employee: els.bookingEmployee,
     category: els.bookingCategory, service: els.bookingService, start: els.bookingStart, date: els.bookingDate },
@@ -321,6 +326,103 @@ function showToast(message, tone = "success") {
   toastTimeout = window.setTimeout(() => { els.actionToast.hidden = true; }, 4500);
 }
 
+function initializeDemoVoiceInput() {
+  if (voiceInputController || getCurrentSalonSlug() !== "demo"
+    || !els.voiceAppointmentButton || !els.voiceAppointmentStatus) return;
+  const config = window.OPENSLOT_SUPABASE || {};
+  voiceInputController = createVoiceInputController({
+    button: els.voiceAppointmentButton,
+    status: els.voiceAppointmentStatus,
+    endpoint: config.voiceWorkerUrl || "/api/admin-voice",
+    getRequestHeaders: async () => {
+      const token = await state.repository.getAccessToken?.();
+      if (!token) throw Object.assign(new Error("请重新登录后再使用语音预约。"), { code: "UNAUTHORIZED" });
+      return {
+        Authorization: `Bearer ${token}`,
+        "X-Supabase-Anon-Key": config.anonKey || "",
+      };
+    },
+    getContext: buildDemoVoiceContext,
+    createAppointment: createDemoVoiceAppointment,
+    showToast,
+  });
+  els.voiceAppointmentControl.hidden = !state.isOwner;
+}
+
+function buildDemoVoiceContext() {
+  const staffGroups = groupLanesByStaff(state.laneLayout).filter((group) => (
+    state.accessRole !== "staff" || group.staffId === state.accessStaffId
+  ));
+  const services = state.services.filter((service) => service.isActive).map((service) => ({
+    id: service.id,
+    aliases: [service.name, service.nameEn, service.nameZh, service.shortName].filter(Boolean),
+  }));
+  return {
+    salonSlug: "demo",
+    currentDate: new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date()),
+    selectedDate: els.adminDateInput.value,
+    timezone: "Europe/Berlin",
+    language: ["de", "en", "zh"].includes(state.salon?.admin_language)
+      ? state.salon.admin_language
+      : (window.OpenSlotI18n?.language || "de"),
+    services,
+    staff: staffGroups.map((group) => ({
+      key: group.key,
+      aliases: [group.fullName, group.name].filter(Boolean),
+      serviceIds: state.services.filter((service) => (
+        service.isActive && (!state.staffServiceKeys || state.staffServiceKeys.has(`${group.key}:${service.id}`))
+      )).map((service) => service.id),
+    })),
+    defaultStaffKey: staffGroups[0]?.key || "",
+  };
+}
+
+async function createDemoVoiceAppointment(appointment) {
+  const minimumDate = toDateInputValue(new Date());
+  const maximumDate = buildDateRange().at(-1);
+  if (appointment.date < minimumDate || appointment.date > maximumDate) {
+    throw new Error("预约日期超出后台日历范围。");
+  }
+  const service = findService(appointment.serviceId);
+  if (!service?.isActive) throw Object.assign(new Error("未识别到有效的预约项目。"), { code: "UNKNOWN_SERVICE" });
+  const staffGroup = groupLanesByStaff(state.laneLayout).find((group) => group.key === appointment.staffKey);
+  if (!staffGroup || (state.accessRole === "staff" && staffGroup.staffId !== state.accessStaffId)) {
+    throw Object.assign(new Error("未识别到有权限操作的员工。"), { code: "UNKNOWN_STAFF" });
+  }
+  if (state.staffServiceKeys && !state.staffServiceKeys.has(`${staffGroup.key}:${service.id}`)) {
+    throw Object.assign(new Error(`${staffGroup.name} 不提供该项目。`), { code: "STAFF_SERVICE_MISMATCH" });
+  }
+  const startMinutes = parseTime(appointment.startTime);
+  if (!Number.isFinite(startMinutes) || startMinutes % SLOT_STEP !== 0) {
+    throw Object.assign(new Error("预约时间必须落在 30 分钟刻度上。"), { code: "INVALID_TIME" });
+  }
+  const context = await fetchManualContext(appointment.date);
+  const canPlaceOnLane = (lane) => canPlaceManualEditorServiceOnLaneInContext({
+    service,
+    startMinutes,
+    lane,
+    appointments: context.appointments,
+    manualEntries: context.manualEntries,
+    laneLayout: state.laneLayout,
+  });
+  const allowed = canPlaceManualEditorServiceInContext({
+    service,
+    startMinutes,
+    ...context,
+    staffLanes: staffGroup.lanes,
+    laneLayout: state.laneLayout,
+  });
+  const lane = allowed ? findAvailableManualLane({ staffLanes: staffGroup.lanes, canPlaceOnLane }) : null;
+  if (!lane) throw new Error(`${appointment.startTime} 已无可用 Lane。`);
+
+  await saveManualService(lane.storageKey, startMinutes, service, null, appointment.note || "", appointment.date);
+  els.adminDateInput.value = appointment.date;
+  const selectedIndex = state.dateOptions.findIndex((option) => option.date === appointment.date);
+  if (selectedIndex >= 0) state.datePageStart = getCalendarPageStart(selectedIndex);
+  await Promise.all([refreshDateOptions(), refreshDayData(), refreshUpcomingLog()]);
+  showToast(`${appointment.startTime} ${getServiceAbbrev(service)} · ${staffGroup.name} 已创建。`);
+}
+
 init();
 
 async function init() {
@@ -355,6 +457,7 @@ async function init() {
   await refreshDateOptions();
   await refreshDayData();
   await refreshUpcomingLog();
+  initializeDemoVoiceInput();
   liveRefreshController.start();
 }
 
@@ -704,6 +807,7 @@ function renderAuthState(user = null, message = "") {
   if (els.ownerSession) els.ownerSession.hidden = !user;
   if (els.ownerEmailLabel) els.ownerEmailLabel.textContent = user?.email || "";
   if (els.ownerAuthMessage) els.ownerAuthMessage.textContent = message;
+  if (els.voiceAppointmentControl) els.voiceAppointmentControl.hidden = !state.isOwner;
 }
 
 function renderOwnerControls() {
