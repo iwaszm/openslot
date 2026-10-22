@@ -114,11 +114,11 @@ body.production-admin { margin: 0; background: #fff; color: #191b19; font-family
 .preview-header h1 { margin: 0; font-size: clamp(17px,1.7vw,23px); line-height: 1.1; white-space: nowrap; }
 .preview-header nav { display: flex; align-items: center; gap: 18px; min-width: 0; }
 .preview-header nav > a { color: inherit; font-size: 13px; font-weight: 700; text-decoration: none; border-bottom: 2px solid #e4ff43; padding: 7px 0 5px; white-space: nowrap; }
-.preview-header nav > a:hover { border-bottom-color: #191b19; }
+@media (hover: hover) and (pointer: fine) and (orientation: landscape) { .preview-header nav > a:hover { border-bottom-color: #191b19; } }
 .preview-header nav > a.settings-link { display: inline-grid; padding: 0; border-bottom: 1px solid #d9ded6; }
 .preview-header nav > a.settings-link[aria-disabled="true"] { opacity: .34; cursor: not-allowed; pointer-events: none; }
 .icon-button { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 0; background: transparent; color: #3e4945; padding: 0; }
-.icon-button:hover { background: #f2f4f0; }
+@media (hover: hover) and (pointer: fine) and (orientation: landscape) { .icon-button:hover { background: #f2f4f0; } }
 .icon-button:disabled { opacity: .34; cursor: not-allowed; }
 .header-tool { border: 1px solid #d9ded6; }
 .preview-login { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 12px; font-weight: 700; }
@@ -141,7 +141,7 @@ body.production-admin { margin: 0; background: #fff; color: #191b19; font-family
 .mini-day-strip { display: grid; grid-template-columns: repeat(7,minmax(32px,40px)); gap: clamp(5px,1vw,12px); }
 .mini-day { width: 100%; height: 60px; display: grid; grid-template-rows: 13px 22px 3px; justify-items: center; align-content: center; row-gap: 3px; padding: 3px 0; border: 0; background: transparent; color: #191b19; }
 .mini-day-strip.future-page .mini-day { color: #657166; }
-.mini-day:hover:not(:disabled) { background: #f2f4f0; color: #191b19; }
+@media (hover: hover) and (pointer: fine) and (orientation: landscape) { .mini-day:hover:not(:disabled) { background: #f2f4f0; color: #191b19; } }
 .mini-day.selected { color: #191b19; }
 .mini-day:disabled { color: #9aa29b; cursor: not-allowed; }
 .mini-day .day-weekday, .mini-day .date-weekday { font-size: 11px; font-weight: 700; }
@@ -165,7 +165,7 @@ body.production-admin { margin: 0; background: #fff; color: #191b19; font-family
 .existing-time-blocks:empty { display: none; }
 .existing-block { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 3px; border-top: 1px solid #e3e8e1; font-size: 12px; font-variant-numeric: tabular-nums; }
 .existing-block button { border: 0; background: transparent; color: #8a3b3d; font-size: 11px; font-weight: 700; }
-.existing-block button:hover { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) and (orientation: landscape) { .existing-block button:hover { text-decoration: underline; } }
 .staff-toolbar { display: flex; justify-content: space-between; align-items: center; min-height: 43px; padding-bottom: 7px; border-bottom: 1px solid #d9ded6; }
 .day-summary { font-size: 12px; color: #4d5550; }
 .add-booking, .solid-button { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid #191b19; background: #191b19; color: #fff; font-size: 13px; font-weight: 700; }
@@ -227,7 +227,7 @@ body.production-admin { margin: 0; background: #fff; color: #191b19; font-family
 .log-actions { display: flex; justify-content: flex-start; width: 104px; }
 .cancel-log { display: flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid #c97677; background: #fff; color: #9b3037; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .cancel-log svg { width: 13px; height: 13px; }
-.cancel-log:hover { background: #fdf0f0; }
+@media (hover: hover) and (pointer: fine) and (orientation: landscape) { .cancel-log:hover { background: #fdf0f0; } }
 .log-entry.cancelled { padding-left: 8px; padding-right: 8px; background: #f2f2f1; color: #7a7f7b; }
 .log-entry.cancelled .log-copy { text-decoration: line-through; }
 .preview-dialog { width: min(460px,calc(100vw - 24px)); max-height: calc(100vh - 24px); padding: 22px; overflow-y: auto; border: 1px solid #d9ded6; box-shadow: 0 18px 50px rgba(25,27,25,.18); }
@@ -255,6 +255,11 @@ body.production-admin { margin: 0; background: #fff; color: #191b19; font-family
 .toast-message { flex: 1; min-width: 0; }
 .toast-close { width: 28px; height: 28px; flex: none; }
 .toast-close svg { width: 15px; height: 15px; }
+.pwa-update-notice { position: fixed; right: 20px; bottom: 20px; z-index: 60; display: flex; align-items: center; gap: 14px; width: min(390px,calc(100vw - 32px)); min-height: 52px; padding: 10px 12px 10px 15px; border: 1px solid color-mix(in srgb,var(--theme-accent,#9cff2e) 55%,#9da79f); background: var(--theme-page,#fff); color: var(--theme-ink,#1c2921); box-shadow: 0 8px 24px rgba(25,27,25,.16); font-size: 13px; line-height: 1.4; }
+.pwa-update-notice[hidden] { display: none; }
+.pwa-update-notice span { flex: 1; min-width: 0; }
+.pwa-update-notice button { min-height: 34px; padding: 7px 12px; border: 1px solid var(--theme-ink,#1c2921); background: var(--theme-accent,#9cff2e); color: var(--theme-ink,#1c2921); font: inherit; font-weight: 800; cursor: pointer; }
+.pwa-update-notice button:focus-visible { outline: 2px solid var(--theme-ink,#1c2921); outline-offset: 2px; }
 .production-admin ::selection { background: var(--shop-accent, #e4ff43); color: #191b19; }
 .production-admin :focus-visible { outline: 2px solid #191b19; outline-offset: 2px; }
 
@@ -294,6 +299,7 @@ body.production-admin { margin: 0; background: #fff; color: #191b19; font-family
   .toast-symbol { width: 18px; height: 18px; }
   .toast-symbol svg { width: 13px; height: 13px; }
   .toast-close { width: 22px; height: 22px; }
+  .pwa-update-notice { right: auto; left: 50%; bottom: 10px; width: min(320px,calc(100vw - 20px)); min-height: 46px; padding: 8px 9px 8px 12px; transform: translateX(-50%); font-size: 12px; }
 }
 @media (orientation:portrait) and (max-width:700px) {
   .preview-header nav > a { display: none; }

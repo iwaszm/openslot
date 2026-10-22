@@ -404,9 +404,9 @@
         const note = item.type === "online" ? item.name : item.note;
         return `<article class="calendar-event ${item.previewSplit ? `split lane-${item.previewLane}` : "full"}" style="--service-color:${escapeHtml(service?.color || "#e7ece8")};top:${top}px;height:${height}px" title="${escapeHtml(service?.shortName || item.serviceId)} · ${time(item.startMinutes)}–${time(item.endMinutes)}">
           <button class="event-main" type="button" data-detail="${escapeHtml(item.id)}" aria-label="Termindetails: ${escapeHtml(service?.shortName || item.serviceId || "Termin")}, ${time(item.startMinutes)} bis ${time(item.endMinutes)}">
+            <span class="event-time">${time(item.startMinutes)}–${time(item.endMinutes)}</span>
             <strong>${escapeHtml(service?.shortName || item.serviceId || "Termin")}</strong>
             ${note ? `<span class="event-detail">${escapeHtml(note)}</span>` : ""}
-            <span class="event-time">${time(item.startMinutes)}–${time(item.endMinutes)}</span>
             ${item.type === "online" ? `<span class="online-indicator" aria-label="${escapeHtml(t("common.online"))}" title="${escapeHtml(t("common.online"))}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16"/></svg></span>` : ""}
           </button>
         </article>`;

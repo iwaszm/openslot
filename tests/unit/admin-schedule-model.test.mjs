@@ -84,6 +84,8 @@ test("renders employee columns and appointment details", () => {
   assert.match(html, /data-event-detail="a1"/);
   assert.match(html, /class="calendar-event full"/);
   assert.match(html, /data-create-staff="linda" data-create-start="600"/);
+  assert.ok(html.indexOf("10:00-10:30") < html.indexOf("<strong>Cut</strong>"));
+  assert.ok(html.indexOf("<strong>Cut</strong>") < html.indexOf("Ada"));
 });
 
 test("does not render quick-create targets on a blocked day", () => {

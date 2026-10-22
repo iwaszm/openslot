@@ -1,10 +1,13 @@
 const config = self.OPENSLOT_PWA || {};
 const cachePrefix = `${config.slug || "openslot"}-admin-offline-`;
-const offlineCache = `${cachePrefix}v3`;
+const offlineCache = `${cachePrefix}v4`;
 const offlineUrl = new URL("./offline", self.registration.scope).href;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(offlineCache).then((cache) => cache.add(offlineUrl)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(offlineCache).then((cache) => cache.add(offlineUrl)));
+});
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 self.addEventListener("activate", (event) => {
   event.waitUntil(caches.keys().then((keys) => Promise.all(

@@ -1,4 +1,4 @@
-import { createSupabaseAdminRepository } from "./src/admin/supabase-admin-repository.mjs";
+import { createSupabaseAdminRepository } from "./src/admin/supabase-admin-repository.mjs?v=20261021-admin-performance-1";
 import {
   allocateAppointmentsByLane,
   calculateScheduleLoad as calculateAdminScheduleLoad,
@@ -36,9 +36,9 @@ import { getBerlinHolidayName, toDateInputValue } from "./src/booking/calendar.m
 import { createAvailabilityController } from "./src/admin/availability-controller.mjs";
 import { createAdminDialogController } from "./src/admin/dialog-controller.mjs";
 import { createLiveRefreshController } from "./src/admin/live-refresh-controller.mjs";
-import { createAdminState } from "./src/admin/admin-state.mjs";
+import { createAdminState } from "./src/admin/admin-state.mjs?v=20261021-admin-performance-1";
 import { createAdminMappers } from "./src/admin/admin-mappers.mjs";
-import { createAdminSessionController } from "./src/admin/auth/session-controller.mjs";
+import { createAdminSessionController } from "./src/admin/auth/session-controller.mjs?v=20261021-admin-performance-1";
 import { createDateNavigationController } from "./src/admin/schedule/date-navigation.mjs";
 import { createManualBookingController } from "./src/admin/appointments/manual-booking-controller.mjs?v=20261011-manual-dialog-1";
 
@@ -412,7 +412,14 @@ function bindEvents() {
     translateStaticAdminUi();
     render();
   });
-  window.addEventListener("resize", () => renderSlotManager());
+  let resizeFrame = null;
+  window.addEventListener("resize", () => {
+    if (resizeFrame !== null) return;
+    resizeFrame = window.requestAnimationFrame(() => {
+      resizeFrame = null;
+      renderSlotManager();
+    });
+  });
 }
 
 function createRepository() {
@@ -521,12 +528,15 @@ async function refreshDateOptions({ keepOnError = false } = {}) {
   const requestId = ++dateOptionsRefreshSequence;
   try {
     const summaries = await Promise.all(requestedDates.map(async (date) => {
-      const [appointments, daySettings, manualSchedule, timeBlocks] = await Promise.all([
-        state.repository.listAppointments(date),
-        state.repository.getDaySettings(date),
-        loadManualSchedule(date),
-        state.repository.listTimeBlocks(date),
-      ]);
+      const snapshot = await state.repository.getDaySnapshot?.(date);
+      const [appointments, daySettings, manualSchedule, timeBlocks] = snapshot
+        ? [snapshot.appointments, snapshot.daySettings, snapshot.manualSchedule, snapshot.timeBlocks]
+        : await Promise.all([
+          state.repository.listAppointments(date),
+          state.repository.getDaySettings(date),
+          loadManualSchedule(date),
+          state.repository.listTimeBlocks(date),
+        ]);
       const manualEntries = manualSchedule.allEntries || [
         ...manualSchedule.blockedSlots.map((item) => ({ ...item, laneKey: item.laneKey || "a" })),
         ...groupStaffOverrides(manualSchedule.overflowSlots).map((item) => ({ ...item, laneKey: item.laneKey || "b" })),
@@ -641,8 +651,14 @@ async function refreshUpcomingLog({ onlyIfChanged = false } = {}) {
   const startDate = toDateInputValue(new Date());
   const requestId = ++logRefreshSequence;
   try {
+    if (onlyIfChanged && state.repository.getAppointmentsSignatureFrom) {
+      const signature = await state.repository.getAppointmentsSignatureFrom(startDate);
+      if (requestId !== logRefreshSequence || (!state.isOwner && state.repository.authSupported)) return true;
+      if (signature === state.upcomingAppointmentsSignature) return true;
+    }
     const appointments = await state.repository.listAppointmentsFrom(startDate);
     if (requestId !== logRefreshSequence || (!state.isOwner && state.repository.authSupported)) return true;
+    state.upcomingAppointmentsSignature = buildAppointmentsSignature(appointments);
     if (!onlyIfChanged || JSON.stringify(appointments) !== JSON.stringify(state.upcomingAppointments)) {
       state.upcomingAppointments = appointments;
       renderUpcomingLog();
@@ -654,6 +670,13 @@ async function refreshUpcomingLog({ onlyIfChanged = false } = {}) {
     return false;
   }
   return true;
+}
+
+function buildAppointmentsSignature(appointments) {
+  return appointments
+    .map((appointment) => `${appointment.id}:${appointment.status}`)
+    .sort()
+    .join("|");
 }
 
 function render() {

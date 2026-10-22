@@ -7,6 +7,7 @@ export function createAdminState({ daySettings, laneLayout, services }) {
     manualEntries: [],
     timeBlocks: [],
     upcomingAppointments: [],
+    upcomingAppointmentsSignature: "",
     dateOptions: [],
     daySettings,
     isOwner: false,

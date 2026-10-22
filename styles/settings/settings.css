@@ -185,13 +185,14 @@ button { cursor: pointer; }
 .editor-actions > .delete-command { color: #9b3037; }
 .settings-dialog { width: min(430px, calc(100% - 32px)); border: 1px solid #191b19; padding: 22px; background: var(--theme-page); color: #191b19; }
 .settings-dialog::backdrop { background: rgba(25, 27, 25, .32); }
+html:has(.settings-dialog[open]), body:has(.settings-dialog[open]) { overflow: hidden; }
 #deleteDialog h2 { margin: 0 0 8px; font-size: 19px; }
 #deleteDialog p { margin: 0 0 22px; color: #687169; font-size: 13px; line-height: 1.45; }
 #deleteDialog > form > div { display: flex; justify-content: flex-end; gap: 8px; }
 #deleteDialog button { border: 1px solid #aeb7ad; background: var(--theme-field); padding: 9px 13px; font-weight: 700; }
 #deleteDialog .delete-command { border-color: #9b3037; background: #9b3037; color: #fff; }
-.catalog-editor-dialog { width: min(760px, calc(100% - 32px)); max-height: min(820px, calc(100vh - 32px)); padding: 0; overflow-y: auto; }
-.catalog-editor-dialog .service-editor { padding: 24px clamp(20px, 5vw, 44px) 28px; }
+.catalog-editor-dialog { width: min(760px, calc(100% - 32px)); max-height: min(820px, calc(100dvh - 32px)); padding: 0; overflow: hidden; }
+.catalog-editor-dialog .service-editor { max-height: min(820px, calc(100dvh - 32px)); padding: 24px clamp(20px, 5vw, 44px) 28px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .staff-editor-dialog { width: min(680px, calc(100% - 32px)); }
 .catalog-dialog-close { display: grid; width: 34px; height: 34px; place-items: center; flex: none; border: 0; background: transparent; color: #4d564f; padding: 0; font-size: 25px; font-weight: 400; line-height: 1; }
 .catalog-dialog-close:hover { background: var(--theme-hover); color: #191b19; }
@@ -216,7 +217,8 @@ button { cursor: pointer; }
   .catalog-actions button { padding: 8px 9px; font-size: 11px; }
   .settings-service-list { max-height: none; }
   .catalog-order-actions { padding-inline: 4px; }
-  .catalog-editor-dialog { width: calc(100% - 16px); max-height: calc(100vh - 16px); }
+  .catalog-editor-dialog { width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
+  .catalog-editor-dialog .service-editor { max-height: calc(100dvh - 16px); }
   .catalog-editor-dialog .service-editor { padding: 18px 14px 22px; }
   .service-editor { padding: 20px 4px 24px; }
   .editor-heading { gap: 10px; }

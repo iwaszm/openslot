@@ -175,6 +175,25 @@ export function createSupabaseAdminRepository({
       }
       return rows.map(mapAppointment);
     },
+    async getAppointmentsSignatureFrom(startDate) {
+      const salon = await salonPromise;
+      const rows = [];
+      let offset = 0;
+      while (true) {
+        const { data, error } = await client
+          .from("appointments")
+          .select("id, status")
+          .eq("salon_id", salon.id)
+          .gte("appointment_date", startDate)
+          .order("id", { ascending: true })
+          .range(offset, offset + appointmentPageSize - 1);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < appointmentPageSize) break;
+        offset += appointmentPageSize;
+      }
+      return rows.map((row) => `${row.id}:${row.status}`).join("|");
+    },
     async cancelAppointment(id) {
       const salon = await salonPromise;
       const { error } = await client

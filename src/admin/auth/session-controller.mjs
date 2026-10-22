@@ -1,7 +1,9 @@
 export function createAdminSessionController({ elements, repository, security, state, t, onAccessChanged, renderAuthState }) {
   let loginPending = false;
+  let currentUserId = null;
 
   async function applyUser(user) {
+    currentUserId = user?.id || null;
     state.isOwner = false;
     state.accessRole = null;
     state.accessStaffId = null;
@@ -22,6 +24,7 @@ export function createAdminSessionController({ elements, repository, security, s
     if (!repository.authSupported) { renderAuthState({ email: "local-demo" }); return; }
     await applyUser(await repository.getCurrentUser());
     repository.onAuthChange(async (user) => {
+      if ((user?.id || null) === currentUserId) return;
       await applyUser(user);
       await onAccessChanged();
     });
