@@ -3,7 +3,9 @@ import {
   VoiceContractError,
   finalizeVoiceAppointment,
   isSupportedAudioType,
+  matchCatalogAliases,
   normalizeVoiceContext,
+  resolveSpokenDate,
 } from "./contract.mjs";
 
 const jsonHeaders = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
@@ -71,14 +73,14 @@ const responseSchema = {
   properties: {
     date: { type: "string" },
     startTime: { type: "string" },
-    serviceId: { type: "string" },
-    staffKey: { type: "string" },
+    serviceCode: { type: "string" },
+    staffCode: { type: "string" },
     note: { type: "string" },
     staffMentioned: { type: "boolean" },
     serviceAmbiguous: { type: "boolean" },
     staffAmbiguous: { type: "boolean" },
   },
-  required: ["date", "startTime", "serviceId", "staffKey", "note", "staffMentioned", "serviceAmbiguous", "staffAmbiguous"],
+  required: ["date", "startTime", "serviceCode", "staffCode", "note", "staffMentioned", "serviceAmbiguous", "staffAmbiguous"],
 };
 
 function errorDetails(error) {
@@ -115,7 +117,6 @@ async function handleRequest(request, env) {
     return errorResponse("INVALID_CONTEXT", "预约上下文不是有效 JSON。", 400);
   }
 
-  const catalogPrompt = JSON.stringify({ services: context.services, staff: context.staff });
   const audioBuffer = await audio.arrayBuffer();
   let transcription;
   try {
@@ -130,6 +131,29 @@ async function handleRequest(request, env) {
   const transcript = String(transcription?.text || transcription?.transcription_info?.text || "").trim();
   if (!transcript) return errorResponse("EMPTY_TRANSCRIPT", "没有识别到有效语音。", 422);
 
+  const serviceMatch = matchCatalogAliases(transcript, context.services);
+  const staffMatch = matchCatalogAliases(transcript, context.staff);
+  const spokenDate = resolveSpokenDate(transcript, context.currentDate);
+  const serviceCodes = new Map(context.services.map((service, index) => [`S${index + 1}`, service.id]));
+  const staffCodes = new Map(context.staff.map((employee, index) => [`E${index + 1}`, employee.key]));
+  const serviceCodeById = new Map([...serviceCodes].map(([code, id]) => [id, code]));
+  const staffCodeByKey = new Map([...staffCodes].map(([code, key]) => [key, code]));
+  const catalogPrompt = JSON.stringify({
+    services: context.services.map((service) => ({ code: serviceCodeById.get(service.id), aliases: service.aliases })),
+    staff: context.staff.map((employee) => ({
+      code: staffCodeByKey.get(employee.key),
+      aliases: employee.aliases,
+      serviceCodes: employee.serviceIds.map((id) => serviceCodeById.get(id)).filter(Boolean),
+    })),
+  });
+  const deterministicPrompt = JSON.stringify({
+    date: spokenDate.date,
+    serviceCode: serviceMatch.matched ? serviceCodeById.get(serviceMatch.key) : "",
+    serviceAmbiguous: serviceMatch.ambiguous,
+    staffCode: staffMatch.matched ? staffCodeByKey.get(staffMatch.key) : "",
+    staffAmbiguous: staffMatch.ambiguous,
+  });
+
   let semantic;
   try {
     semantic = await env.AI.run(semanticModel, {
@@ -139,11 +163,12 @@ async function handleRequest(request, env) {
           content: [
             "你是预约字段解析器，只能输出符合 JSON schema 的数据。",
             `现实日期是 ${context.currentDate}，时区 ${context.timezone}，后台当前选择日期是 ${context.selectedDate}。`,
-            "没说日期时 date 返回空字符串；今天或明天必须按现实日期计算。",
+            "没说日期时 date 返回空字符串。代码预解析得到的非空 date 必须原样返回。",
             "开始时间和项目必填，但缺失时返回空字符串，不允许猜测。",
-            "项目只能从目录 aliases 精确或明确匹配并返回真实 id；歧义时 serviceAmbiguous=true。",
-            "员工未被提及时 staffMentioned=false 且 staffKey为空字符串；明确提到但无法唯一匹配时 staffMentioned=true 且 staffAmbiguous=true。",
+            "项目只能从目录 aliases 精确或明确匹配并返回 serviceCode；代码预匹配非空时必须原样返回；歧义时 serviceAmbiguous=true。",
+            "员工未被提及时 staffMentioned=false 且 staffCode为空字符串；代码预匹配非空时必须原样返回；明确提到但无法唯一匹配时 staffMentioned=true 且 staffAmbiguous=true。",
             "note 只保留日期、时间、项目、员工之外的信息，简短中文，不超过 12 字。",
+            `代码预解析：${deterministicPrompt}`,
             `目录：${catalogPrompt}`,
           ].join("\n"),
         },
@@ -151,12 +176,23 @@ async function handleRequest(request, env) {
       ],
       response_format: { type: "json_schema", json_schema: responseSchema },
       temperature: 0,
-      max_tokens: 350,
+      max_tokens: 220,
     });
   } catch (error) {
     throw new VoiceContractError("SEMANTIC_FAILED", `已识别“${Array.from(transcript).slice(0, 40).join("")}”，但预约解析失败：${errorDetails(error)}`, 502);
   }
-  const appointment = finalizeVoiceAppointment(parseAiJson(semantic), context);
+  const parsed = parseAiJson(semantic);
+  const serviceCode = serviceMatch.matched ? serviceCodeById.get(serviceMatch.key) : String(parsed.serviceCode || "");
+  const staffCode = staffMatch.matched ? staffCodeByKey.get(staffMatch.key) : String(parsed.staffCode || "");
+  const appointment = finalizeVoiceAppointment({
+    ...parsed,
+    date: spokenDate.date || parsed.date,
+    serviceId: serviceCodes.get(serviceCode) || "",
+    staffKey: staffCodes.get(staffCode) || "",
+    serviceAmbiguous: serviceMatch.ambiguous || parsed.serviceAmbiguous === true,
+    staffAmbiguous: staffMatch.ambiguous || parsed.staffAmbiguous === true,
+    staffMentioned: staffMatch.matched || parsed.staffMentioned === true,
+  }, context);
   return jsonResponse({ transcript, appointment });
 }
 

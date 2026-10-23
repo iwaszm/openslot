@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { VoiceContractError, finalizeVoiceAppointment, isSupportedAudioType, normalizeVoiceContext } from "../../workers/admin-voice/src/contract.mjs";
+import {
+  VoiceContractError,
+  finalizeVoiceAppointment,
+  isSupportedAudioType,
+  matchCatalogAliases,
+  normalizeVoiceContext,
+  resolveSpokenDate,
+} from "../../workers/admin-voice/src/contract.mjs";
 import { chooseRecordingMimeType, voiceErrorMessage } from "../../src/admin/voice-input-controller.mjs";
 import voiceWorker from "../../workers/admin-voice/src/index.mjs";
 
@@ -31,6 +38,22 @@ test("normalizes the back-office language for Whisper", () => {
   assert.equal(normalizeVoiceContext({ ...context, language: "de" }).language, "de");
   assert.equal(normalizeVoiceContext({ ...context, language: "en" }).language, "en");
   assert.equal(normalizeVoiceContext({ ...context, language: "fr" }).language, "de");
+});
+
+test("resolves relative weekdays from the real Berlin date", () => {
+  assert.deepEqual(resolveSpokenDate("这周六下午一点", "2026-10-23"), { mentioned: true, date: "2026-10-24" });
+  assert.deepEqual(resolveSpokenDate("下周六下午一点", "2026-10-23"), { mentioned: true, date: "2026-10-31" });
+  assert.deepEqual(resolveSpokenDate("next Monday at ten", "2026-10-23"), { mentioned: true, date: "2026-10-26" });
+  assert.deepEqual(resolveSpokenDate("morgen um zehn", "2026-10-23"), { mentioned: true, date: "2026-10-24" });
+});
+
+test("pre-matches unique service and staff aliases", () => {
+  assert.deepEqual(matchCatalogAliases("Tony 男士剪发，下午一点", context.services), {
+    matched: true, ambiguous: false, key: "herren_haarschnitt",
+  });
+  assert.deepEqual(matchCatalogAliases("Tony 男士剪发，下午一点", context.staff), {
+    matched: true, ambiguous: false, key: "tony",
+  });
 });
 
 test("uses selected date and default staff when they were not spoken", () => {
@@ -130,7 +153,7 @@ test("voice worker passes the configured back-office language to Whisper", async
         calls.push({ model, input });
         if (model.includes("whisper")) return { text: "um drei Uhr Herren Haarschnitt" };
         return { response: JSON.stringify({
-          date: "", startTime: "15:00", serviceId: "herren_haarschnitt", staffKey: "",
+          date: "", startTime: "15:00", serviceCode: "S1", staffCode: "",
           note: "", staffMentioned: false, serviceAmbiguous: false, staffAmbiguous: false,
         }) };
       },

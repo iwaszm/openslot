@@ -1,6 +1,7 @@
 const MIN_RECORDING_MS = 700;
 const MAX_RECORDING_MS = 60_000;
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+const VOICE_REQUEST_TIMEOUT_MS = 45_000;
 const MIME_CANDIDATES = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
 
 const errorMessages = {
@@ -71,10 +72,17 @@ export function createVoiceInputController(options) {
     stream = null;
   };
 
+  const releasePointer = () => {
+    if (pointerId !== null && button.hasPointerCapture?.(pointerId)) {
+      try { button.releasePointerCapture(pointerId); } catch (_error) { /* Capture may already be gone. */ }
+    }
+    pointerId = null;
+  };
+
   const reset = () => {
     clearTimeout(maximumTimer);
     maximumTimer = null;
-    pointerId = null;
+    releasePointer();
     recorder = null;
     chunks = [];
     recordingStartedAt = 0;
@@ -92,16 +100,22 @@ export function createVoiceInputController(options) {
     form.append("audio", blob, `appointment.${extension}`);
     form.append("context", JSON.stringify(getContext()));
     let response;
+    const requestController = new AbortController();
+    const requestTimeout = setTimeout(() => requestController.abort(), VOICE_REQUEST_TIMEOUT_MS);
     try {
       response = await fetch(endpoint, {
         method: "POST",
         body: form,
         headers: await getRequestHeaders(),
         credentials: "same-origin",
+        signal: requestController.signal,
       });
     } catch (error) {
       if (error?.code) throw error;
-      throw Object.assign(new Error("Network error"), { code: "NETWORK_ERROR" });
+      const timedOut = error?.name === "AbortError";
+      throw Object.assign(new Error(timedOut ? "Voice request timed out" : "Network error"), { code: "NETWORK_ERROR" });
+    } finally {
+      clearTimeout(requestTimeout);
     }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -173,7 +187,7 @@ export function createVoiceInputController(options) {
   const onPointerUp = (event) => {
     if (event.pointerId !== pointerId) return;
     event.preventDefault();
-    pointerId = null;
+    releasePointer();
     if (state === "requesting") return;
     if (state !== "recording") return;
     const duration = performance.now() - recordingStartedAt;
@@ -187,7 +201,7 @@ export function createVoiceInputController(options) {
 
   const onPointerCancel = (event) => {
     if (event.pointerId !== pointerId) return;
-    pointerId = null;
+    releasePointer();
     finishRecorder({ discard: true });
   };
 

@@ -38,6 +38,80 @@ function uniqueStrings(value, limit = 12) {
   return [...new Set(value.map((item) => String(item || "").trim()).filter(Boolean))].slice(0, limit);
 }
 
+function localDateParts(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return { year, month, day };
+}
+
+function shiftDate(value, days) {
+  const { year, month, day } = localDateParts(value);
+  const date = new Date(Date.UTC(year, month - 1, day + days, 12));
+  return date.toISOString().slice(0, 10);
+}
+
+function weekday(value) {
+  const { year, month, day } = localDateParts(value);
+  const jsDay = new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay();
+  return jsDay === 0 ? 7 : jsDay;
+}
+
+const weekdayAliases = [
+  { day: 1, values: ["周一", "星期一", "monday", "montag"] },
+  { day: 2, values: ["周二", "星期二", "tuesday", "dienstag"] },
+  { day: 3, values: ["周三", "星期三", "wednesday", "mittwoch"] },
+  { day: 4, values: ["周四", "星期四", "thursday", "donnerstag"] },
+  { day: 5, values: ["周五", "星期五", "friday", "freitag"] },
+  { day: 6, values: ["周六", "星期六", "saturday", "samstag"] },
+  { day: 7, values: ["周日", "星期日", "星期天", "sunday", "sonntag"] },
+];
+
+export function resolveSpokenDate(transcript, currentDate) {
+  const text = String(transcript || "").toLocaleLowerCase().replace(/\s+/g, " ").trim();
+  if (!text) return { mentioned: false, date: "" };
+  const relativeDays = [
+    { values: ["后天", "übermorgen", "uebermorgen", "day after tomorrow"], days: 2 },
+    { values: ["明天", "morgen", "tomorrow"], days: 1 },
+    { values: ["今天", "heute", "today"], days: 0 },
+  ];
+  for (const item of relativeDays) {
+    if (item.values.some((value) => text.includes(value))) return { mentioned: true, date: shiftDate(currentDate, item.days) };
+  }
+
+  for (const item of weekdayAliases) {
+    const alias = item.values.find((value) => text.includes(value));
+    if (!alias) continue;
+    const isNext = text.includes(`下${alias}`)
+      || text.includes(`下个${alias}`)
+      || text.includes(`next ${alias}`)
+      || text.includes(`nächsten ${alias}`)
+      || text.includes(`naechsten ${alias}`);
+    const mondayOffset = 1 - weekday(currentDate);
+    const targetOffset = mondayOffset + (isNext ? 7 : 0) + item.day - 1;
+    return { mentioned: true, date: shiftDate(currentDate, targetOffset) };
+  }
+  return { mentioned: false, date: "" };
+}
+
+function normalizeAlias(value) {
+  return String(value || "").normalize("NFKC").toLocaleLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
+}
+
+export function matchCatalogAliases(transcript, items) {
+  const text = normalizeAlias(transcript);
+  const matches = [];
+  for (const item of items || []) {
+    const aliases = (item.aliases || []).map(normalizeAlias).filter((alias) => alias.length >= 2);
+    const best = aliases.filter((alias) => text.includes(alias)).sort((a, b) => b.length - a.length)[0];
+    if (best) matches.push({ key: item.id || item.key, length: best.length });
+  }
+  if (!matches.length) return { matched: false, ambiguous: false, key: "" };
+  const longest = Math.max(...matches.map((item) => item.length));
+  const winners = matches.filter((item) => item.length === longest);
+  return winners.length === 1
+    ? { matched: true, ambiguous: false, key: winners[0].key }
+    : { matched: false, ambiguous: true, key: "" };
+}
+
 export function normalizeVoiceContext(input) {
   if (!input || typeof input !== "object") throw new VoiceContractError("INVALID_CONTEXT", "预约上下文无效。");
   const currentDate = String(input.currentDate || "");

@@ -42,6 +42,7 @@ import { createAdminSessionController } from "./src/admin/auth/session-controlle
 import { createDateNavigationController } from "./src/admin/schedule/date-navigation.mjs";
 import { createManualBookingController } from "./src/admin/appointments/manual-booking-controller.mjs?v=20261011-manual-dialog-1";
 import { createVoiceInputController } from "./src/admin/voice-input-controller.mjs";
+import { playAppointmentCreatedSound, playAppointmentDeletedSound, prepareAudioFeedback } from "./src/core/audio-feedback.mjs";
 
 const DEFAULT_SERVICES = [
   { id: "damen_haarschnitt", name: "Damen Haarschnitt", shortName: "SchnittD", duration: 60, bookedSlots: [1, 2], price: 30, priceFrom: false, category: "cut", gender: "female", isActive: true },
@@ -416,6 +417,7 @@ async function createDemoVoiceAppointment(appointment) {
   if (!lane) throw new Error(`${appointment.startTime} 已无可用 Lane。`);
 
   await saveManualService(lane.storageKey, startMinutes, service, null, appointment.note || "", appointment.date);
+  playAppointmentCreatedSound();
   els.adminDateInput.value = appointment.date;
   const selectedIndex = state.dateOptions.findIndex((option) => option.date === appointment.date);
   if (selectedIndex >= 0) state.datePageStart = getCalendarPageStart(selectedIndex);
@@ -426,6 +428,7 @@ async function createDemoVoiceAppointment(appointment) {
 init();
 
 async function init() {
+  document.addEventListener("pointerdown", prepareAudioFeedback, { capture: true, once: true });
   translateStaticAdminUi();
   if (els.adminDateInput) {
     els.adminDateInput.value = toDateInputValue(new Date());
@@ -1143,14 +1146,8 @@ async function handleLaneAction(lane, startMinutesValue, action, serviceId = nul
   try {
     if (action === "clear") {
       if (!existing) return;
-      const confirmed = await window.OpenSlotConfirm.ask({
-        title: "Eintrag löschen",
-        message: "Diesen manuellen Eintrag wirklich löschen?",
-        confirmLabel: "Löschen",
-        tone: "danger",
-      });
-      if (!confirmed) return;
       await clearManualItem(lane, existing);
+      playAppointmentDeletedSound();
     } else {
       if (action === "service") {
         const service = findService(serviceId);
@@ -1607,6 +1604,7 @@ async function submitManualBooking(event) {
   const submit = els.manualBookingForm.querySelector('[type="submit"]');
   submit.disabled = true;
   try {
+    const isNewAppointment = !manualBookingController.entry;
     await saveManualService(
       lane.storageKey,
       startMinutes,
@@ -1615,6 +1613,7 @@ async function submitManualBooking(event) {
       els.bookingNote?.value.trim() || "",
       els.bookingDate.value,
     );
+    if (isNewAppointment) playAppointmentCreatedSound();
     els.bookingDialog.close();
     els.adminDateInput.value = els.bookingDate.value;
     const selectedIndex = state.dateOptions.findIndex((option) => option.date === els.bookingDate.value);
@@ -1656,16 +1655,9 @@ function editSelectedManualEntry(entry) {
 async function deleteSelectedManualEntry(entry) {
   const entryId = entry?.id || entry?.scheduleEntryId;
   if (!entryId) return;
-  const confirmed = await window.OpenSlotConfirm.ask({
-    title: t("admin.manualDeleteTitle"),
-    message: t("admin.manualDeleteMessage"),
-    confirmLabel: t("common.delete"),
-    cancelLabel: t("common.cancel"),
-    tone: "danger",
-  });
-  if (!confirmed) return;
   try {
     await state.repository.deleteManualScheduleEntry(entryId);
+    playAppointmentDeletedSound();
     detailController.close();
     await Promise.all([refreshDateOptions(), refreshDayData()]);
     showToast(t("admin.manualDeleted"));
