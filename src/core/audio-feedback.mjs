@@ -3,22 +3,33 @@ let audioContext = null;
 function getAudioContext() {
   const AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
   if (!AudioContextClass) return null;
+  if (audioContext?.state === "closed") audioContext = null;
   audioContext ||= new AudioContextClass();
-  if (audioContext.state === "suspended") void audioContext.resume();
   return audioContext;
 }
 
 export function prepareAudioFeedback() {
-  getAudioContext();
+  const context = getAudioContext();
+  if (!context) return;
+  const buffer = context.createBuffer(1, 1, 22050);
+  const source = context.createBufferSource();
+  source.buffer = buffer;
+  source.connect(context.destination);
+  source.start(0);
+  if (context.state === "suspended") void context.resume().catch(() => {});
 }
 
 function playToneSequence(tones) {
   const context = getAudioContext();
   if (!context) return;
+  if (context.state === "suspended") {
+    void context.resume().then(() => playToneSequence(tones)).catch(() => {});
+    return;
+  }
   const start = context.currentTime + 0.015;
   const master = context.createGain();
   master.gain.setValueAtTime(0.0001, start);
-  master.gain.exponentialRampToValueAtTime(0.12, start + 0.012);
+  master.gain.exponentialRampToValueAtTime(0.24, start + 0.012);
   master.gain.exponentialRampToValueAtTime(0.0001, start + tones.at(-1).offset + tones.at(-1).duration + 0.08);
   master.connect(context.destination);
   tones.forEach(({ frequency, offset, duration }) => {

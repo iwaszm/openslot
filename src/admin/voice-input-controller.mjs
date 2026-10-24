@@ -48,6 +48,7 @@ export function createVoiceInputController(options) {
     getContext,
     createAppointment,
     showToast,
+    onShortPress = null,
   } = options;
   let state = "idle";
   let pointerId = null;
@@ -67,10 +68,16 @@ export function createVoiceInputController(options) {
     status.hidden = next === "idle";
   };
 
-  const stopTracks = () => {
+  const disableStream = () => {
+    stream?.getAudioTracks().forEach((track) => { track.enabled = false; });
+  };
+
+  const releaseStream = () => {
     stream?.getTracks().forEach((track) => track.stop());
     stream = null;
   };
+
+  const hasLiveStream = () => stream?.getAudioTracks().some((track) => track.readyState === "live");
 
   const releasePointer = () => {
     if (pointerId !== null && button.hasPointerCapture?.(pointerId)) {
@@ -87,7 +94,7 @@ export function createVoiceInputController(options) {
     chunks = [];
     recordingStartedAt = 0;
     discardRecording = false;
-    stopTracks();
+    disableStream();
     setState("idle");
   };
 
@@ -148,9 +155,13 @@ export function createVoiceInputController(options) {
     }
     setState("requesting", "正在申请麦克风权限");
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
+      if (!hasLiveStream()) {
+        releaseStream();
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
+      }
+      stream.getAudioTracks().forEach((track) => { track.enabled = true; });
       if (pointerId !== event.pointerId) {
-        stopTracks();
+        disableStream();
         setState("idle");
         showToast("麦克风已就绪，请再次长按录音。", "error");
         return;
@@ -163,7 +174,7 @@ export function createVoiceInputController(options) {
         const type = recorder?.mimeType || chunks[0]?.type || mimeType || "audio/webm";
         const blob = new Blob(chunks, { type });
         const shouldDiscard = discardRecording;
-        stopTracks();
+        disableStream();
         if (shouldDiscard) { reset(); return; }
         try {
           await submitAudio(blob);
@@ -193,6 +204,10 @@ export function createVoiceInputController(options) {
     const duration = performance.now() - recordingStartedAt;
     if (duration < MIN_RECORDING_MS) {
       finishRecorder({ discard: true });
+      if (typeof onShortPress === "function") {
+        onShortPress();
+        return;
+      }
       showToast("按住时间太短，未提交录音。", "error");
       return;
     }
@@ -212,6 +227,13 @@ export function createVoiceInputController(options) {
     if (event.pointerId === pointerId && state === "recording") onPointerCancel(event);
   });
   button.addEventListener("contextmenu", (event) => event.preventDefault());
+  const releaseWhenHidden = () => {
+    if (document.visibilityState === "hidden") {
+      finishRecorder({ discard: true });
+      releaseStream();
+    }
+  };
+  document.addEventListener("visibilitychange", releaseWhenHidden);
   setState("idle");
 
   return {
@@ -221,6 +243,8 @@ export function createVoiceInputController(options) {
       button.removeEventListener("pointerdown", onPointerDown);
       button.removeEventListener("pointerup", onPointerUp);
       button.removeEventListener("pointercancel", onPointerCancel);
+      document.removeEventListener("visibilitychange", releaseWhenHidden);
+      releaseStream();
     },
   };
 }

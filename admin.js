@@ -346,6 +346,12 @@ function initializeDemoVoiceInput() {
     getContext: buildDemoVoiceContext,
     createAppointment: createDemoVoiceAppointment,
     showToast,
+    onShortPress: new URLSearchParams(window.location.search).has("audio-feedback")
+      ? () => {
+        playAppointmentCreatedSound();
+        showToast("正在播放创建预约提示音。");
+      }
+      : null,
   });
   els.voiceAppointmentControl.hidden = !state.isOwner;
 }
